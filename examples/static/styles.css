@@ -1,0 +1,56 @@
+
+.side-bar {
+    background-color: rgb(212, 186, 236);
+}
+
+.content {
+    padding-left: 16px;
+    padding-right: 16px;
+}
+
+body {
+    font-family: Helvetica, Arial, sans-serif;
+}
+/* body {
+    background-color: #0f0f23;
+    color: #cccccc;
+    font-family: "Source Code Pro", monospace;
+    font-size: 18.666666px;
+    font-weight: 300;
+    margin-left: 50px;
+    margin-right: 50px;
+}
+
+h1 {
+    color: #00cc00;
+    font-weight: 400;
+    outline-color: rgb(0, 204, 0);
+    outline-style: none;
+    outline-width: 0px;
+    text-decoration: none;
+    text-decoration-line: none;
+    text-shadow: 0 0 2px #00cc00, 0 0 5px #00cc00;
+    white-space: nowrap;
+}
+
+h2 {
+    color: #009900;;
+    margin-top: 1em;
+    margin-bottom: 1em;
+    white-space: nowrap;
+    font-weight: 400;
+}
+
+a {
+    text-decoration: none;
+    outline: none;
+    color: #009900;
+    list-style-type: none;
+    outline-color: rgb(0, 153, 0);
+    outline-style: none;
+    outline-width: 0px;
+    text-align: left;
+    text-decoration: none;
+    text-decoration-line: none;
+    white-space: nowrap;
+} */

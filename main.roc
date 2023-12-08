@@ -12,8 +12,8 @@ app "http"
         pf.Env,
         pf.Utc,
         pf.Url.{ Url },
-        html.Html.{ element, a, input, div, text, ul, li },
-        html.Attribute.{ attribute, src, id, href, action, method, class, value, role },
+        html.Html.{ element, a, input, div, text, ul, li, label },
+        html.Attribute.{ attribute, src, id, href, action, method, class, value, role, for },
         json.Core.{ json },
         "styles.css" as stylesFile : List U8,
         "site.js" as siteFile : List U8,
@@ -42,13 +42,15 @@ Page : [
 
 pageData : List { page : Page, title : Str, href : Str, description : Str }
 pageData = [
-    { page: HomePage, title: "Home", href: "/", description: "" },
-    { page: TaskListPage, title: "Tasks", href: "/task", description: "" },
+    { page: HomePage, title: "Home", href: "/", description: "The home page" },
+    { page: TaskListPage, title: "Tasks", href: "/task", description: "Manage tasks" },
 ]
 
 handleReq : Str, Request -> Task Response _
 handleReq = \dbPath, req ->
     when (req.method, req.url |> Url.fromStr |> urlSegments) is
+        (Get, ["robots.txt", ..]) -> 
+            staticReponse (Str.toUtf8 robotsTxt)
         (Get, ["styles.css", ..]) -> 
             staticReponse stylesFile
         (Get, ["site.js", ..]) -> 
@@ -73,7 +75,7 @@ handleReq = \dbPath, req ->
             |> requestBody
             |> parseAppTask
             |> Task.fromResult
-            |> Task.await (createAppTask dbPath) # TODO if we fail to create, redirect to an error page??
+            |> Task.await (createAppTask dbPath)
             |> Task.await \_ -> redirect "/task"
             |> Task.onErr handleErr
         (Get, ["task", ..]) ->
@@ -85,6 +87,12 @@ handleReq = \dbPath, req ->
 
 layout : Page, List Html.Node -> Html.Node
 layout = \page, children ->
+
+    {description, title} = 
+        pageData 
+        |> List.keepIf \curr -> curr.page == page
+        |> List.first 
+        |> unwrap "unable to get page from pageData"
 
     header =
         Html.header [] [
@@ -130,7 +138,10 @@ layout = \page, children ->
 
     Html.html [(attribute "lang") "en",  (attribute "data-bs-theme") "auto"] [
         Html.head [] [
-            Html.meta [(attribute "name") "viewport", Attribute.content "width=device-width, initial-scale=1"] [],
+            (element "title") [] [text title],
+            Html.meta [(attribute "charset") "UTF-8"] [],
+            Html.meta [(attribute "name") "description", (attribute "content") description] [],
+            Html.meta [(attribute "name") "viewport", (attribute "content") "width=device-width, initial-scale=1"] [],
             Html.link [
                 Attribute.rel "stylesheet",
                 href "https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css",
@@ -238,7 +249,12 @@ taskPage = \tasks ->
                     Html.td [(attribute "scope") "row", class "col-6"] [text task.task],
                     Html.td [class "col-3"] [text task.status],
                     Html.td [class "col-3"] [
-                        a [ href "", hxPost "/task/\(Num.toStr task.id)/delete", hxTarget "body" ] [
+                        a [ 
+                            href "", 
+                            hxPost "/task/\(Num.toStr task.id)/delete", 
+                            hxTarget "body",
+                            (attribute "aria-label") "delete task",
+                         ] [
                             (element "button") [
                                 (attribute "type") "button", 
                                 class "btn btn-danger",
@@ -268,7 +284,14 @@ createAppTaskView =
     Html.form [action "/task/new",method "post", class "mt-2"][
         div [class "row g-3 align-items-center"] [
             div [class "col-auto"] [
-                input [(attribute "name") "task", (attribute "type") "text", class "form-control"] [],
+                label [for "task", class "d-none"] [text "input the task description"],
+                input [
+                    id "task", 
+                    (attribute "name") "task", 
+                    (attribute "type") "text", 
+                    class "form-control",
+                    (attribute "placeholder") "Describe a task",
+                ] [],
             ],
             # hidden form input
             input [(attribute "name") "status", value "In-Progress", (attribute "type") "text", class "d-none"] [],
@@ -417,15 +440,15 @@ parseFormUrlEncoded = \bytes ->
             [] if List.isEmpty chomped -> dict
             [] ->
                 # chomped last value
-                keyStr = key |> Str.fromUtf8 |> unwrap
-                valueStr = chomped |> Str.fromUtf8 |> unwrap
+                keyStr = key |> Str.fromUtf8 |> unwrap "chomped invalid utf8 key"
+                valueStr = chomped |> Str.fromUtf8 |> unwrap "chomped invalid utf8 value"
 
                 Dict.insert dict keyStr valueStr
 
             ['=', ..] -> go next ParsingValue chomped [] dict # put chomped into key
             ['&', ..] ->
-                keyStr = key |> Str.fromUtf8 |> unwrap
-                valueStr = chomped |> Str.fromUtf8 |> unwrap
+                keyStr = key |> Str.fromUtf8 |> unwrap "chomped invalid utf8 key"
+                valueStr = chomped |> Str.fromUtf8 |> unwrap "chomped invalid utf8 value"
 
                 go next ParsingKey [] [] (Dict.insert dict keyStr valueStr)
 
@@ -451,10 +474,10 @@ expect
     |> Dict.toList
     |> Bool.isEq [("task", "asdfs adf"), ("status", "qwerwe")]
 
-unwrap = \thing ->
+unwrap = \thing, msg ->
     when thing is
         Ok unwrapped -> unwrapped
-        Err _ -> crash "unable to unwrap thing"
+        Err _ -> crash "CRASHED \(msg)"
 
 hexBytesToU32 : List U8 -> U32
 hexBytesToU32 = \bytes ->
@@ -496,4 +519,9 @@ hexToDec = \byte ->
 
 expect hexToDec '0' == 0
 expect hexToDec 'F' == 15
-    
+
+robotsTxt = 
+    """
+    User-agent: *
+    Disallow: /
+    """

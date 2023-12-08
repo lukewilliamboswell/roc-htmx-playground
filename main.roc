@@ -6,6 +6,7 @@ app "http"
     }
     imports [
         pf.Stdout,
+        pf.Stderr,
         pf.Task.{ Task },
         pf.Http.{ Request, Response },
         pf.Command,
@@ -76,8 +77,11 @@ handleReq = \dbPath, req ->
             |> parseAppTask
             |> Task.fromResult
             |> Task.await (createAppTask dbPath)
-            |> Task.await \_ -> redirect "/task"
-            |> Task.onErr handleErr
+            |> Task.attempt \result -> 
+                when result is 
+                    Ok {} -> redirect "/task"
+                    Err TaskWasEmpty -> redirect "/task"
+                    Err err -> handleErr err
         (Get, ["task", ..]) ->
             getAppTasks dbPath
             |> Task.map taskPage
@@ -178,7 +182,7 @@ Contact : Str
 storedContacts : List Contact
 storedContacts = ["Luke", "Joe", "Bob", "Bill", "Barry"]
 
-getContacts : Task (List Contact) Str
+getContacts : Task (List Contact) []_
 getContacts = Task.ok storedContacts
 
 listContactView : List Contact -> Html.Node
@@ -210,7 +214,7 @@ AppTask : {
     status : Str,
 }
 
-getAppTasks : Str -> Task (List AppTask) Str
+getAppTasks : Str -> Task (List AppTask) [SqliteErrorGetTask _, UnableToDecodeTask _]_
 getAppTasks = \dbPath ->
     output <-
         Command.new "sqlite3"
@@ -221,13 +225,13 @@ getAppTasks = \dbPath ->
         |> Task.await
 
     if output.status != Ok {} then
-        Task.err "unable to get Tasks from \(dbPath)"
+        Task.err (SqliteErrorGetTask output.stderr)
     else if List.isEmpty output.stdout then
         Task.ok []
     else
         when Decode.fromBytes output.stdout json is
             Ok tasks -> Task.ok tasks
-            Err _ -> Task.err "unable to decode tasks"
+            Err _ -> Task.err (UnableToDecodeTask output.stdout)
 
 taskPage : List AppTask -> Html.Node
 taskPage = \tasks ->
@@ -280,8 +284,8 @@ taskPage = \tasks ->
         ]
 
 createAppTaskView : Html.Node
-createAppTaskView =
-    Html.form [action "/task/new",method "post", class "mt-2"][
+createAppTaskView = 
+    Html.form [action "/task/new", method "post", class "mt-2"][
         div [class "row g-3 align-items-center"] [
             div [class "col-auto"] [
                 label [for "task", class "d-none"] [text "input the task description"],
@@ -291,6 +295,7 @@ createAppTaskView =
                     (attribute "type") "text", 
                     class "form-control",
                     (attribute "placeholder") "Describe a task",
+                    (attribute "required") "",
                 ] [],
             ],
             # hidden form input
@@ -301,8 +306,11 @@ createAppTaskView =
         ]
     ]
 
-createAppTask : Str -> (AppTask -> Task {} Str)
+createAppTask : Str -> (AppTask -> Task {} [TaskWasEmpty, SqliteErrorCreatingTask _]_)
 createAppTask = \dbPath -> \{ task, status } ->
+    if Str.isEmpty task then 
+        Task.err TaskWasEmpty
+    else 
         output <-
             Command.new "sqlite3"
             |> Command.arg dbPath
@@ -314,9 +322,9 @@ createAppTask = \dbPath -> \{ task, status } ->
 
         when output.status is
             Ok {} -> Task.ok {}
-            Err _ -> Task.err "unable to insert task into \(dbPath)"
+            Err msg -> Task.err (SqliteErrorCreatingTask msg)
 
-deleteAppTask : Str, Str -> Task {} Str
+deleteAppTask : Str, Str -> Task {} [SqliteErrorDeletingTask _]_
 deleteAppTask = \dbPath, idStr ->
     output <-
         Command.new "sqlite3"
@@ -328,20 +336,20 @@ deleteAppTask = \dbPath, idStr ->
 
     when output.status is
         Ok {} -> Task.ok {}
-        Err _ -> Task.err "unable to delete task from \(dbPath) with ID \(idStr)"
+        Err _ -> Task.err (SqliteErrorDeletingTask output.stderr)
 
-parseAppTask : List U8 -> Result AppTask Str
+parseAppTask : List U8 -> Result AppTask [UnableToParseBodyTask _]_
 parseAppTask = \bytes ->
     dict = parseFormUrlEncoded bytes
 
     task <-
         Dict.get dict "task"
-        |> Result.mapErr \_ -> "unable to parse \"task\" from body"
+        |> Result.mapErr \_ -> UnableToParseBodyTask bytes
         |> Result.try
 
     status <-
         Dict.get dict "status"
-        |> Result.mapErr \_ -> "unable to parse \"task\" from body"
+        |> Result.mapErr \_ -> UnableToParseBodyTask bytes
         |> Result.try
 
     Ok { id: 0, task, status }
@@ -372,7 +380,7 @@ htmlResponse = \node -> {
     body: Str.toUtf8 (Html.render node),
 }
 
-redirect : Str -> Task Response Str
+redirect : Str -> Task Response []_
 redirect = \next ->
     Task.ok {
         status: 303,
@@ -382,14 +390,17 @@ redirect = \next ->
         body: [],
     }
 
-handleErr : Str -> Task Response []
-handleErr = \msg ->
+handleErr : _ -> Task Response []
+handleErr = \err ->
+
+    {} <- Stderr.line (Inspect.toStr err) |> Task.await
+
     Task.ok {
         status: 500,
         headers: [
             { name: "Content-Type", value: Str.toUtf8 "text/html; charset=utf-8" },
         ],
-        body: Str.toUtf8 msg,
+        body: Str.toUtf8 "SERVER ERROR",
     }
 
 logRequest : Request -> Task {} *

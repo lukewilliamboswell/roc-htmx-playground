@@ -13,9 +13,10 @@ app "http"
         pf.Utc,
         pf.Url.{ Url },
         html.Html.{ element, a, input, div, text, ul, li },
-        html.Attribute.{ attribute, id, href, class, value },
+        html.Attribute.{ attribute, src, id, href, action, method, class, value, role },
         json.Core.{ json },
-        "styles.css" as stylesCSSImport : List U8,
+        "styles.css" as stylesFile : List U8,
+        "site.js" as siteFile : List U8,
     ]
     provides [main] to pf
 
@@ -36,20 +37,22 @@ main = \req ->
 
 Page : [
     HomePage,
-    TodoListPage,
+    TaskListPage,
 ]
 
 pageData : List { page : Page, title : Str, href : Str, description : Str }
 pageData = [
     { page: HomePage, title: "Home", href: "/", description: "" },
-    { page: TodoListPage, title: "Todos", href: "/todo", description: "" },
+    { page: TaskListPage, title: "Tasks", href: "/task", description: "" },
 ]
 
 handleReq : Str, Request -> Task Response _
 handleReq = \dbPath, req ->
     when (req.method, req.url |> Url.fromStr |> urlSegments) is
         (Get, ["styles.css", ..]) -> 
-            staticReponse stylesCSSImport
+            staticReponse stylesFile
+        (Get, ["site.js", ..]) -> 
+            staticReponse siteFile
         (Get, ["", ..]) -> 
             htmlResponse indexPage 
             |> Task.ok
@@ -58,24 +61,24 @@ handleReq = \dbPath, req ->
             |> Task.map listContactView 
             |> Task.map htmlResponse 
             |> Task.onErr handleErr
-        (Get, ["todo", "new", ..]) -> 
-            redirect "/todo" 
+        (Get, ["task", "new", ..]) -> 
+            redirect "/task" 
             |> Task.onErr handleErr
-        (Post, ["todo", idStr, "delete", ..]) ->
-            deleteTodo dbPath idStr
-            |> Task.await \_ -> redirect "/todo"
+        (Post, ["task", idStr, "delete", ..]) ->
+            deleteAppTask dbPath idStr
+            |> Task.await \_ -> redirect "/task"
             |> Task.onErr handleErr
-        (Post, ["todo", "new", ..]) ->
+        (Post, ["task", "new", ..]) ->
             req
             |> requestBody
-            |> parseTodo
+            |> parseAppTask
             |> Task.fromResult
-            |> Task.await (createTodo dbPath) # TODO if we fail to create a TODO redirect to an error??
-            |> Task.await \_ -> redirect "/todo"
+            |> Task.await (createAppTask dbPath) # TODO if we fail to create, redirect to an error page??
+            |> Task.await \_ -> redirect "/task"
             |> Task.onErr handleErr
-        (Get, ["todo", ..]) ->
-            getTodos dbPath
-            |> Task.map todoPage
+        (Get, ["task", ..]) ->
+            getAppTasks dbPath
+            |> Task.map taskPage
             |> Task.map htmlResponse
             |> Task.onErr handleErr
         (_, _) -> redirect "/" |> Task.onErr handleErr
@@ -85,9 +88,9 @@ layout = \page, children ->
 
     header =
         Html.header [] [
-            Html.nav [class "navbar navbar-expand-lg navbar-light bg-light"] [
+            Html.nav [class "navbar navbar-expand-md bg-body-tertiary"] [
                 div [class "container-fluid"] [
-                    a [class "navbar-brand", href "/"] [text "NAVBAR"],
+                    a [class "navbar-brand", href "/"] [text "DEMO"],
                     Html.button
                         [
                             class "navbar-toggler",
@@ -106,9 +109,16 @@ layout = \page, children ->
                             li [class "nav-item"] [
                                 a (
                                     if curr.page == page then
-                                        [class "nav-link active", (attribute "aria-current") "page", href curr.href]
+                                        [class "nav-link active", 
+                                        (attribute "aria-current") "page", 
+                                        href curr.href,
+                                        hxPushUrl "true",
+                                    ]
                                     else
-                                        [class "nav-link", href curr.href]
+                                        [class "nav-link", 
+                                        href curr.href,
+                                        hxPushUrl "true",
+                                    ]
                                 )
                                 [text curr.title],
                             ]
@@ -118,27 +128,38 @@ layout = \page, children ->
             ],
         ]
 
-    Html.html [] [
+    Html.html [(attribute "lang") "en",  (attribute "data-bs-theme") "auto"] [
         Html.head [] [
             Html.meta [(attribute "name") "viewport", Attribute.content "width=device-width, initial-scale=1"] [],
             Html.link [
                 Attribute.rel "stylesheet",
-                href "https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css",
-                Attribute.integrity "sha384-1BmE4kWBq78iYhFldvKuhfTAU6auU8tT94WrHftjDbrCEXSU1oBoqyl2QvZ6jIW3",
+                href "https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css",
+                Attribute.integrity "sha384-T3c6CoIi6uLrA9TneNEoa7RxnatzjcDSCmG1MXxSR1GAsXEV/Dwwykc2MPK8M2HN",
                 Attribute.crossorigin "anonymous",
             ] [],
-            Html.script [
-                href "https://unpkg.com/htmx.org@1.9.9",
+            Html.link [
+                Attribute.rel "stylesheet",
+                href "/styles.css",
+            ] [],
+            # The scripts are here to prevent these being loaded each time htmx swaps content of the body
+            (element "script") [
+                src "https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js",
+                Attribute.integrity "sha384-C6RzsynM9kWDrMNeT87bh95OGNyZPhcTNXj1NW7RuBCsyN/o0jlpcV8Qyq46cDfL",
+                Attribute.crossorigin "anonymous",
+            ] [],
+            (element "script") [
+                src "https://unpkg.com/htmx.org@1.9.9",
                 Attribute.integrity "sha384-QFjmbokDn2DjBjq+fM+8LUIVrAgqcNW2s0PjAxHETgRn9l4fvX31ZxDxvwQnyMOX",
                 Attribute.crossorigin "anonymous",
             ] [],
-            Html.script [
-                href "https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js",
-                Attribute.integrity "sha384-ka7Sk0Gln4gmtz2MlQnikT1wXgYsOg+OMhuP+IlRH9sENBO0LRn5q+8nbTov4+1p",
-                Attribute.crossorigin "anonymous",
+            (element "script") [
+                src "/site.js",
             ] [],
         ],
-        Html.body [hxBoost "true"] (List.join [[header], children]),
+        Html.body [hxBoost "true"] [
+            header,
+            (element "main") [] children, 
+        ],
     ]
 
 Contact : Str
@@ -158,73 +179,93 @@ hxBoost = attribute "hx-boost"
 hxGet = attribute "hx-get"
 hxTarget = attribute "hx-target"
 hxPost = attribute "hx-post"
+hxPushUrl = attribute "hx-push-url"
 
 indexPage =
     layout HomePage [
         div [class "container"] [
-            Html.h1 [] [text "Home Page"],
-            a [class "pure-button", hxGet "/todo", hxTarget "body"] [
-                text "TODOs",
-            ],
+            (element "button") [
+                (attribute "type") "button", 
+                class "btn btn-secondary mt-2",
+                hxGet "/task",
+                hxTarget "body",
+            ] [text "Manage Tasks"],
         ]
     ]
 
-Todo : {
+AppTask : {
     id : U64,
     task : Str,
     status : Str,
 }
 
-getTodos : Str -> Task (List Todo) Str
-getTodos = \dbPath ->
+getAppTasks : Str -> Task (List AppTask) Str
+getAppTasks = \dbPath ->
     output <-
         Command.new "sqlite3"
         |> Command.arg dbPath
         |> Command.arg ".mode json"
-        |> Command.arg "SELECT id, task, status FROM todos;"
+        |> Command.arg "SELECT id, task, status FROM tasks;"
         |> Command.output
         |> Task.await
 
     if output.status != Ok {} then
-        Task.err "unable to get TODOs from \(dbPath)"
+        Task.err "unable to get Tasks from \(dbPath)"
+    else if List.isEmpty output.stdout then
+        Task.ok []
     else
         when Decode.fromBytes output.stdout json is
-            Ok todos -> Task.ok todos
-            Err _ -> Task.err "unable to decode todos"
+            Ok tasks -> Task.ok tasks
+            Err _ -> Task.err "unable to decode tasks"
 
-todoPage : List Todo -> Html.Node
-todoPage = \todos ->
-    headerRows = 
-        ["Task", "Status", ""] 
-        |> List.map \col -> Html.th [(attribute "scope") "col"] [text col]
-
-    tableRows = 
-        todo <- List.map todos
-        
-        Html.tr [] [
-            Html.td [(attribute "scope") "row"] [text todo.task],
-            Html.td [] [text todo.status],
-            Html.td [] [
-                a [href "", hxPost "/todo/\(Num.toStr todo.id)/delete", hxTarget "body"] [
-                    (element "button") [(attribute "type") "button", class "btn btn-danger"] [text "Delete"],
-                ]
-            ],
-        ]
-
-    layout TodoListPage [
-        div [class "container"] [
-            Html.h1 [] [text "Todos"],
-            createTodoView,
-            Html.table [class "table"] [
-                Html.thead [] [ Html.tr [] headerRows],
-                Html.tbody [] tableRows,
+taskPage : List AppTask -> Html.Node
+taskPage = \tasks ->
+    if List.isEmpty tasks then 
+    
+        layout TaskListPage [
+            div [class "container"] [
+                createAppTaskView,
+                div [class "alert alert-info mt-2", role "alert"] [ text "No tasks have been created" ]
             ]
         ]
-    ]
 
-createTodoView : Html.Node
-createTodoView =
-    Html.form [Attribute.action "/todo/new",Attribute.method "post"][
+    else 
+        tableRows =
+            
+                task <- List.map tasks
+                
+                Html.tr [] [
+                    Html.td [(attribute "scope") "row", class "col-6"] [text task.task],
+                    Html.td [class "col-3"] [text task.status],
+                    Html.td [class "col-3"] [
+                        a [ href "", hxPost "/task/\(Num.toStr task.id)/delete", hxTarget "body" ] [
+                            (element "button") [
+                                (attribute "type") "button", 
+                                class "btn btn-danger",
+                            ] [text "Delete"],
+                        ]
+                    ],
+                ]
+
+        layout TaskListPage [
+            div [class "container"] [
+                createAppTaskView,
+                Html.table [class "table table-striped table-hover table-borderless table-sm"] [
+                    Html.thead [] [
+                        Html.tr [] [
+                            Html.th [(attribute "scope") "col", class "col-6"] [text "Task"],
+                            Html.th [(attribute "scope") "col", class "col-3"] [text "Status"],
+                            Html.th [(attribute "scope") "col", class "col-3"] [text ""],
+                        ]
+                    ],
+                    Html.tbody [] tableRows,
+                ]
+            ]
+        ]
+
+createAppTaskView : Html.Node
+createAppTaskView =
+    Html.form [action "/task/new",method "post", class "mt-2"][
         div [class "row g-3 align-items-center"] [
             div [class "col-auto"] [
                 input [(attribute "name") "task", (attribute "type") "text", class "form-control"] [],
@@ -237,43 +278,37 @@ createTodoView =
         ]
     ]
 
-createTodo : Str -> (Todo -> Task {} Str)
-createTodo = \dbPath -> \{ task, status } ->
+createAppTask : Str -> (AppTask -> Task {} Str)
+createAppTask = \dbPath -> \{ task, status } ->
         output <-
             Command.new "sqlite3"
             |> Command.arg dbPath
             |> Command.arg ".mode json"
-            |> Command.arg "INSERT INTO todos (task, status) VALUES ('\(task)', '\(status)');"
-            |> Command.arg "SELECT id, task, status FROM todos WHERE id = last_insert_rowid();"
+            |> Command.arg "INSERT INTO tasks (task, status) VALUES ('\(task)', '\(status)');"
+            |> Command.arg "SELECT id, task, status FROM tasks WHERE id = last_insert_rowid();"
             |> Command.output
             |> Task.await
 
         when output.status is
-            Ok {} ->
-                {} <- Stdout.line "TODO CREATED" |> Task.await
-                Task.ok {}
+            Ok {} -> Task.ok {}
+            Err _ -> Task.err "unable to insert task into \(dbPath)"
 
-            Err _ -> Task.err "unable to insert TODO into \(dbPath)"
-
-deleteTodo : Str, Str -> Task {} Str
-deleteTodo = \dbPath, idStr ->
+deleteAppTask : Str, Str -> Task {} Str
+deleteAppTask = \dbPath, idStr ->
     output <-
         Command.new "sqlite3"
         |> Command.arg dbPath
         |> Command.arg ".mode json"
-        |> Command.arg "DELETE FROM todos WHERE id = \(idStr);"
+        |> Command.arg "DELETE FROM tasks WHERE id = \(idStr);"
         |> Command.output
         |> Task.await
 
     when output.status is
-        Ok {} ->
-            {} <- Stdout.line "TODO DELETED" |> Task.await
-            Task.ok {}
+        Ok {} -> Task.ok {}
+        Err _ -> Task.err "unable to delete task from \(dbPath) with ID \(idStr)"
 
-        Err _ -> Task.err "unable to delete TODO from \(dbPath) with ID \(idStr)"
-
-parseTodo : List U8 -> Result Todo Str
-parseTodo = \bytes ->
+parseAppTask : List U8 -> Result AppTask Str
+parseAppTask = \bytes ->
     dict = parseFormUrlEncoded bytes
 
     task <-
@@ -288,13 +323,12 @@ parseTodo = \bytes ->
 
     Ok { id: 0, task, status }
 
-# STUFF TO KEEP HERE TO STOP IMPORTS FROM COMPLAINING
-# STUFF TO KEEP HERE TO STOP IMPORTS FROM COMPLAINING
-# STUFF TO KEEP HERE TO STOP IMPORTS FROM COMPLAINING
-# STUFF TO KEEP HERE TO STOP IMPORTS FROM COMPLAINING
-# STUFF TO KEEP HERE TO STOP IMPORTS FROM COMPLAINING
-# STUFF TO KEEP HERE TO STOP IMPORTS FROM COMPLAINING
-
+# STUFF I AM THINKING OF MOVING TO ANOTHER MODULE SOMETIME
+# STUFF I AM THINKING OF MOVING TO ANOTHER MODULE SOMETIME
+# STUFF I AM THINKING OF MOVING TO ANOTHER MODULE SOMETIME
+# STUFF I AM THINKING OF MOVING TO ANOTHER MODULE SOMETIME
+# STUFF I AM THINKING OF MOVING TO ANOTHER MODULE SOMETIME
+# STUFF I AM THINKING OF MOVING TO ANOTHER MODULE SOMETIME
 
 staticReponse : List U8 -> Task Response []
 staticReponse = \body ->

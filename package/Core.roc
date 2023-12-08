@@ -1,3 +1,0 @@
-interface Core
-    exposes []
-    imports []

@@ -50,28 +50,28 @@ pageData = [
 handleReq : Str, Request -> Task Response _
 handleReq = \dbPath, req ->
     when (req.method, req.url |> Url.fromStr |> urlSegments) is
-        (Get, ["robots.txt", ..]) -> 
+        (Get, ["robots.txt"]) -> 
             staticReponse (Str.toUtf8 robotsTxt)
-        (Get, ["styles.css", ..]) -> 
+        (Get, ["styles.css"]) -> 
             staticReponse stylesFile
-        (Get, ["site.js", ..]) -> 
+        (Get, ["site.js"]) -> 
             staticReponse siteFile
-        (Get, ["", ..]) -> 
+        (Get, [""]) -> 
             htmlResponse indexPage 
             |> Task.ok
-        (Get, ["contact", ..]) -> 
+        (Get, ["contact"]) -> 
             getContacts 
             |> Task.map listContactView 
             |> Task.map htmlResponse 
             |> Task.onErr handleErr
-        (Get, ["task", "new", ..]) -> 
+        (Get, ["task", "new"]) -> 
             redirect "/task" 
             |> Task.onErr handleErr
-        (Post, ["task", idStr, "delete", ..]) ->
+        (Post, ["task", idStr, "delete"]) ->
             deleteAppTask dbPath idStr
             |> Task.await \_ -> redirect "/task"
             |> Task.onErr handleErr
-        (Post, ["task", "new", ..]) ->
+        (Post, ["task", "new"]) ->
             req
             |> requestBody
             |> parseAppTask
@@ -82,7 +82,7 @@ handleReq = \dbPath, req ->
                     Ok {} -> redirect "/task"
                     Err TaskWasEmpty -> redirect "/task"
                     Err err -> handleErr err
-        (Get, ["task", ..]) ->
+        (Get, ["task"]) ->
             getAppTasks dbPath
             |> Task.map taskPage
             |> Task.map htmlResponse

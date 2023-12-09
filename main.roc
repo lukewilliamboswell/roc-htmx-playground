@@ -251,13 +251,14 @@ taskPage = \tasks ->
                 
                 Html.tr [] [
                     Html.td [(attribute "scope") "row", class "col-6"] [text task.task],
-                    Html.td [class "col-3"] [text task.status],
+                    Html.td [class "col-3 text-nowrap"] [text task.status],
                     Html.td [class "col-3"] [
                         a [ 
                             href "", 
                             hxPost "/task/\(Num.toStr task.id)/delete", 
                             hxTarget "body",
                             (attribute "aria-label") "delete task",
+                            (attribute "style") "float: right;",
                          ] [
                             (element "button") [
                                 (attribute "type") "button", 
@@ -268,17 +269,21 @@ taskPage = \tasks ->
                 ]
 
         layout TaskListPage [
-            div [class "container"] [
-                createAppTaskView,
-                Html.table [class "table table-striped table-hover table-borderless table-sm"] [
-                    Html.thead [] [
-                        Html.tr [] [
-                            Html.th [(attribute "scope") "col", class "col-6"] [text "Task"],
-                            Html.th [(attribute "scope") "col", class "col-3"] [text "Status"],
-                            Html.th [(attribute "scope") "col", class "col-3"] [text ""],
+            div [class "container-fluid"] [
+                div [class "row justify-content-center"] [
+                    div [class "col-md-9"] [
+                        createAppTaskView,
+                        Html.table [class "table table-striped table-hover table-borderless table-sm"] [
+                            Html.thead [] [
+                                Html.tr [] [
+                                    Html.th [(attribute "scope") "col", class "col-6"] [text "Task"],
+                                    Html.th [(attribute "scope") "col", class "col-3"] [text "Status"],
+                                    Html.th [(attribute "scope") "col", class "col-3"] [text ""],
+                                ]
+                            ],
+                            Html.tbody [] tableRows,
                         ]
-                    ],
-                    Html.tbody [] tableRows,
+                    ]
                 ]
             ]
         ]
@@ -286,8 +291,8 @@ taskPage = \tasks ->
 createAppTaskView : Html.Node
 createAppTaskView = 
     Html.form [action "/task/new", method "post", class "mt-2"][
-        div [class "row g-3 align-items-center"] [
-            div [class "col-auto"] [
+        div [class "row"] [
+            div [class "col"] [
                 label [for "task", class "d-none"] [text "input the task description"],
                 input [
                     id "task", 

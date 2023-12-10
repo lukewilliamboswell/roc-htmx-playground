@@ -3,6 +3,7 @@ app "http"
         pf: "https://github.com/roc-lang/basic-webserver/releases/download/0.2.0/J6CiEdkMp41qNdq-9L3HGoF2cFkafFlArvfU1RtR4rY.tar.br",
         html: "https://github.com/Hasnep/roc-html/releases/download/v0.2.0/5fqQTpMYIZkigkDa2rfTc92wt-P_lsa76JVXb8Qb3ms.tar.br",
         json: "https://github.com/lukewilliamboswell/roc-json/releases/download/0.5.0/jEPD_1ZLFiFrBeYKiKvHSisU-E3LZJeenfa9nvqJGeE.tar.br",
+        ansi: "https://github.com/lukewilliamboswell/roc-ansi/releases/download/0.1.1/cPHdNPNh8bjOrlOgfSaGBJDz6VleQwsPdW0LJK6dbGQ.tar.br",
     }
     imports [
         pf.Stdout,
@@ -13,9 +14,10 @@ app "http"
         pf.Env,
         pf.Utc,
         pf.Url.{ Url },
-        html.Html.{ header, table, thead, tbody, td, th, tr, nav, meta, nav, button, span, link, body, button, a, input, div, text, ul, li, label },
-        html.Attribute.{ src, id, href, rel, integrity, crossorigin, action, method, class, value, role, for },
+        html.Html.{ header, table, thead, form, tbody, td, th, tr, nav, meta, nav, button, span, link, body, button, a, input, div, text, ul, li, label },
+        html.Attribute.{ src, id, href, rel, name, integrity, crossorigin, action, method, class, value, role, for },
         json.Core.{ json },
+        ansi.Color,
         "styles.css" as stylesFile : List U8,
         "site.js" as siteFile : List U8,
     ]
@@ -65,8 +67,19 @@ handleReq = \dbPath, req ->
 
             {} <- deleteAppTask dbPath idStr |> Task.await
 
-            redirect "/task"
+            tasks <- getAppTasks dbPath ""  |> Task.await
 
+            listTaskView tasks "" |> htmlResponse |> Task.ok            
+
+        (Post, ["task", "search"]) ->
+            params = parseFormUrlEncoded (parseBody req) 
+
+            filterTasksQuery = Dict.get params "filterTasks" |> Result.withDefault ""
+
+            tasks <- getAppTasks dbPath filterTasksQuery  |> Task.await
+
+            listTaskView tasks filterTasksQuery |> htmlResponse |> Task.ok            
+            
         (Post, ["task", "new"]) ->
 
             task <- parseBody req |> parseAppTask |> Task.fromResult |> Task.await 
@@ -78,12 +91,12 @@ handleReq = \dbPath, req ->
                     Err err -> handleErr err
 
         (Get, ["task"]) ->
+        
+            tasks <- getAppTasks dbPath "" |> Task.await
             
-            tasks <- getAppTasks dbPath |> Task.await
-            
-            taskPage tasks "qwer" |> htmlResponse |> Task.ok
+            taskPage tasks "" |> htmlResponse |> Task.ok
 
-        _ -> redirect "/"
+        _ -> Task.err (URLNotFound req.url)
 
 layout : Page, List Html.Node -> Html.Node
 layout = \page, children ->
@@ -98,8 +111,8 @@ layout = \page, children ->
         Html.head [] [
             (el "title") [] [text title],
             meta [(attr "charset") "UTF-8"] [],
-            meta [(attr "name") "description", (attr "content") description] [],
-            meta [(attr "name") "viewport", (attr "content") "width=device-width, initial-scale=1"] [],
+            meta [name "description", (attr "content") description] [],
+            meta [name "viewport", (attr "content") "width=device-width, initial-scale=1"] [],
             link [
                 rel "stylesheet",
                 href "https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css",
@@ -188,6 +201,7 @@ hxGet = attr "hx-get"
 hxTarget = attr "hx-target"
 hxPost = attr "hx-post"
 hxPushUrl = attr "hx-push-url"
+hxTrigger = attr "hx-trigger"
 
 indexPage =
     layout HomePage [
@@ -207,13 +221,22 @@ AppTask : {
     status : Str,
 }
 
-getAppTasks : Str -> Task (List AppTask) [SqliteErrorGetTask _, UnableToDecodeTask _]_
-getAppTasks = \dbPath ->
+getAppTasks : Str, Str -> Task (List AppTask) [SqliteErrorGetTask _, UnableToDecodeTask _]_
+getAppTasks = \dbPath, filterQuery ->
+
+    escapeSQL = \str -> Str.replaceEach str "'" "''"
+
+    sql = 
+        if Str.isEmpty filterQuery then 
+            "SELECT id, task, status FROM tasks;"
+        else
+            "SELECT id, task, status FROM tasks WHERE task LIKE '%\(escapeSQL filterQuery)%';" 
+    
     output <-
         Command.new "sqlite3"
         |> Command.arg dbPath
         |> Command.arg ".mode json"
-        |> Command.arg "SELECT id, task, status FROM tasks;"
+        |> Command.arg sql
         |> Command.output
         |> Task.await
 
@@ -233,6 +256,19 @@ taskPage = \tasks, taskQuery ->
             div [class "row justify-content-center"] [
                 div [class "col-md-9"] [
                     createAppTaskView,
+                    input [
+                        class "form-control mt-2",
+                        name "filterTasks", 
+                        (attr "type") "text", 
+                        (attr "placeholder") "Search",
+                        (attr "type") "text",
+                        value taskQuery,
+                        name "taskSearch",
+                        hxPost "/task/search",
+                        hxTrigger "input changed delay:500ms, search",
+                        hxTarget "#taskTable",
+                        if Str.isEmpty taskQuery then (id "nothing") else (attr "autofocus") "",
+                    ] [],
                     listTaskView tasks taskQuery,
                 ]
             ]
@@ -241,8 +277,10 @@ taskPage = \tasks, taskQuery ->
 
 listTaskView : List AppTask, Str -> Html.Node 
 listTaskView = \tasks, taskQuery -> 
-    if List.isEmpty tasks then 
-        div [class "alert alert-info mt-2", role "alert"] [ text "No tasks have been created" ]
+    if List.isEmpty tasks && Str.isEmpty taskQuery  then 
+        div [class "alert alert-info mt-2", role "alert"] [ text "Nil tasks, add a task to get started." ]
+    else if List.isEmpty tasks  then 
+        div [class "alert alert-info mt-2", role "alert"] [ text "There are Nil tasks matching your query." ]
     else 
 
         tableRows = List.map tasks \task ->
@@ -255,7 +293,7 @@ listTaskView = \tasks, taskQuery ->
                         a [ 
                             href "", 
                             hxPost "/task/\(Num.toStr task.id)/delete", 
-                            hxTarget "body",
+                            hxTarget "#taskTable",
                             (attr "aria-label") "delete task",
                             (attr "style") "float: center;",
                         ] [
@@ -268,49 +306,28 @@ listTaskView = \tasks, taskQuery ->
                 ],
             ]
 
-        table [class "table table-striped table-hover table-bordered table-sm mt-2"] [
+        table [
+            id "taskTable",
+            class "table table-striped table-hover table-sm mt-2",
+        ] [
             thead [] [
                 tr [] [
                     th [(attr "scope") "col", class "col-6"] [text "Task"],
-                    th [(attr "scope") "col", class "col-3"] [text "Status"],
-                    th [(attr "scope") "col", class "col-3"] [text ""],
+                    th [(attr "scope") "col", class "col-3", (attr "rowspan") "2"] [text "Status"],
                 ]
             ],
-            tbody [] (List.prepend tableRows (
-                tr [] [
-                    td [(attr "scope") "row", class "col-6"] [
-                        input [
-                            id "filterTaskTableTask", 
-                            (attr "name") "filterTaskTableTask", 
-                            (attr "type") "text", 
-                            class "form-control",
-                            (attr "placeholder") "Search",
-                            value taskQuery,
-                        ] [],
-                    ],
-                    td [class "col-3 text-nowrap"] [
-                        input [
-                            id "filterTaskTableStatus", 
-                            (attr "name") "filterTaskTableStatus", 
-                            (attr "type") "text", 
-                            class "form-control",
-                            (attr "placeholder") "TODO",
-                        ] [],
-                    ],
-                    td [class "col-3"] [],
-                ]
-            )),
+            tbody [] tableRows,
         ]
             
 createAppTaskView : Html.Node
 createAppTaskView = 
-    Html.form [action "/task/new", method "post", class "mt-2"][
+    form [action "/task/new", method "post", class "mt-2"][
         div [class "row"] [
             div [class "col"] [
                 label [for "task", class "d-none"] [text "input the task description"],
                 input [
                     id "task", 
-                    (attr "name") "task", 
+                    name "task", 
                     (attr "type") "text", 
                     class "form-control",
                     (attr "placeholder") "Describe a new task",
@@ -318,7 +335,7 @@ createAppTaskView =
                 ] [],
             ],
             # hidden form input
-            input [(attr "name") "status", value "In-Progress", (attr "type") "text", class "d-none"] [],
+            input [name "status", value "In-Progress", (attr "type") "text", class "d-none"] [],
             div [class "col-auto"] [
                 button [(attr "type") "submit", class "btn btn-primary"] [text "Add"],
             ],
@@ -412,15 +429,17 @@ redirect = \next ->
 handleErr : _ -> Task Response []_
 handleErr = \err ->
 
-    # Log unhandled error to STDIO
-    {} <- Stderr.line (Inspect.toStr err) |> Task.await
+    (msg, code) = when err is 
+        URLNotFound url -> (Str.joinWith ["404 NotFound" |> Color.fg Blue, url] " ", 404)
+        _ -> (Str.joinWith ["SERVER ERROR" |> Color.fg Red,Inspect.toStr err] " ", 500) 
+         
+
+    {} <- Stderr.line msg |> Task.await
 
     Task.ok {
-        status: 500,
-        headers: [
-            { name: "Content-Type", value: Str.toUtf8 "text/html; charset=utf-8" },
-        ],
-        body: Str.toUtf8 "SERVER ERROR",
+        status: code,
+        headers: [],
+        body: [],
     }
 
 logRequest : Request -> Task {} *

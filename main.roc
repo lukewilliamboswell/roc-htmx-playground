@@ -13,8 +13,8 @@ app "http"
         pf.Env,
         pf.Utc,
         pf.Url.{ Url },
-        html.Html.{ element, a, input, div, text, ul, li, label },
-        html.Attribute.{ attribute, src, id, href, action, method, class, value, role, for },
+        html.Html.{ header, table, thead, tbody, td, th, tr, nav, meta, nav, button, span, link, body, button, a, input, div, text, ul, li, label },
+        html.Attribute.{ src, id, href, rel, integrity, crossorigin, action, method, class, value, role, for },
         json.Core.{ json },
         "styles.css" as stylesFile : List U8,
         "site.js" as siteFile : List U8,
@@ -34,7 +34,7 @@ main = \req ->
         |> Task.await
 
     # Handle request
-    handleReq dbPath req
+    handleReq dbPath req |> Task.onErr handleErr
 
 Page : [
     HomePage,
@@ -50,44 +50,40 @@ pageData = [
 handleReq : Str, Request -> Task Response _
 handleReq = \dbPath, req ->
     when (req.method, req.url |> Url.fromStr |> urlSegments) is
-        (Get, ["robots.txt"]) -> 
-            staticReponse (Str.toUtf8 robotsTxt)
-        (Get, ["styles.css"]) -> 
-            staticReponse stylesFile
-        (Get, ["site.js"]) -> 
-            staticReponse siteFile
-        (Get, [""]) -> 
-            htmlResponse indexPage 
-            |> Task.ok
+        (Get, [""]) -> indexPage |> htmlResponse |> Task.ok
+        (Get, ["robots.txt"]) -> staticReponse robotsTxt
+        (Get, ["styles.css"]) -> staticReponse stylesFile
+        (Get, ["site.js"]) -> staticReponse siteFile
         (Get, ["contact"]) -> 
-            getContacts 
-            |> Task.map listContactView 
-            |> Task.map htmlResponse 
-            |> Task.onErr handleErr
-        (Get, ["task", "new"]) -> 
-            redirect "/task" 
-            |> Task.onErr handleErr
+
+            contacts <- getContacts |> Task.map 
+
+            contacts |> listContactView |> htmlResponse 
+
+        (Get, ["task", "new"]) -> redirect "/task" 
         (Post, ["task", idStr, "delete"]) ->
-            deleteAppTask dbPath idStr
-            |> Task.await \_ -> redirect "/task"
-            |> Task.onErr handleErr
+
+            {} <- deleteAppTask dbPath idStr |> Task.await
+
+            redirect "/task"
+
         (Post, ["task", "new"]) ->
-            req
-            |> requestBody
-            |> parseAppTask
-            |> Task.fromResult
-            |> Task.await (createAppTask dbPath)
-            |> Task.attempt \result -> 
+
+            task <- parseBody req |> parseAppTask |> Task.fromResult |> Task.await 
+            
+            createAppTask dbPath task |> Task.attempt \result -> 
                 when result is 
                     Ok {} -> redirect "/task"
                     Err TaskWasEmpty -> redirect "/task"
                     Err err -> handleErr err
+
         (Get, ["task"]) ->
-            getAppTasks dbPath
-            |> Task.map taskPage
-            |> Task.map htmlResponse
-            |> Task.onErr handleErr
-        (_, _) -> redirect "/" |> Task.onErr handleErr
+            
+            tasks <- getAppTasks dbPath |> Task.await
+            
+            taskPage tasks "qwer" |> htmlResponse |> Task.ok
+
+        _ -> redirect "/"
 
 layout : Page, List Html.Node -> Html.Node
 layout = \page, children ->
@@ -98,82 +94,79 @@ layout = \page, children ->
         |> List.first 
         |> unwrap "unable to get page from pageData"
 
-    header =
-        Html.header [] [
-            Html.nav [class "navbar navbar-expand-md bg-body-tertiary"] [
-                div [class "container-fluid"] [
-                    a [class "navbar-brand", href "/"] [text "DEMO"],
-                    Html.button
-                        [
-                            class "navbar-toggler",
-                            (attribute "type") "button",
-                            (attribute "data-bs-toggle") "collapse",
-                            (attribute "data-bs-target") "#navbarNav",
-                            (attribute "aria-controls") "navbarNav",
-                            (attribute "aria-expanded") "false",
-                            (attribute "aria-label") "Toggle navigation",
-                        ]
-                        [Html.span [class "navbar-toggler-icon"] []],
-                    div [class "collapse navbar-collapse", id "navbarNav"] [
-                        ul [class "navbar-nav"] (
-                            curr <- pageData |> List.map
-
-                            li [class "nav-item"] [
-                                a (
-                                    if curr.page == page then
-                                        [class "nav-link active", 
-                                        (attribute "aria-current") "page", 
-                                        href curr.href,
-                                        hxPushUrl "true",
-                                    ]
-                                    else
-                                        [class "nav-link", 
-                                        href curr.href,
-                                        hxPushUrl "true",
-                                    ]
-                                )
-                                [text curr.title],
-                            ]
-                        ),
-                    ],
-                ],
-            ],
-        ]
-
-    Html.html [(attribute "lang") "en",  (attribute "data-bs-theme") "auto"] [
+    Html.html [(attr "lang") "en",  (attr "data-bs-theme") "auto"] [
         Html.head [] [
-            (element "title") [] [text title],
-            Html.meta [(attribute "charset") "UTF-8"] [],
-            Html.meta [(attribute "name") "description", (attribute "content") description] [],
-            Html.meta [(attribute "name") "viewport", (attribute "content") "width=device-width, initial-scale=1"] [],
-            Html.link [
-                Attribute.rel "stylesheet",
+            (el "title") [] [text title],
+            meta [(attr "charset") "UTF-8"] [],
+            meta [(attr "name") "description", (attr "content") description] [],
+            meta [(attr "name") "viewport", (attr "content") "width=device-width, initial-scale=1"] [],
+            link [
+                rel "stylesheet",
                 href "https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css",
-                Attribute.integrity "sha384-T3c6CoIi6uLrA9TneNEoa7RxnatzjcDSCmG1MXxSR1GAsXEV/Dwwykc2MPK8M2HN",
-                Attribute.crossorigin "anonymous",
+                integrity "sha384-T3c6CoIi6uLrA9TneNEoa7RxnatzjcDSCmG1MXxSR1GAsXEV/Dwwykc2MPK8M2HN",
+                crossorigin "anonymous",
             ] [],
-            Html.link [
-                Attribute.rel "stylesheet",
+            link [
+                rel "stylesheet",
                 href "/styles.css",
             ] [],
             # The scripts are here to prevent these being loaded each time htmx swaps content of the body
-            (element "script") [
+            (el "script") [
                 src "https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js",
-                Attribute.integrity "sha384-C6RzsynM9kWDrMNeT87bh95OGNyZPhcTNXj1NW7RuBCsyN/o0jlpcV8Qyq46cDfL",
-                Attribute.crossorigin "anonymous",
+                integrity "sha384-C6RzsynM9kWDrMNeT87bh95OGNyZPhcTNXj1NW7RuBCsyN/o0jlpcV8Qyq46cDfL",
+                crossorigin "anonymous",
             ] [],
-            (element "script") [
+            (el "script") [
                 src "https://unpkg.com/htmx.org@1.9.9",
-                Attribute.integrity "sha384-QFjmbokDn2DjBjq+fM+8LUIVrAgqcNW2s0PjAxHETgRn9l4fvX31ZxDxvwQnyMOX",
-                Attribute.crossorigin "anonymous",
+                integrity "sha384-QFjmbokDn2DjBjq+fM+8LUIVrAgqcNW2s0PjAxHETgRn9l4fvX31ZxDxvwQnyMOX",
+                crossorigin "anonymous",
             ] [],
-            (element "script") [
+            (el "script") [
                 src "/site.js",
             ] [],
         ],
-        Html.body [hxBoost "true"] [
-            header,
-            (element "main") [] children, 
+        body [hxBoost "true"] [
+            header [] [
+                nav [class "navbar navbar-expand-md bg-body-tertiary"] [
+                    div [class "container-fluid"] [
+                        a [class "navbar-brand", href "/"] [text "DEMO"],
+                        button
+                            [
+                                class "navbar-toggler",
+                                (attr "type") "button",
+                                (attr "data-bs-toggle") "collapse",
+                                (attr "data-bs-target") "#navbarNav",
+                                (attr "aria-controls") "navbarNav",
+                                (attr "aria-expanded") "false",
+                                (attr "aria-label") "Toggle navigation",
+                            ]
+                            [span [class "navbar-toggler-icon"] []],
+                        div [class "collapse navbar-collapse", id "navbarNav"] [
+                            ul [class "navbar-nav"] (
+                                curr <- pageData |> List.map
+    
+                                li [class "nav-item"] [
+                                    a (
+                                        if curr.page == page then
+                                            [class "nav-link active", 
+                                            (attr "aria-current") "page", 
+                                            href curr.href,
+                                            hxPushUrl "true",
+                                        ]
+                                        else
+                                            [class "nav-link", 
+                                            href curr.href,
+                                            hxPushUrl "true",
+                                        ]
+                                    )
+                                    [text curr.title],
+                                ]
+                            ),
+                        ],
+                    ],
+                ],
+            ],
+            (el "main") [] children, 
         ],
     ]
 
@@ -190,17 +183,17 @@ listContactView = \_ ->
     Html.h1 [] [text "TODO"]
 
 
-hxBoost = attribute "hx-boost"
-hxGet = attribute "hx-get"
-hxTarget = attribute "hx-target"
-hxPost = attribute "hx-post"
-hxPushUrl = attribute "hx-push-url"
+hxBoost = attr "hx-boost"
+hxGet = attr "hx-get"
+hxTarget = attr "hx-target"
+hxPost = attr "hx-post"
+hxPushUrl = attr "hx-push-url"
 
 indexPage =
     layout HomePage [
         div [class "container"] [
-            (element "button") [
-                (attribute "type") "button", 
+            (el "button") [
+                (attr "type") "button", 
                 class "btn btn-secondary mt-2",
                 hxGet "/task",
                 hxTarget "body",
@@ -233,61 +226,82 @@ getAppTasks = \dbPath ->
             Ok tasks -> Task.ok tasks
             Err _ -> Task.err (UnableToDecodeTask output.stdout)
 
-taskPage : List AppTask -> Html.Node
-taskPage = \tasks ->
-    if List.isEmpty tasks then 
-    
-        layout TaskListPage [
-            div [class "container"] [
-                createAppTaskView,
-                div [class "alert alert-info mt-2", role "alert"] [ text "No tasks have been created" ]
+taskPage : List AppTask, Str -> Html.Node
+taskPage = \tasks, taskQuery ->
+    layout TaskListPage [
+        div [class "container-fluid"] [
+            div [class "row justify-content-center"] [
+                div [class "col-md-9"] [
+                    createAppTaskView,
+                    listTaskView tasks taskQuery,
+                ]
             ]
         ]
+    ]
 
+listTaskView : List AppTask, Str -> Html.Node 
+listTaskView = \tasks, taskQuery -> 
+    if List.isEmpty tasks then 
+        div [class "alert alert-info mt-2", role "alert"] [ text "No tasks have been created" ]
     else 
-        tableRows =
-            
-                task <- List.map tasks
+
+        tableRows = List.map tasks \task ->
                 
-                Html.tr [] [
-                    Html.td [(attribute "scope") "row", class "col-6"] [text task.task],
-                    Html.td [class "col-3 text-nowrap"] [text task.status],
-                    Html.td [class "col-3"] [
+            tr [] [
+                td [(attr "scope") "row", class "col-6"] [text task.task],
+                td [class "col-3 text-nowrap"] [text task.status],
+                td [class "col-3"] [
+                    div [class "d-flex justify-content-center"] [
                         a [ 
                             href "", 
                             hxPost "/task/\(Num.toStr task.id)/delete", 
                             hxTarget "body",
-                            (attribute "aria-label") "delete task",
-                            (attribute "style") "float: right;",
-                         ] [
-                            (element "button") [
-                                (attribute "type") "button", 
+                            (attr "aria-label") "delete task",
+                            (attr "style") "float: center;",
+                        ] [
+                            (el "button") [
+                                (attr "type") "button", 
                                 class "btn btn-danger",
                             ] [text "Delete"],
                         ]
                     ],
-                ]
-
-        layout TaskListPage [
-            div [class "container-fluid"] [
-                div [class "row justify-content-center"] [
-                    div [class "col-md-9"] [
-                        createAppTaskView,
-                        Html.table [class "table table-striped table-hover table-borderless table-sm"] [
-                            Html.thead [] [
-                                Html.tr [] [
-                                    Html.th [(attribute "scope") "col", class "col-6"] [text "Task"],
-                                    Html.th [(attribute "scope") "col", class "col-3"] [text "Status"],
-                                    Html.th [(attribute "scope") "col", class "col-3"] [text ""],
-                                ]
-                            ],
-                            Html.tbody [] tableRows,
-                        ]
-                    ]
-                ]
+                ],
             ]
-        ]
 
+        table [class "table table-striped table-hover table-bordered table-sm mt-2"] [
+            thead [] [
+                tr [] [
+                    th [(attr "scope") "col", class "col-6"] [text "Task"],
+                    th [(attr "scope") "col", class "col-3"] [text "Status"],
+                    th [(attr "scope") "col", class "col-3"] [text ""],
+                ]
+            ],
+            tbody [] (List.prepend tableRows (
+                tr [] [
+                    td [(attr "scope") "row", class "col-6"] [
+                        input [
+                            id "filterTaskTableTask", 
+                            (attr "name") "filterTaskTableTask", 
+                            (attr "type") "text", 
+                            class "form-control",
+                            (attr "placeholder") "Search",
+                            value taskQuery,
+                        ] [],
+                    ],
+                    td [class "col-3 text-nowrap"] [
+                        input [
+                            id "filterTaskTableStatus", 
+                            (attr "name") "filterTaskTableStatus", 
+                            (attr "type") "text", 
+                            class "form-control",
+                            (attr "placeholder") "TODO",
+                        ] [],
+                    ],
+                    td [class "col-3"] [],
+                ]
+            )),
+        ]
+            
 createAppTaskView : Html.Node
 createAppTaskView = 
     Html.form [action "/task/new", method "post", class "mt-2"][
@@ -296,23 +310,23 @@ createAppTaskView =
                 label [for "task", class "d-none"] [text "input the task description"],
                 input [
                     id "task", 
-                    (attribute "name") "task", 
-                    (attribute "type") "text", 
+                    (attr "name") "task", 
+                    (attr "type") "text", 
                     class "form-control",
-                    (attribute "placeholder") "Describe a task",
-                    (attribute "required") "",
+                    (attr "placeholder") "Describe a new task",
+                    (attr "required") "",
                 ] [],
             ],
             # hidden form input
-            input [(attribute "name") "status", value "In-Progress", (attribute "type") "text", class "d-none"] [],
+            input [(attr "name") "status", value "In-Progress", (attr "type") "text", class "d-none"] [],
             div [class "col-auto"] [
-                Html.button [(attribute "type") "submit", class "btn btn-primary"] [text "Add"],
+                button [(attr "type") "submit", class "btn btn-primary"] [text "Add"],
             ],
         ]
     ]
 
-createAppTask : Str -> (AppTask -> Task {} [TaskWasEmpty, SqliteErrorCreatingTask _]_)
-createAppTask = \dbPath -> \{ task, status } ->
+createAppTask : Str, AppTask -> Task {} [TaskWasEmpty, SqliteErrorCreatingTask _]_
+createAppTask = \dbPath, { task, status } ->
     if Str.isEmpty task then 
         Task.err TaskWasEmpty
     else 
@@ -366,14 +380,14 @@ parseAppTask = \bytes ->
 # STUFF I AM THINKING OF MOVING TO ANOTHER MODULE SOMETIME
 # STUFF I AM THINKING OF MOVING TO ANOTHER MODULE SOMETIME
 
-staticReponse : List U8 -> Task Response []
-staticReponse = \body ->
+staticReponse : List U8 -> Task Response []_
+staticReponse = \bytes ->
     Task.ok {
         status: 200,
         headers: [
             { name: "Cache-Control", value: Str.toUtf8 "max-age=120" },
         ],
-        body,
+        body: bytes,
     }
 
 htmlResponse : Html.Node -> Response
@@ -395,9 +409,10 @@ redirect = \next ->
         body: [],
     }
 
-handleErr : _ -> Task Response []
+handleErr : _ -> Task Response []_
 handleErr = \err ->
 
+    # Log unhandled error to STDIO
     {} <- Stderr.line (Inspect.toStr err) |> Task.await
 
     Task.ok {
@@ -412,28 +427,27 @@ logRequest : Request -> Task {} *
 logRequest = \req ->
     dateTime <- Utc.now |> Task.map Utc.toIso8601Str |> Task.await
 
-    body = requestBody req |> Str.fromUtf8 |> Result.withDefault "<empty body>"
+    reqBody = parseBody req |> Str.fromUtf8 |> Result.withDefault "<empty body>"
 
-    Stdout.line "\(dateTime) \(Http.methodToStr req.method) \(req.url) \(body)"
+    Stdout.line "\(dateTime) \(Http.methodToStr req.method) \(req.url) \(reqBody)"
     
 urlSegments : Url -> List Str
 urlSegments = \url -> url |> Url.path |> Str.split "/" |> List.dropFirst 1
-    
 
-requestBody : Request -> List U8
-requestBody = \req ->
+parseBody : Request -> List U8
+parseBody = \req ->
     when req.body is
         EmptyBody -> []
-        Body { body } -> body
+        Body internal -> internal.body
     
 
-# lineHtml = element "line"
-# strokeWidth = attribute "stroke-width"
-# x1 = attribute "x1"
-# y1 = attribute "y1"
-# x2 = attribute "x2"
-# y2 = attribute "y2"
-# viewBox = attribute "viewBox"
+# lineHtml = el "line"
+# strokeWidth = attr "stroke-width"
+# x1 = attr "x1"
+# y1 = attr "y1"
+# x2 = attr "x2"
+# y2 = attr "y2"
+# viewBox = attr "viewBox"
 
 # deleteIcon = Html.svg
 #     [
@@ -536,8 +550,13 @@ hexToDec = \byte ->
 expect hexToDec '0' == 0
 expect hexToDec 'F' == 15
 
+robotsTxt : List U8
 robotsTxt = 
     """
     User-agent: *
     Disallow: /
     """
+    |> Str.toUtf8
+
+el = Html.element
+attr = Attribute.attribute

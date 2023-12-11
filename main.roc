@@ -322,23 +322,18 @@ listTaskView = \tasks, taskQuery ->
 createAppTaskView : Html.Node
 createAppTaskView = 
     form [action "/task/new", method "post", class "mt-2"][
-        div [class "row"] [
-            div [class "col"] [
-                label [for "task", class "d-none"] [text "input the task description"],
-                input [
-                    id "task", 
-                    name "task", 
-                    (attr "type") "text", 
-                    class "form-control",
-                    (attr "placeholder") "Describe a new task",
-                    (attr "required") "",
-                ] [],
-            ],
-            # hidden form input
-            input [name "status", value "In-Progress", (attr "type") "text", class "d-none"] [],
-            div [class "col-auto"] [
-                button [(attr "type") "submit", class "btn btn-primary"] [text "Add"],
-            ],
+        div [class "input-group mb-3"] [
+            input [
+                id "task", 
+                name "task", 
+                (attr "type") "text", 
+                class "form-control",
+                (attr "placeholder") "Describe a new task",
+                (attr "required") "",
+            ] [],
+            label [for "task", class "d-none"] [text "input the task description"],
+            input [name "status", value "In-Progress", (attr "type") "text", class "d-none"] [], # hidden form input
+            button [(attr "type") "submit", class "btn btn-primary"] [text "Add"],
         ]
     ]
 

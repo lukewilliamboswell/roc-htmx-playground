@@ -14,7 +14,7 @@ app "http"
         pf.Env,
         pf.Utc,
         pf.Url.{ Url },
-        html.Html.{ header, table, thead, form, tbody, td, th, tr, nav, meta, nav, button, span, link, body, button, a, input, div, text, ul, li, label },
+        html.Html.{ header, table, thead, form, tbody, h5, td, th, tr, nav, meta, nav, button, span, link, body, button, a, input, div, text, ul, li, label },
         html.Attribute.{ src, id, href, rel, name, integrity, crossorigin, action, method, class, value, role, for },
         json.Core.{ json },
         ansi.Color,
@@ -35,22 +35,40 @@ main = \req ->
         |> Task.onErr \_ -> crash "unable to read DB_PATH environment variable"
         |> Task.await
 
-    # Handle request
-    handleReq dbPath req |> Task.onErr handleErr
+    # Session cookie should be sent with each request, otherwise create one
+    when getSessionId req is 
+        Ok sessionId -> handleReq sessionId dbPath req |> Task.onErr handleErr
+        Err _ ->
+            result <- newSessionId dbPath |> Task.attempt
+
+            when result is 
+                Err err -> handleErr err
+                Ok sessionId -> 
+                    
+                    Task.ok {
+                        status: 303,
+                        headers: [
+                            { name: "Set-Cookie", value: Str.toUtf8 "sessionId=\(Num.toStr sessionId)" },
+                            { name: "Location", value: Str.toUtf8 req.url },
+                        ],
+                        body: [],
+                    }
 
 Page : [
     HomePage,
     TaskListPage,
+    LoginPage,
 ]
 
 pageData : List { page : Page, title : Str, href : Str, description : Str }
 pageData = [
     { page: HomePage, title: "Home", href: "/", description: "The home page" },
     { page: TaskListPage, title: "Tasks", href: "/task", description: "Manage tasks" },
+    { page: LoginPage, title: "Login", href: "/login", description: "Log in" },
 ]
 
-handleReq : Str, Request -> Task Response _
-handleReq = \dbPath, req ->
+handleReq : U64, Str, Request -> Task Response _
+handleReq = \sessionId, dbPath, req ->
     when (req.method, req.url |> Url.fromStr |> urlSegments) is
         (Get, [""]) -> indexPage |> htmlResponse |> Task.ok
         (Get, ["robots.txt"]) -> staticReponse robotsTxt
@@ -62,6 +80,18 @@ handleReq = \dbPath, req ->
 
             contacts |> listContactView |> htmlResponse 
 
+        (Post, ["login"]) ->
+
+            params = parseFormUrlEncoded (parseBody req) 
+        
+            dbg params
+
+            Task.err (LoginPostUnimplemented)
+
+        (Get, ["login"]) -> 
+
+            loginPage |> htmlResponse |> Task.ok
+         
         (Get, ["task", "new"]) -> redirect "/task" 
         (Post, ["task", idStr, "delete"]) ->
 
@@ -91,7 +121,7 @@ handleReq = \dbPath, req ->
                     Err err -> handleErr err
 
         (Get, ["task"]) ->
-        
+
             tasks <- getAppTasks dbPath "" |> Task.await
             
             taskPage tasks "" |> htmlResponse |> Task.ok
@@ -140,7 +170,7 @@ layout = \page, children ->
         ],
         body [hxBoost "true"] [
             header [] [
-                nav [class "navbar navbar-expand-md bg-body-tertiary"] [
+                nav [class "navbar navbar-expand-md mb-5"] [
                     div [class "container-fluid"] [
                         a [class "navbar-brand", href "/"] [text "DEMO"],
                         button
@@ -212,6 +242,37 @@ indexPage =
                 hxGet "/task",
                 hxTarget "body",
             ] [text "Manage Tasks"],
+        ]
+    ]
+
+loginPage : Html.Node
+loginPage =
+    layout LoginPage [
+        div [class "container"] [
+            div [class "row justify-content-center"] [
+                div [class "col-md-6 card"] [
+                    div [class "card-body"] [
+                        h5 [ class "card-title"] [ text "Login Form"],
+                        form [class "container-fluid", action "/login", method "post"] [
+                            div [class "col-auto"] [
+                                label [class "col-form-label", for "loginUsername"] [text "Username"]
+                            ],
+                            div [class "col-auto"] [
+                                input [class "form-control", (attr "type") "username", (attr "required") "", id "loginUsername", name "user"] []
+                            ],
+                            div [class "col-auto"] [
+                                label [class "col-form-label", for "loginPassword"] [text "Password"]
+                            ],
+                            div [class "col-auto"] [
+                                input [class "form-control", (attr "type") "password", (attr "required") "", id "loginPassword", name "pass"] []
+                            ],
+                            div [class "col-auto mt-2"] [
+                                button [(attr "type") "submit", (attr "type") "button", class "btn btn-primary"] [text "Submit"]
+                            ]
+                        ]
+                    ]
+                ]
+            ]
         ]
     ]
 
@@ -321,7 +382,7 @@ listTaskView = \tasks, taskQuery ->
             
 createAppTaskView : Html.Node
 createAppTaskView = 
-    form [action "/task/new", method "post", class "mt-2"][
+    form [action "/task/new", method "post"][
         div [class "input-group mb-3"] [
             input [
                 id "task", 
@@ -368,6 +429,48 @@ deleteAppTask = \dbPath, idStr ->
     when output.status is
         Ok {} -> Task.ok {}
         Err _ -> Task.err (SqliteErrorDeletingTask output.stderr)
+
+
+newSessionId : Str -> Task U64 [SqliteErrorDeletingTask _, UnableToParseSessionId _]_
+newSessionId = \dbPath -> 
+
+    query = 
+        """
+        BEGIN TRANSACTION;
+        insert into sessions (id) values (abs(random()));
+        select last_insert_rowid();
+        COMMIT;
+        """
+
+    output <-
+        Command.new "sqlite3"
+        |> Command.arg dbPath
+        |> Command.arg query
+        |> Command.output
+        |> Task.await
+
+    when output.status is
+        Ok {} -> 
+            output.stdout
+            |> Str.fromUtf8
+            |> Result.map Str.trim
+            |> Result.try Str.toU64
+            |> Result.mapErr UnableToParseSessionId
+            |> Task.fromResult
+        Err _ -> Task.err (SqliteErrorDeletingTask output.stderr)
+
+getSessionId : Request -> Result U64 [CookieNotFound, InvalidSessionId _]_
+getSessionId = \req ->
+    req.headers 
+    |> List.keepIf \reqHeader -> reqHeader.name == "cookie"
+    |> List.first
+    |> Result.mapErr \_ -> CookieNotFound
+    |> Result.try \reqHeader -> 
+        reqHeader.value
+        |> Str.fromUtf8
+        |> Result.try \str -> str |> Str.split "=" |> List.get 1 
+        |> Result.try Str.toU64
+        |> Result.mapErr \_ -> InvalidSessionId reqHeader.value
 
 parseAppTask : List U8 -> Result AppTask [UnableToParseBodyTask _]_
 parseAppTask = \bytes ->

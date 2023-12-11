@@ -37,7 +37,7 @@ main = \req ->
 
     # Session cookie should be sent with each request, otherwise create one
     when getSessionId req is 
-        Ok sessionId -> handleReq sessionId dbPath req |> Task.onErr handleErr
+        Ok sessionId -> handleReq (Guest sessionId) dbPath req |> Task.onErr handleErr
         Err _ ->
             result <- newSessionId dbPath |> Task.attempt
 
@@ -54,6 +54,11 @@ main = \req ->
                         body: [],
                     }
 
+Session : [
+    User Str U64, 
+    Guest U64,
+]
+
 Page : [
     HomePage,
     TaskListPage,
@@ -67,8 +72,8 @@ pageData = [
     { page: LoginPage, title: "Login", href: "/login", description: "Log in" },
 ]
 
-handleReq : U64, Str, Request -> Task Response _
-handleReq = \sessionId, dbPath, req ->
+handleReq : Session, Str, Request -> Task Response _
+handleReq = \session, dbPath, req ->
     when (req.method, req.url |> Url.fromStr |> urlSegments) is
         (Get, [""]) -> indexPage |> htmlResponse |> Task.ok
         (Get, ["robots.txt"]) -> staticReponse robotsTxt
@@ -261,10 +266,10 @@ loginPage =
                                 input [class "form-control", (attr "type") "username", (attr "required") "", id "loginUsername", name "user"] []
                             ],
                             div [class "col-auto"] [
-                                label [class "col-form-label", for "loginPassword"] [text "Password"]
+                                label [class "col-form-label", for "loginPassword"] [text "Password (not used)"]
                             ],
                             div [class "col-auto"] [
-                                input [class "form-control", (attr "type") "password", (attr "required") "", id "loginPassword", name "pass"] []
+                                input [class "form-control disabled", (attr "type") "password", (attr "disabled") "", id "loginPassword", name "pass"] []
                             ],
                             div [class "col-auto mt-2"] [
                                 button [(attr "type") "submit", (attr "type") "button", class "btn btn-primary"] [text "Submit"]

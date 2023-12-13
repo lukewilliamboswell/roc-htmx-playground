@@ -2,7 +2,7 @@ app "http"
     packages {
         pf: "https://github.com/roc-lang/basic-webserver/releases/download/0.2.0/J6CiEdkMp41qNdq-9L3HGoF2cFkafFlArvfU1RtR4rY.tar.br",
         html: "https://github.com/Hasnep/roc-html/releases/download/v0.2.0/5fqQTpMYIZkigkDa2rfTc92wt-P_lsa76JVXb8Qb3ms.tar.br",
-        json: "https://github.com/lukewilliamboswell/roc-json/releases/download/0.5.0/jEPD_1ZLFiFrBeYKiKvHSisU-E3LZJeenfa9nvqJGeE.tar.br",
+        json: "https://github.com/lukewilliamboswell/roc-json/releases/download/0.6.0/hJySbEhJV026DlVCHXGOZNOeoOl7468y9F9Buhj0J18.tar.br",
         ansi: "https://github.com/lukewilliamboswell/roc-ansi/releases/download/0.1.1/cPHdNPNh8bjOrlOgfSaGBJDz6VleQwsPdW0LJK6dbGQ.tar.br",
     }
     imports [
@@ -14,8 +14,8 @@ app "http"
         pf.Env,
         pf.Utc,
         pf.Url.{ Url },
-        html.Html.{ header, table, thead, form, tbody, h5, td, th, tr, nav, meta, nav, button, span, link, body, button, a, input, div, text, ul, li, label },
-        html.Attribute.{ src, id, href, rel, name, integrity, crossorigin, action, method, class, value, role, for },
+        html.Html.{ header, table, thead, form, tbody, h1, h5, td, th, tr, nav, meta, nav, button, span, link, body, button, a, input, div, text, ul, li, label },
+        html.Attribute.{ src, id, href, rel, name, integrity, crossorigin, action, method, class, value, role, for, width, height },
         json.Core.{ json },
         ansi.Color,
         "styles.css" as stylesFile : List U8,
@@ -35,13 +35,18 @@ main = \req ->
         |> Task.onErr \_ -> crash "unable to read DB_PATH environment variable"
         |> Task.await
 
-    # Session cookie should be sent with each request, otherwise create one
-    when getSessionId req is 
-        Ok sessionId -> handleReq (Guest sessionId) dbPath req |> Task.onErr handleErr
-        Err _ ->
-            result <- newSessionId dbPath |> Task.attempt
+    maybeSession <- parseSessionId req |> getSession dbPath |> Task.attempt
+    when maybeSession is
 
-            when result is 
+        # Session cookie should be sent with each request
+        Ok session -> handleReq session dbPath req |> Task.onErr handleErr
+
+        # If this is a new session we should create one and return it
+        Err SessionNotFound -> 
+
+            maybeNewSession <- newSessionId dbPath |> Task.attempt
+
+            when maybeNewSession is 
                 Err err -> handleErr err
                 Ok sessionId -> 
                     
@@ -54,10 +59,13 @@ main = \req ->
                         body: [],
                     }
 
-Session : [
-    User Str U64, 
-    Guest U64,
-]
+        # Handle any server errors
+        Err err -> handleErr err
+
+Session : {
+    id : U64,
+    user : [Guest, LoggedIn Str],
+}
 
 Page : [
     HomePage,
@@ -69,13 +77,13 @@ pageData : List { page : Page, title : Str, href : Str, description : Str }
 pageData = [
     { page: HomePage, title: "Home", href: "/", description: "The home page" },
     { page: TaskListPage, title: "Tasks", href: "/task", description: "Manage tasks" },
-    { page: LoginPage, title: "Login", href: "/login", description: "Log in" },
+    { page: LoginPage, title: "Login", href: "/login", description: "Login" },
 ]
 
 handleReq : Session, Str, Request -> Task Response _
 handleReq = \session, dbPath, req ->
     when (req.method, req.url |> Url.fromStr |> urlSegments) is
-        (Get, [""]) -> indexPage |> htmlResponse |> Task.ok
+        (Get, [""]) -> indexPage session |> htmlResponse |> Task.ok
         (Get, ["robots.txt"]) -> staticReponse robotsTxt
         (Get, ["styles.css"]) -> staticReponse stylesFile
         (Get, ["site.js"]) -> staticReponse siteFile
@@ -85,17 +93,40 @@ handleReq = \session, dbPath, req ->
 
             contacts |> listContactView |> htmlResponse 
 
+        (Get, ["login"]) -> 
+
+            loginPage session Fresh |> htmlResponse |> Task.ok
+
         (Post, ["login"]) ->
 
             params = parseFormUrlEncoded (parseBody req) 
-        
-            dbg params
 
-            Task.err (LoginPostUnimplemented)
+            when Dict.get params "user" is 
+                Err _ -> loginPage session UserNotProvided |> htmlResponse |> Task.ok
+                Ok username -> 
+                    loginUser dbPath session.id username
+                    |> Task.attempt \result -> 
+                        when result is 
+                            Ok {} -> redirect "/"
+                            Err (UserNotFound _) -> loginPage session (UserNotFound username) |> htmlResponse |> Task.ok
+                            Err err -> handleErr err
 
-        (Get, ["login"]) -> 
+        (Post, ["logout"]) ->
 
-            loginPage |> htmlResponse |> Task.ok
+            maybeNewSession <- newSessionId dbPath |> Task.attempt
+
+            when maybeNewSession is 
+                Err err -> handleErr err
+                Ok sessionId -> 
+                    
+                    Task.ok {
+                        status: 303,
+                        headers: [
+                            { name: "Set-Cookie", value: Str.toUtf8 "sessionId=\(Num.toStr sessionId)" },
+                            { name: "Location", value: Str.toUtf8 "/" },
+                        ],
+                        body: [],
+                    }
          
         (Get, ["task", "new"]) -> redirect "/task" 
         (Post, ["task", idStr, "delete"]) ->
@@ -129,12 +160,35 @@ handleReq = \session, dbPath, req ->
 
             tasks <- getAppTasks dbPath "" |> Task.await
             
-            taskPage tasks "" |> htmlResponse |> Task.ok
+            taskPage tasks "" session |> htmlResponse |> Task.ok
 
         _ -> Task.err (URLNotFound req.url)
 
-layout : Page, List Html.Node -> Html.Node
-layout = \page, children ->
+layout : Page, Session, List Html.Node -> Html.Node
+layout = \page, session, children ->
+
+    loginOrUser = 
+        when session.user is 
+            Guest -> 
+                form [class "d-flex"] [
+                    button [
+                        class "btn btn-secondary", 
+                        hxGet "/login", 
+                        hxTarget "body", 
+                        hxPushUrl "true",
+                    ] [ text "Login"]
+                ]
+            LoggedIn username -> 
+                div [class "d-flex"] [
+                    span [class "align-self-center d-none d-sm-block"] [personIcon],
+                    span [class "align-self-center d-none d-sm-block me-3"] [text username],
+                    button [
+                        class "btn btn-secondary", 
+                        hxPost "/logout", 
+                        hxTarget "body", 
+                        hxPushUrl "true",
+                    ] [text "Logout"],
+                ]
 
     {description, title} = 
         pageData 
@@ -175,41 +229,44 @@ layout = \page, children ->
         ],
         body [hxBoost "true"] [
             header [] [
-                nav [class "navbar navbar-expand-md mb-5"] [
+                nav [class "navbar navbar-expand-sm mb-5"] [
                     div [class "container-fluid"] [
-                        a [class "navbar-brand", href "/"] [text "DEMO"],
-                        button
-                            [
-                                class "navbar-toggler",
-                                (attr "type") "button",
-                                (attr "data-bs-toggle") "collapse",
-                                (attr "data-bs-target") "#navbarNav",
-                                (attr "aria-controls") "navbarNav",
-                                (attr "aria-expanded") "false",
-                                (attr "aria-label") "Toggle navigation",
-                            ]
-                            [span [class "navbar-toggler-icon"] []],
+                        
+                        button [
+                            class "navbar-toggler",
+                            (attr "type") "button",
+                            (attr "data-bs-toggle") "collapse",
+                            (attr "data-bs-target") "#navbarNav",
+                            (attr "aria-controls") "navbarNav",
+                            (attr "aria-expanded") "false",
+                            (attr "aria-label") "Toggle navigation",
+                        ][
+                            span [class "navbar-toggler-icon"] []
+                        ],
                         div [class "collapse navbar-collapse", id "navbarNav"] [
-                            ul [class "navbar-nav"] (
-                                curr <- pageData |> List.map
-    
-                                li [class "nav-item"] [
-                                    a (
-                                        if curr.page == page then
-                                            [class "nav-link active", 
-                                            (attr "aria-current") "page", 
-                                            href curr.href,
-                                            hxPushUrl "true",
-                                        ]
-                                        else
-                                            [class "nav-link", 
-                                            href curr.href,
-                                            hxPushUrl "true",
-                                        ]
-                                    )
-                                    [text curr.title],
-                                ]
+                            a [class "navbar-brand", href "/"] [text "DEMO"],
+                            ul [class "navbar-nav me-auto"] (
+                                pageData 
+                                |> List.keepIf \pd -> pd.page != LoginPage 
+                                |> List.map \curr ->
+                                    li [class "nav-item"] [
+                                        a (
+                                            if curr.page == page then
+                                                [class "nav-link active", 
+                                                (attr "aria-current") "page", 
+                                                href curr.href,
+                                                hxPushUrl "true",
+                                            ]
+                                            else
+                                                [class "nav-link", 
+                                                href curr.href,
+                                                hxPushUrl "true",
+                                            ]
+                                        )
+                                        [text curr.title],
+                                    ]
                             ),
+                            loginOrUser,
                         ],
                     ],
                 ],
@@ -238,21 +295,24 @@ hxPost = attr "hx-post"
 hxPushUrl = attr "hx-push-url"
 hxTrigger = attr "hx-trigger"
 
-indexPage =
-    layout HomePage [
+indexPage : Session -> Html.Node
+indexPage = \session ->
+    layout HomePage session [
         div [class "container"] [
-            (el "button") [
-                (attr "type") "button", 
-                class "btn btn-secondary mt-2",
-                hxGet "/task",
-                hxTarget "body",
-            ] [text "Manage Tasks"],
+            h1 [] [text "Home"],
         ]
     ]
 
-loginPage : Html.Node
-loginPage =
-    layout LoginPage [
+loginPage : Session, [Fresh, UserNotProvided, UserNotFound Str] -> Html.Node
+loginPage = \session, state ->
+
+    (usernameInputClass, usernameValidationClass, usernameValidationText) = 
+        when state is
+            Fresh -> ("form-control", "invalid-feedback", "")
+            UserNotFound str -> ("form-control is-invalid", "invalid-feedback", "Username \(str) not found")
+            UserNotProvided -> ("form-control is-invalid", "invalid-feedback", "Missing username")
+
+    layout LoginPage session [
         div [class "container"] [
             div [class "row justify-content-center"] [
                 div [class "col-md-6 card"] [
@@ -263,7 +323,8 @@ loginPage =
                                 label [class "col-form-label", for "loginUsername"] [text "Username"]
                             ],
                             div [class "col-auto"] [
-                                input [class "form-control", (attr "type") "username", (attr "required") "", id "loginUsername", name "user"] []
+                                input [class usernameInputClass, (attr "type") "username", (attr "required") "", id "loginUsername", name "user"] [],
+                                div [class usernameValidationClass] [text usernameValidationText],
                             ],
                             div [class "col-auto"] [
                                 label [class "col-form-label", for "loginPassword"] [text "Password (not used)"]
@@ -287,12 +348,12 @@ AppTask : {
     status : Str,
 }
 
+escapeSQL = \str -> Str.replaceEach str "'" "''"
+
 getAppTasks : Str, Str -> Task (List AppTask) [SqliteErrorGetTask _, UnableToDecodeTask _]_
 getAppTasks = \dbPath, filterQuery ->
 
-    escapeSQL = \str -> Str.replaceEach str "'" "''"
-
-    sql = 
+    query = 
         if Str.isEmpty filterQuery then 
             "SELECT id, task, status FROM tasks;"
         else
@@ -302,7 +363,7 @@ getAppTasks = \dbPath, filterQuery ->
         Command.new "sqlite3"
         |> Command.arg dbPath
         |> Command.arg ".mode json"
-        |> Command.arg sql
+        |> Command.arg query
         |> Command.output
         |> Task.await
 
@@ -315,11 +376,20 @@ getAppTasks = \dbPath, filterQuery ->
             Ok tasks -> Task.ok tasks
             Err _ -> Task.err (UnableToDecodeTask output.stdout)
 
-taskPage : List AppTask, Str -> Html.Node
-taskPage = \tasks, taskQuery ->
-    layout TaskListPage [
+taskPage : List AppTask, Str, Session -> Html.Node
+taskPage = \tasks, taskQuery, session ->
+
+    headerText = 
+        when session.user is 
+            Guest -> "Guest List"
+            LoggedIn username -> "\(username) List"
+
+    layout TaskListPage session [
         div [class "container-fluid"] [
             div [class "row justify-content-center"] [
+                div [class "col-md-9"] [
+                    h1 [] [text headerText]
+                ],
                 div [class "col-md-9"] [
                     createAppTaskView,
                     input [
@@ -442,7 +512,7 @@ newSessionId = \dbPath ->
     query = 
         """
         BEGIN TRANSACTION;
-        insert into sessions (id) values (abs(random()));
+        insert into sessions (session_id) values (abs(random()));
         select last_insert_rowid();
         COMMIT;
         """
@@ -464,19 +534,103 @@ newSessionId = \dbPath ->
             |> Task.fromResult
         Err _ -> Task.err (SqliteErrorDeletingTask output.stderr)
 
-getSessionId : Request -> Result U64 [CookieNotFound, InvalidSessionId _]_
-getSessionId = \req ->
+parseSessionId : Request -> Result U64 {}
+parseSessionId = \req ->
     req.headers 
     |> List.keepIf \reqHeader -> reqHeader.name == "cookie"
     |> List.first
-    |> Result.mapErr \_ -> CookieNotFound
+    |> Result.mapErr \_ -> {}
     |> Result.try \reqHeader -> 
         reqHeader.value
         |> Str.fromUtf8
         |> Result.try \str -> str |> Str.split "=" |> List.get 1 
         |> Result.try Str.toU64
-        |> Result.mapErr \_ -> InvalidSessionId reqHeader.value
+        |> Result.mapErr \_ -> {}
 
+getSession : Result U64 {}, Str -> Task Session _
+getSession = \maybeSessionId, dbPath ->
+
+    sessionId <- 
+        maybeSessionId 
+        |> Task.fromResult 
+        |> Task.mapErr \_ -> SessionNotFound 
+        |> Task.await
+
+    """
+    SELECT sessions.session_id AS \"notUsed\", COALESCE(users.name,'NOT_FOUND') AS \"username\" 
+    FROM sessions
+    LEFT OUTER JOIN users
+    ON sessions.user_id = users.user_id
+    WHERE sessions.session_id = \(Num.toStr sessionId);
+    """
+    |> executeSql dbPath
+    |> Task.await \bytes -> # [{"notUsed":2281148971928231237,"username":"NOT_FOUND"}]
+        when Decode.fromBytes bytes json is 
+            Err err -> Task.err (SqlParsingError err)
+            Ok things -> 
+                things
+                    |> List.first 
+                    |> Result.map .username
+                    |> Task.fromResult
+
+    |> Task.attempt \result ->
+        when result is 
+            Ok userName if userName == "NOT_FOUND" -> Task.ok { id: sessionId, user: Guest}
+            Ok userName -> Task.ok { id: sessionId, user: LoggedIn userName}
+            Err NilRows -> Task.err SessionNotFound
+            Err err -> Task.err err
+
+findUser : Str, Str -> Task {id : U64, username : Str} _
+findUser = \dbPath, username ->
+    """
+    SELECT user_id as userId FROM users WHERE name = '\(escapeSQL username)';
+    """
+    |> executeSql dbPath
+    |> Task.await \bytes ->
+        when Decode.fromBytes bytes json is 
+            Err msg -> Task.err (ErrParsingJson msg bytes)
+            Ok userList ->
+                userList
+                |> List.first 
+                |> Result.map \{userId} -> {id: userId, username}
+                |> Task.fromResult
+    |> Task.mapErr \err -> if err == NilRows then UserNotFound username else err
+
+loginUser : Str, U64, Str -> Task {} _
+loginUser = \dbPath, sessionId, username ->
+
+    user <- findUser dbPath username |> Task.await
+
+    """
+    UPDATE sessions
+    SET user_id = \(Num.toStr user.id)
+    WHERE session_id = \(Num.toStr sessionId);
+    """
+    |> executeSql dbPath
+    |> Task.attempt \result ->
+        when result is 
+            Err NilRows -> Task.ok {}
+            Ok _ -> Task.ok {}
+            Err err -> Task.err err
+
+executeSql : Str, Str -> Task (List U8) _
+executeSql = \query, dbPath ->
+    output <-
+        Command.new "sqlite3"
+        |> Command.arg dbPath
+        |> Command.arg ".mode json"
+        |> Command.arg query
+        |> Command.output
+        |> Task.await
+
+    when output.status is
+        Err _ -> Task.err (SqlError output.stderr)
+        Ok {} -> 
+            if List.isEmpty output.stdout then 
+                Task.err NilRows
+            else 
+                Task.ok output.stdout
+            
 parseAppTask : List U8 -> Result AppTask [UnableToParseBodyTask _]_
 parseAppTask = \bytes ->
     dict = parseFormUrlEncoded bytes
@@ -562,26 +716,18 @@ parseBody = \req ->
         EmptyBody -> []
         Body internal -> internal.body
     
+personIcon = 
+    Html.svg [
+        (attr "xmlns") "http://www.w3.org/2000/svg",
+        width "16",
+        height "16",
+        class "me-2",
+        (attr "viewBox") "0 0 16 16",
+    ][(el "path") [(attr "d") "M8 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6m2-3a2 2 0 1 1-4 0 2 2 0 0 1 4 0m4 8c0 1-1 1-1 1H3s-1 0-1-1 1-4 6-4 6 3 6 4m-1-.004c-.001-.246-.154-.986-.832-1.664C11.516 10.68 10.289 10 8 10c-2.29 0-3.516.68-4.168 1.332-.678.678-.83 1.418-.832 1.664z"] []]
 
-# lineHtml = el "line"
-# strokeWidth = attr "stroke-width"
-# x1 = attr "x1"
-# y1 = attr "y1"
-# x2 = attr "x2"
-# y2 = attr "y2"
-# viewBox = attr "viewBox"
-
-# deleteIcon = Html.svg
-#     [
-#         class "svg-icon",
-#         width "20",
-#         height "20",
-#         viewBox "0 0 100 100",
-#     ]
-#     [
-#         lineHtml [x1 "20", y1 "20", x2 "80", y2 "80", strokeWidth "10"] [],
-#         lineHtml [x1 "80", y1 "20", x2 "20", y2 "80", strokeWidth "10"] [],
-#     ]
+# <svg xmlns="http://www.w3.org/2000/svg" width="16" height="16" fill="currentColor" class="bi bi-person" viewBox="0 0 16 16">
+#   <path d="M8 8a3 3 0 1 0 0-6 3 3 0 0 0 0 6m2-3a2 2 0 1 1-4 0 2 2 0 0 1 4 0m4 8c0 1-1 1-1 1H3s-1 0-1-1 1-4 6-4 6 3 6 4m-1-.004c-.001-.246-.154-.986-.832-1.664C11.516 10.68 10.289 10 8 10c-2.29 0-3.516.68-4.168 1.332-.678.678-.83 1.418-.832 1.664z"></path>
+# </svg>
 
 
 parseFormUrlEncoded : List U8 -> Dict Str Str

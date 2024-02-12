@@ -2,7 +2,6 @@ app "http"
     packages {
         pf: "../basic-webserver/platform/main.roc",
         html: "https://github.com/Hasnep/roc-html/releases/download/v0.2.1/gvFCxQTb3ytGwm7RQ87BVDMHzo7MNIM2uqY4GBDSP7M.tar.br",
-        json: "https://github.com/lukewilliamboswell/roc-json/releases/download/0.6.1/-7UaQL9fbi0J3P6nS_qlxTdpDkOu_7CUm4MZzAN9ZUQ.tar.br",
         ansi: "https://github.com/lukewilliamboswell/roc-ansi/releases/download/0.1.1/cPHdNPNh8bjOrlOgfSaGBJDz6VleQwsPdW0LJK6dbGQ.tar.br",
     }
     imports [
@@ -10,18 +9,23 @@ app "http"
         pf.Stderr,
         pf.Task.{ Task },
         pf.Http.{ Request, Response },
-        pf.Command,
         pf.Env,
         pf.Utc,
         pf.Url.{ Url },
+        pf.SQLite3,
         html.Html.{ header, table, thead, form, tbody, h1, h5, td, th, tr, nav, meta, nav, button, span, link, body, button, a, input, div, text, ul, li, label },
         html.Attribute.{ src, id, href, rel, name, integrity, crossorigin, action, method, class, value, role, for, width, height },
-        json.Core.{ json },
         ansi.Color,
         "site.css" as stylesFile : List U8,
         "site.js" as siteFile : List U8,
+        Sql.Todo,
+        Sql.Session,
+        Sql.User,
+        Model.{Session, Todo},
     ]
     provides [main] to pf
+
+expect SQLite3.nothing == Nothing
 
 main : Request -> Task Response []
 main = \req ->
@@ -35,7 +39,7 @@ main = \req ->
         |> Task.onErr \_ -> crash "unable to read DB_PATH environment variable"
         |> Task.await
 
-    maybeSession <- parseSessionId req |> getSession dbPath |> Task.attempt
+    maybeSession <- Sql.Session.parse req |> Sql.Session.get dbPath |> Task.attempt
     when maybeSession is
 
         # Session cookie should be sent with each request
@@ -44,7 +48,7 @@ main = \req ->
         # If this is a new session we should create one and return it
         Err SessionNotFound -> 
 
-            maybeNewSession <- newSessionId dbPath |> Task.attempt
+            maybeNewSession <- Sql.Session.new dbPath |> Task.attempt
 
             when maybeNewSession is 
                 Err err -> handleErr err
@@ -53,7 +57,7 @@ main = \req ->
                     Task.ok {
                         status: 303,
                         headers: [
-                            { name: "Set-Cookie", value: Str.toUtf8 "sessionId=\(Num.toStr sessionId)" },
+                            { name: "Set-Cookie", value: Str.toUtf8 "sessionId=$(Num.toStr sessionId)" },
                             { name: "Location", value: Str.toUtf8 req.url },
                         ],
                         body: [],
@@ -61,11 +65,6 @@ main = \req ->
 
         # Handle any server errors
         Err err -> handleErr err
-
-Session : {
-    id : U64,
-    user : [Guest, LoggedIn Str],
-}
 
 Page : [
     HomePage,
@@ -104,7 +103,7 @@ handleReq = \session, dbPath, req ->
             when Dict.get params "user" is 
                 Err _ -> loginPage session UserNotProvided |> htmlResponse |> Task.ok
                 Ok username -> 
-                    loginUser dbPath session.id username
+                    Sql.User.login dbPath session.id username
                     |> Task.attempt \result -> 
                         when result is 
                             Ok {} -> redirect "/"
@@ -113,7 +112,7 @@ handleReq = \session, dbPath, req ->
 
         (Post, ["logout"]) ->
 
-            maybeNewSession <- newSessionId dbPath |> Task.attempt
+            maybeNewSession <- Sql.Session.new dbPath |> Task.attempt
 
             when maybeNewSession is 
                 Err err -> handleErr err
@@ -122,7 +121,7 @@ handleReq = \session, dbPath, req ->
                     Task.ok {
                         status: 303,
                         headers: [
-                            { name: "Set-Cookie", value: Str.toUtf8 "sessionId=\(Num.toStr sessionId)" },
+                            { name: "Set-Cookie", value: Str.toUtf8 "sessionId=$(Num.toStr sessionId)" },
                             { name: "Location", value: Str.toUtf8 "/" },
                         ],
                         body: [],
@@ -131,9 +130,9 @@ handleReq = \session, dbPath, req ->
         (Get, ["task", "new"]) -> redirect "/task" 
         (Post, ["task", idStr, "delete"]) ->
 
-            {} <- deleteAppTask dbPath idStr |> Task.await
+            {} <- Sql.Todo.delete dbPath idStr |> Task.await
 
-            tasks <- getAppTasks dbPath ""  |> Task.await
+            tasks <- Sql.Todo.list dbPath ""  |> Task.await
 
             listTaskView tasks "" |> htmlResponse |> Task.ok            
 
@@ -142,7 +141,7 @@ handleReq = \session, dbPath, req ->
 
             filterTasksQuery = Dict.get params "filterTasks" |> Result.withDefault ""
 
-            tasks <- getAppTasks dbPath filterTasksQuery  |> Task.await
+            tasks <- Sql.Todo.list dbPath filterTasksQuery  |> Task.await
 
             listTaskView tasks filterTasksQuery |> htmlResponse |> Task.ok            
             
@@ -150,7 +149,7 @@ handleReq = \session, dbPath, req ->
 
             task <- parseBody req |> parseAppTask |> Task.fromResult |> Task.await 
             
-            createAppTask dbPath task |> Task.attempt \result -> 
+            Sql.Todo.create dbPath task |> Task.attempt \result -> 
                 when result is 
                     Ok {} -> redirect "/task"
                     Err TaskWasEmpty -> redirect "/task"
@@ -158,7 +157,7 @@ handleReq = \session, dbPath, req ->
 
         (Get, ["task"]) ->
 
-            tasks <- getAppTasks dbPath "" |> Task.await
+            tasks <- Sql.Todo.list dbPath "" |> Task.await
             
             taskPage tasks "" session |> htmlResponse |> Task.ok
 
@@ -287,7 +286,6 @@ listContactView : List Contact -> Html.Node
 listContactView = \_ ->
     Html.h1 [] [text "TODO"]
 
-
 hxBoost = attr "hx-boost"
 hxGet = attr "hx-get"
 hxTarget = attr "hx-target"
@@ -309,7 +307,7 @@ loginPage = \session, state ->
     (usernameInputClass, usernameValidationClass, usernameValidationText) = 
         when state is
             Fresh -> ("form-control", "invalid-feedback", "")
-            UserNotFound str -> ("form-control is-invalid", "invalid-feedback", "Username \(str) not found")
+            UserNotFound str -> ("form-control is-invalid", "invalid-feedback", "Username $(str) not found")
             UserNotProvided -> ("form-control is-invalid", "invalid-feedback", "Missing username")
 
     layout LoginPage session [
@@ -343,38 +341,10 @@ loginPage = \session, state ->
     ]
 
 AppTask : {
-    id : U64,
+    id : I64,
     task : Str,
     status : Str,
 }
-
-escapeSQL = \str -> Str.replaceEach str "'" "''"
-
-getAppTasks : Str, Str -> Task (List AppTask) [SqliteErrorGetTask _, UnableToDecodeTask _]_
-getAppTasks = \dbPath, filterQuery ->
-
-    query = 
-        if Str.isEmpty filterQuery then 
-            "SELECT id, task, status FROM tasks;"
-        else
-            "SELECT id, task, status FROM tasks WHERE task LIKE '%\(escapeSQL filterQuery)%';" 
-    
-    output <-
-        Command.new "sqlite3"
-        |> Command.arg dbPath
-        |> Command.arg ".mode json"
-        |> Command.arg query
-        |> Command.output
-        |> Task.await
-
-    if output.status != Ok {} then
-        Task.err (SqliteErrorGetTask output.stderr)
-    else if List.isEmpty output.stdout then
-        Task.ok []
-    else
-        when Decode.fromBytes output.stdout json is
-            Ok tasks -> Task.ok tasks
-            Err _ -> Task.err (UnableToDecodeTask output.stdout)
 
 taskPage : List AppTask, Str, Session -> Html.Node
 taskPage = \tasks, taskQuery, session ->
@@ -382,7 +352,7 @@ taskPage = \tasks, taskQuery, session ->
     headerText = 
         when session.user is 
             Guest -> "Guest Task List"
-            LoggedIn username -> "\(username)'s Task List"
+            LoggedIn username -> "$(username)'s Task List"
 
     layout TaskListPage session [
         div [class "container-fluid"] [
@@ -428,7 +398,7 @@ listTaskView = \tasks, taskQuery ->
                     div [class "d-flex justify-content-center"] [
                         a [ 
                             href "", 
-                            hxPost "/task/\(Num.toStr task.id)/delete", 
+                            hxPost "/task/$(Num.toStr task.id)/delete", 
                             hxTarget "#taskTable",
                             (attr "aria-label") "delete task",
                             (attr "style") "float: center;",
@@ -472,164 +442,6 @@ createAppTaskView =
             button [(attr "type") "submit", class "btn btn-primary"] [text "Add"],
         ]
     ]
-
-createAppTask : Str, AppTask -> Task {} [TaskWasEmpty, SqliteErrorCreatingTask _]_
-createAppTask = \dbPath, { task, status } ->
-    if Str.isEmpty task then 
-        Task.err TaskWasEmpty
-    else 
-        output <-
-            Command.new "sqlite3"
-            |> Command.arg dbPath
-            |> Command.arg ".mode json"
-            |> Command.arg "INSERT INTO tasks (task, status) VALUES ('\(task)', '\(status)');"
-            |> Command.arg "SELECT id, task, status FROM tasks WHERE id = last_insert_rowid();"
-            |> Command.output
-            |> Task.await
-
-        when output.status is
-            Ok {} -> Task.ok {}
-            Err msg -> Task.err (SqliteErrorCreatingTask msg)
-
-deleteAppTask : Str, Str -> Task {} [SqliteErrorDeletingTask _]_
-deleteAppTask = \dbPath, idStr ->
-    output <-
-        Command.new "sqlite3"
-        |> Command.arg dbPath
-        |> Command.arg ".mode json"
-        |> Command.arg "DELETE FROM tasks WHERE id = \(idStr);"
-        |> Command.output
-        |> Task.await
-
-    when output.status is
-        Ok {} -> Task.ok {}
-        Err _ -> Task.err (SqliteErrorDeletingTask output.stderr)
-
-
-newSessionId : Str -> Task U64 [SqliteErrorDeletingTask _, UnableToParseSessionId _]_
-newSessionId = \dbPath -> 
-
-    query = 
-        """
-        BEGIN TRANSACTION;
-        insert into sessions (session_id) values (abs(random()));
-        select last_insert_rowid();
-        COMMIT;
-        """
-
-    output <-
-        Command.new "sqlite3"
-        |> Command.arg dbPath
-        |> Command.arg query
-        |> Command.output
-        |> Task.await
-
-    when output.status is
-        Ok {} -> 
-            output.stdout
-            |> Str.fromUtf8
-            |> Result.map Str.trim
-            |> Result.try Str.toU64
-            |> Result.mapErr UnableToParseSessionId
-            |> Task.fromResult
-        Err _ -> Task.err (SqliteErrorDeletingTask output.stderr)
-
-parseSessionId : Request -> Result U64 {}
-parseSessionId = \req ->
-    req.headers 
-    |> List.keepIf \reqHeader -> reqHeader.name == "cookie"
-    |> List.first
-    |> Result.mapErr \_ -> {}
-    |> Result.try \reqHeader -> 
-        reqHeader.value
-        |> Str.fromUtf8
-        |> Result.try \str -> str |> Str.split "=" |> List.get 1 
-        |> Result.try Str.toU64
-        |> Result.mapErr \_ -> {}
-
-getSession : Result U64 {}, Str -> Task Session _
-getSession = \maybeSessionId, dbPath ->
-
-    sessionId <- 
-        maybeSessionId 
-        |> Task.fromResult 
-        |> Task.mapErr \_ -> SessionNotFound 
-        |> Task.await
-
-    """
-    SELECT sessions.session_id AS \"notUsed\", COALESCE(users.name,'NOT_FOUND') AS \"username\" 
-    FROM sessions
-    LEFT OUTER JOIN users
-    ON sessions.user_id = users.user_id
-    WHERE sessions.session_id = \(Num.toStr sessionId);
-    """
-    |> executeSql dbPath
-    |> Task.await \bytes -> # [{"notUsed":2281148971928231237,"username":"NOT_FOUND"}]
-        when Decode.fromBytes bytes json is 
-            Err err -> Task.err (SqlParsingError err)
-            Ok things -> 
-                things
-                    |> List.first 
-                    |> Result.map .username
-                    |> Task.fromResult
-
-    |> Task.attempt \result ->
-        when result is 
-            Ok userName if userName == "NOT_FOUND" -> Task.ok { id: sessionId, user: Guest}
-            Ok userName -> Task.ok { id: sessionId, user: LoggedIn userName}
-            Err NilRows -> Task.err SessionNotFound
-            Err err -> Task.err err
-
-findUser : Str, Str -> Task {id : U64, username : Str} _
-findUser = \dbPath, username ->
-    """
-    SELECT user_id as userId FROM users WHERE name = '\(escapeSQL username)';
-    """
-    |> executeSql dbPath
-    |> Task.await \bytes ->
-        when Decode.fromBytes bytes json is 
-            Err msg -> Task.err (ErrParsingJson msg bytes)
-            Ok userList ->
-                userList
-                |> List.first 
-                |> Result.map \{userId} -> {id: userId, username}
-                |> Task.fromResult
-    |> Task.mapErr \err -> if err == NilRows then UserNotFound username else err
-
-loginUser : Str, U64, Str -> Task {} _
-loginUser = \dbPath, sessionId, username ->
-
-    user <- findUser dbPath username |> Task.await
-
-    """
-    UPDATE sessions
-    SET user_id = \(Num.toStr user.id)
-    WHERE session_id = \(Num.toStr sessionId);
-    """
-    |> executeSql dbPath
-    |> Task.attempt \result ->
-        when result is 
-            Err NilRows -> Task.ok {}
-            Ok _ -> Task.ok {}
-            Err err -> Task.err err
-
-executeSql : Str, Str -> Task (List U8) _
-executeSql = \query, dbPath ->
-    output <-
-        Command.new "sqlite3"
-        |> Command.arg dbPath
-        |> Command.arg ".mode json"
-        |> Command.arg query
-        |> Command.output
-        |> Task.await
-
-    when output.status is
-        Err _ -> Task.err (SqlError output.stderr)
-        Ok {} -> 
-            if List.isEmpty output.stdout then 
-                Task.err NilRows
-            else 
-                Task.ok output.stdout
             
 parseAppTask : List U8 -> Result AppTask [UnableToParseBodyTask _]_
 parseAppTask = \bytes ->
@@ -705,7 +517,7 @@ logRequest = \req ->
 
     reqBody = parseBody req |> Str.fromUtf8 |> Result.withDefault "<empty body>"
 
-    Stdout.line "\(dateTime) \(Http.methodToStr req.method) \(req.url) \(reqBody)"
+    Stdout.line "$(dateTime) $(Http.methodToStr req.method) $(req.url) $(reqBody)"
     
 urlSegments : Url -> List Str
 urlSegments = \url -> url |> Url.path |> Str.split "/" |> List.dropFirst 1
@@ -775,7 +587,7 @@ expect
 unwrap = \thing, msg ->
     when thing is
         Ok unwrapped -> unwrapped
-        Err _ -> crash "CRASHED \(msg)"
+        Err _ -> crash "CRASHED $(msg)"
 
 hexBytesToU32 : List U8 -> U32
 hexBytesToU32 = \bytes ->

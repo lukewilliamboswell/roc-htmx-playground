@@ -1,8 +1,8 @@
 app "http"
     packages {
-        pf: "https://github.com/roc-lang/basic-webserver/releases/download/0.2.0/J6CiEdkMp41qNdq-9L3HGoF2cFkafFlArvfU1RtR4rY.tar.br",
-        html: "https://github.com/Hasnep/roc-html/releases/download/v0.2.0/5fqQTpMYIZkigkDa2rfTc92wt-P_lsa76JVXb8Qb3ms.tar.br",
-        json: "https://github.com/lukewilliamboswell/roc-json/releases/download/0.6.0/hJySbEhJV026DlVCHXGOZNOeoOl7468y9F9Buhj0J18.tar.br",
+        pf: "../basic-webserver/platform/main.roc",
+        html: "https://github.com/Hasnep/roc-html/releases/download/v0.2.1/gvFCxQTb3ytGwm7RQ87BVDMHzo7MNIM2uqY4GBDSP7M.tar.br",
+        json: "https://github.com/lukewilliamboswell/roc-json/releases/download/0.6.1/-7UaQL9fbi0J3P6nS_qlxTdpDkOu_7CUm4MZzAN9ZUQ.tar.br",
         ansi: "https://github.com/lukewilliamboswell/roc-ansi/releases/download/0.1.1/cPHdNPNh8bjOrlOgfSaGBJDz6VleQwsPdW0LJK6dbGQ.tar.br",
     }
     imports [
@@ -18,7 +18,7 @@ app "http"
         html.Attribute.{ src, id, href, rel, name, integrity, crossorigin, action, method, class, value, role, for, width, height },
         json.Core.{ json },
         ansi.Color,
-        "styles.css" as stylesFile : List U8,
+        "site.css" as stylesFile : List U8,
         "site.js" as siteFile : List U8,
     ]
     provides [main] to pf
@@ -244,7 +244,7 @@ layout = \page, session, children ->
                             span [class "navbar-toggler-icon"] []
                         ],
                         div [class "collapse navbar-collapse", id "navbarNav"] [
-                            a [class "navbar-brand", href "/"] [text "DEMO"],
+                            a [class "navbar-brand", href "/"] [text "Roc+HTMX"],
                             ul [class "navbar-nav me-auto"] (
                                 pageData 
                                 |> List.keepIf \pd -> pd.page != LoginPage 
@@ -381,8 +381,8 @@ taskPage = \tasks, taskQuery, session ->
 
     headerText = 
         when session.user is 
-            Guest -> "Guest List"
-            LoggedIn username -> "\(username) List"
+            Guest -> "Guest Task List"
+            LoggedIn username -> "\(username)'s Task List"
 
     layout TaskListPage session [
         div [class "container-fluid"] [

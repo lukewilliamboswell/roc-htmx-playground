@@ -41,13 +41,13 @@ login = \path, sessionId, name ->
     query =
         """
         UPDATE sessions
-        SET user_id = :userId
-        WHERE session_id = :session;
+        SET user_id = :A
+        WHERE session_id = :B;
         """
 
     bindings = [
-        { name: ":userId", value: Num.toStr user.id },
-        { name: ":userId", value: Num.toStr sessionId },
+        { name: ":A", value: Num.toStr user.id },
+        { name: ":B", value: Num.toStr sessionId },
     ]
 
     SQLite3.execute { path, query, bindings }

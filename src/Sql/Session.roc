@@ -26,10 +26,8 @@ new = \path ->
 
     when rows is
         [] -> Task.err NoRows
-        [cols, ..] ->
-            when cols is
-                [Integer id] -> Task.ok id
-                _ -> Task.err (UnexpectedValues "unexpected values in new Session, got $(Inspect.toStr cols)")
+        [[Integer id], ..] -> Task.ok id
+        _ -> Task.err (UnexpectedValues "unexpected values in new Session, got $(Inspect.toStr cols)")
 
 parse : Request -> Result I64 {}
 parse = \req ->
@@ -74,12 +72,10 @@ get = \maybeSessionId, path ->
 
     when rows is
         [] -> Task.err SessionNotFound
-        [cols,..] ->
-            when cols is
-                [Integer id, String username] ->
-                    if username == notFoundStr then
-                        Task.ok { id, user: Guest }
-                    else
-                        Task.ok { id, user: LoggedIn username }
+        [[Integer id, String username],..] ->
+            if username == notFoundStr then
+                Task.ok { id, user: Guest }
+            else
+                Task.ok { id, user: LoggedIn username }
 
-                _ -> Task.err (UnexpectedValues "unexpected values in get Session, got $(Inspect.toStr cols)")
+        _ -> Task.err (UnexpectedValues "unexpected values in get Session, got $(Inspect.toStr rows)")

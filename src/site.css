@@ -1,0 +1,9 @@
+body {}
+
+.btn {}
+
+@media (prefers-color-scheme: dark) {
+    body {}
+
+    .btn {}
+}

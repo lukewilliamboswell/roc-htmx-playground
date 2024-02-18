@@ -11,7 +11,7 @@ interface Sql.Session
         Model.{ Session },
     ]
 
-new : Str -> Task I64 [SqlError _]_
+new : Str -> Task I64 _
 new = \path ->
 
     _ <-
@@ -25,12 +25,11 @@ new = \path ->
         |> Task.await
 
     when rows is
-        [cols] ->
+        [] -> Task.err NoRows
+        [cols, ..] ->
             when cols is
                 [Integer id] -> Task.ok id
-                _ -> crash "unexpected values in new Session, got $(Inspect.toStr cols)"
-
-        _ -> crash "got more rows than expected in new Session"
+                _ -> Task.err (UnexpectedValues "unexpected values in new Session, got $(Inspect.toStr cols)")
 
 parse : Request -> Result I64 {}
 parse = \req ->
@@ -45,7 +44,7 @@ parse = \req ->
         |> Result.try Str.toI64
         |> Result.mapErr \_ -> {}
 
-get : Result I64 {}, Str -> Task Session [SqlError _, SessionNotFound]_
+get : Result I64 {}, Str -> Task Session _
 get = \maybeSessionId, path ->
 
     notFoundStr = "NOT_FOUND"
@@ -74,7 +73,8 @@ get = \maybeSessionId, path ->
         |> Task.await
 
     when rows is
-        [cols] ->
+        [] -> Task.err SessionNotFound
+        [cols,..] ->
             when cols is
                 [Integer id, String username] ->
                     if username == notFoundStr then
@@ -82,6 +82,4 @@ get = \maybeSessionId, path ->
                     else
                         Task.ok { id, user: LoggedIn username }
 
-                _ -> crash "unexpected values in get Session, got $(Inspect.toStr cols)"
-
-        _ -> crash "got more rows than expected in get Session"
+                _ -> Task.err (UnexpectedValues "unexpected values in get Session, got $(Inspect.toStr cols)")

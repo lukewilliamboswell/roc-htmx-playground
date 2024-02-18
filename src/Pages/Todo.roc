@@ -4,8 +4,8 @@ interface Pages.Todo
         listTodoView,
     ]
     imports [
-        html.Html.{ element, header, table, thead, form, tbody, h1, h5, td, th, tr, nav, meta, nav, button, span, link, body, button, a, input, div, text, ul, li, label },
-        html.Attribute.{ attribute, src, id, href, rel, name, integrity, crossorigin, action, method, class, value, role, for, width, height },
+        html.Html.{ element, header, table, thead, form, tbody, h1, h5, td, th, tr, nav, meta, nav, button, span, body, button, a, input, div, text, ul, li, label },
+        html.Attribute.{ attribute, id, href, rel, name, action, method, class, value, role, for, width, height },
         Model.{ Session, Todo },
         Layout.{ layout },
         NavLinks,

@@ -1,6 +1,6 @@
 app "http"
     packages {
-        pf: "../basic-webserver/platform/main.roc",
+        pf: "../../basic-webserver/platform/main.roc",
         html: "https://github.com/Hasnep/roc-html/releases/download/v0.2.1/gvFCxQTb3ytGwm7RQ87BVDMHzo7MNIM2uqY4GBDSP7M.tar.br",
         ansi: "https://github.com/lukewilliamboswell/roc-ansi/releases/download/0.1.1/cPHdNPNh8bjOrlOgfSaGBJDz6VleQwsPdW0LJK6dbGQ.tar.br",
     }

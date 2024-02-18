@@ -1,1 +1,4 @@
 main
+sql_snippets.sql
+
+*.db

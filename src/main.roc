@@ -21,7 +21,7 @@ app "http"
         Sql.Todo,
         Sql.Session,
         Sql.User,
-        Model.{Session, Todo},
+        Model.{ Session, Todo },
         Pages.Home,
         Pages.Login,
         Pages.Todo,
@@ -42,19 +42,15 @@ main = \req ->
 
     maybeSession <- Sql.Session.parse req |> Sql.Session.get dbPath |> Task.attempt
     when maybeSession is
-
         # Session cookie should be sent with each request
         Ok session -> handleReq session dbPath req |> Task.onErr handleErr
-
         # If this is a new session we should create one and return it
-        Err SessionNotFound -> 
-
+        Err SessionNotFound ->
             maybeNewSession <- Sql.Session.new dbPath |> Task.attempt
 
-            when maybeNewSession is 
+            when maybeNewSession is
                 Err err -> handleErr err
-                Ok sessionId -> 
-                    
+                Ok sessionId ->
                     Task.ok {
                         status: 303,
                         headers: [
@@ -70,44 +66,40 @@ main = \req ->
 handleReq : Session, Str, Request -> Task Response _
 handleReq = \session, dbPath, req ->
 
-    urlSegments = 
-        req.url 
-        |> Url.fromStr 
-        |> Url.path 
-        |> Str.split "/" 
+    urlSegments =
+        req.url
+        |> Url.fromStr
+        |> Url.path
+        |> Str.split "/"
         |> List.dropFirst 1
 
     when (req.method, urlSegments) is
-        (Get, [""]) -> Pages.Home.view {session} |> htmlResponse |> Task.ok
+        (Get, [""]) -> Pages.Home.view { session } |> htmlResponse |> Task.ok
         (Get, ["robots.txt"]) -> staticReponse robotsTxt
         (Get, ["styles.css"]) -> staticReponse stylesFile
         (Get, ["site.js"]) -> staticReponse siteFile
-        (Get, ["login"]) -> 
-
-            Pages.Login.view {session, user: Fresh} |> htmlResponse |> Task.ok
+        (Get, ["login"]) ->
+            Pages.Login.view { session, user: Fresh } |> htmlResponse |> Task.ok
 
         (Post, ["login"]) ->
-
             params = Http.parseFormUrlEncoded req.body |> Result.withDefault (Dict.empty {})
 
-            when Dict.get params "user" is 
-                Err _ -> Pages.Login.view {session, user: UserNotProvided} |> htmlResponse |> Task.ok
-                Ok username -> 
+            when Dict.get params "user" is
+                Err _ -> Pages.Login.view { session, user: UserNotProvided } |> htmlResponse |> Task.ok
+                Ok username ->
                     Sql.User.login dbPath session.id username
-                    |> Task.attempt \result ->                        
-                        when result is 
+                    |> Task.attempt \result ->
+                        when result is
                             Ok {} -> redirect "/"
-                            Err (UserNotFound _) -> Pages.Login.view {session, user: UserNotFound username} |> htmlResponse |> Task.ok
+                            Err (UserNotFound _) -> Pages.Login.view { session, user: UserNotFound username } |> htmlResponse |> Task.ok
                             Err err -> handleErr err
 
         (Post, ["logout"]) ->
-
             maybeNewSession <- Sql.Session.new dbPath |> Task.attempt
 
-            when maybeNewSession is 
+            when maybeNewSession is
                 Err err -> handleErr err
-                Ok sessionId -> 
-                    
+                Ok sessionId ->
                     Task.ok {
                         status: 303,
                         headers: [
@@ -116,43 +108,48 @@ handleReq = \session, dbPath, req ->
                         ],
                         body: [],
                     }
-         
-        (Get, ["task", "new"]) -> redirect "/task" 
-        (Post, ["task", idStr, "delete"]) ->
 
+        (Get, ["task", "new"]) -> redirect "/task"
+        (Post, ["task", idStr, "delete"]) ->
             {} <- Sql.Todo.delete dbPath idStr |> Task.await
 
-            tasks <- Sql.Todo.list dbPath ""  |> Task.await
+            tasks <- Sql.Todo.list dbPath "" |> Task.await
 
-            Pages.Todo.listTodoView {todos: tasks, searchQuery: ""} |> htmlResponse |> Task.ok            
+            Pages.Todo.listTodoView { todos: tasks, searchQuery: "" } |> htmlResponse |> Task.ok
 
         (Post, ["task", "search"]) ->
             params = Http.parseFormUrlEncoded req.body |> Result.withDefault (Dict.empty {})
 
             filterTasksQuery = Dict.get params "filterTasks" |> Result.withDefault ""
 
-            tasks <- Sql.Todo.list dbPath filterTasksQuery  |> Task.await
+            tasks <- Sql.Todo.list dbPath filterTasksQuery |> Task.await
 
-            Pages.Todo.listTodoView {todos: tasks, searchQuery: filterTasksQuery} |> htmlResponse |> Task.ok            
-            
+            Pages.Todo.listTodoView { todos: tasks, searchQuery: filterTasksQuery } |> htmlResponse |> Task.ok
+
         (Post, ["task", "new"]) ->
+            task <- parseTodo req.body |> Task.fromResult |> Task.await
 
-            task <- parseTodo req.body |> Task.fromResult |> Task.await 
-            
-            Sql.Todo.create dbPath task |> Task.attempt \result -> 
-                when result is 
+            Sql.Todo.create dbPath task
+            |> Task.attempt \result ->
+                when result is
                     Ok {} -> redirect "/task"
                     Err TaskWasEmpty -> redirect "/task"
                     Err err -> handleErr err
 
-        (Get, ["task"]) ->
+        (Put, ["task", idStr, "complete"]) ->
+            {} <- Sql.Todo.update dbPath idStr |> Task.await
 
             tasks <- Sql.Todo.list dbPath "" |> Task.await
-            
-            Pages.Todo.view {todos: tasks, searchQuery:"", session} |> htmlResponse |> Task.ok
+
+            Pages.Todo.listTodoView { todos: tasks, searchQuery: "" } |> htmlResponse |> Task.ok
+
+        (Get, ["task"]) ->
+            tasks <- Sql.Todo.list dbPath "" |> Task.await
+
+            Pages.Todo.view { todos: tasks, searchQuery: "", session } |> htmlResponse |> Task.ok
 
         _ -> Task.err (URLNotFound req.url)
-            
+
 parseTodo : List U8 -> Result Todo [UnableToParseBodyTask _]_
 parseTodo = \bytes ->
     dict = Http.parseFormUrlEncoded bytes |> Result.withDefault (Dict.empty {})
@@ -201,10 +198,10 @@ redirect = \next ->
 handleErr : _ -> Task Response []_
 handleErr = \err ->
 
-    (msg, code) = when err is 
-        URLNotFound url -> (Str.joinWith ["404 NotFound" |> Color.fg Blue, url] " ", 404)
-        _ -> (Str.joinWith ["SERVER ERROR" |> Color.fg Red,Inspect.toStr err] " ", 500) 
-         
+    (msg, code) =
+        when err is
+            URLNotFound url -> (Str.joinWith ["404 NotFound" |> Color.fg Blue, url] " ", 404)
+            _ -> (Str.joinWith ["SERVER ERROR" |> Color.fg Red, Inspect.toStr err] " ", 500)
 
     {} <- Stderr.line msg |> Task.await
 
@@ -223,7 +220,7 @@ logRequest = \req ->
     Stdout.line "$(dateTime) $(Http.methodToStr req.method) $(req.url) $(reqBody)"
 
 robotsTxt : List U8
-robotsTxt = 
+robotsTxt =
     """
     User-agent: *
     Disallow: /

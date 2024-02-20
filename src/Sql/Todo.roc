@@ -3,6 +3,7 @@ interface Sql.Todo
         list,
         create,
         delete,
+        update,
     ]
     imports [
         pf.Task.{ Task },
@@ -47,6 +48,23 @@ create = \path, newTodo ->
             bindings: [
                 { name: ":task", value: newTodo.task },
                 { name: ":status", value: newTodo.status },
+            ],
+        }
+        |> Task.onErr \err -> SqlError err |> Task.err
+        |> Task.map \_ -> {}
+
+update : Str, Str -> Task {} [TodoWasEmpty, SqlError _]_
+update = \path, idStr ->
+    if Str.isEmpty idStr then
+        Task.err TodoIdWasEmpty
+    else
+        SQLite3.execute {
+            path,
+            query: "UPDATE tasks SET status = (:status) WHERE id=:id;",
+            bindings: [
+                { name: ":status", value: "Completed" },
+                { name: ":id", value: idStr },
+
             ],
         }
         |> Task.onErr \err -> SqlError err |> Task.err

@@ -4,10 +4,10 @@ DROP TABLE sessions;
 DROP TABLE tasks;
 
 -- USERS 
-CREATE TABLE users (user_id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT);
+CREATE TABLE users (user_id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, email TEXT);
 
-INSERT INTO users (name) values ('Henry');
-INSERT INTO users (name) values ('Joe');
+INSERT INTO users (name, email) values ('Henry', 'henry@cool.com');
+INSERT INTO users (name, email) values ('Joe', 'joe@foo.com');
 
 -- SESSIONS
 CREATE TABLE sessions (

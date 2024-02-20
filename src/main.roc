@@ -24,6 +24,7 @@ app "http"
         Model.{ Session, Todo },
         Pages.Home,
         Pages.Login,
+        Pages.Register,
         Pages.Todo,
     ]
     provides [main] to pf
@@ -78,6 +79,29 @@ handleReq = \session, dbPath, req ->
         (Get, ["robots.txt"]) -> staticReponse robotsTxt
         (Get, ["styles.css"]) -> staticReponse stylesFile
         (Get, ["site.js"]) -> staticReponse siteFile
+        (Get, ["register"]) ->
+            Pages.Register.view { session, user: Fresh, email: Valid } |> htmlResponse |> Task.ok
+        
+        (Post, ["register"]) ->
+            params = Http.parseFormUrlEncoded req.body |> Result.withDefault (Dict.empty {})
+        
+            usernameResult = Dict.get params "user"
+            emailResult = Dict.get params "email"
+        
+            when (usernameResult, emailResult) is
+                (Ok username, Ok email) ->
+                    Sql.User.register {path: dbPath, name: username, email}
+                    |> Task.attempt \result ->
+                        when result is
+                            Ok {} -> redirect "/login" ## Redirect to login page after successful registration
+                            Err UserAlreadyExists -> Pages.Register.view { session, user: UserAlreadyExists username, email: Valid } |> htmlResponse |> Task.ok
+                            Err err -> handleErr err
+                _ -> 
+                    Pages.Register.view { session, user: UserNotProvided, email: NotProvided } 
+                    |> htmlResponse 
+                    |> Task.ok
+        
+
         (Get, ["login"]) ->
             Pages.Login.view { session, user: Fresh } |> htmlResponse |> Task.ok
 

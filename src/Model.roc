@@ -19,5 +19,6 @@ Todo : {
 
 User : {
     id : I64,
+    email : Str,
     name : Str,
 }

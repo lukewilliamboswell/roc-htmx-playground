@@ -2,6 +2,7 @@ interface Sql.User
     exposes [
         find,
         login,
+        register,
     ]
     imports [
         pf.Task.{ Task },
@@ -15,23 +16,16 @@ find = \path, name ->
     rows <-
         SQLite3.execute {
             path,
-            query: "SELECT user_id as userId FROM users WHERE name = :name;",
+            query: "SELECT user_id as userId, name, email FROM users WHERE name = :name;",
             bindings: [{ name: ":name", value: name }],
         }
         |> Task.onErr \err -> SqlError err |> Task.err
         |> Task.await
 
-    rows
-    |> List.map \cols ->
-        when cols is
-            [Integer id] -> { id, name }
-            _ -> crash "unexpected values returned, got $(Inspect.toStr cols)"
-    |> List.first
-    |> Task.fromResult
-    |> Task.mapErr \err ->
-        when err is
-            ListWasEmpty -> UserNotFound name
-            _ -> MultipleUsersFound
+    when rows is 
+        [] -> Task.err (UserNotFound name)
+        [[Integer id, String _, String email],..] -> Task.ok { id, name, email }
+        _ -> Task.err (UnexpectedValues "got $(Inspect.toStr rows)")
 
 login : Str, I64, Str -> Task {} _
 login = \path, sessionId, name ->
@@ -53,3 +47,49 @@ login = \path, sessionId, name ->
     SQLite3.execute { path, query, bindings }
     |> Task.onErr \err -> SqlError err |> Task.err
     |> Task.map \_ -> {}
+
+findUserByName : {path: Str, name: Str} -> Task User _
+findUserByName = \{path, name} ->
+
+    rows <-
+        SQLite3.execute {
+            path,
+            query: "SELECT user_id as userId, name, email FROM users WHERE name = :name;",
+            bindings: [{ name: ":name", value: name }],
+        }
+        |> Task.onErr \err -> SqlError err |> Task.err
+        |> Task.await
+
+    when rows is
+        [] -> Task.err UserNotFound
+        [[Integer id, String _, String email],..] -> Task.ok { id, name: name, email }
+        _ -> Task.err (UnexpectedValues "got $(Inspect.toStr rows)")
+
+register : {path: Str, name: Str, email: Str} -> Task {} _
+register = \{path, name, email} ->
+
+    ## Check if name exists
+    userExists <- findUserByName {path, name} |> Task.attempt
+
+    when userExists is
+        Err UserNotFound ->
+
+            ## Insert new user
+            query =
+                """
+                INSERT INTO users (name, email)
+                VALUES (:name, :email);
+                """
+                
+            bindings = [
+                { name: ":name", value: name },
+                { name: ":email", value: email },
+            ]
+
+            SQLite3.execute { path, query, bindings }
+            |> Task.onErr \err -> SqlError err |> Task.err
+            |> Task.map \_ -> {}
+            
+        Ok user -> UserAlreadyExists |> Task.err
+        Err err -> Task.err err
+    

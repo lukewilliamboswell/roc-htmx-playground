@@ -50,6 +50,9 @@ view = \{ session, user } ->
                                 div [class "col-auto mt-2"] [
                                     button [(attribute "type") "submit", (attribute "type") "button", class "btn btn-primary"] [text "Submit"],
                                 ],
+                                div [class "col-auto mt-3"] [
+                                    a [href "/register", class "btn btn-outline-primary"] [text "Register"]
+                                ],                                
                             ],
                         ],
                     ],

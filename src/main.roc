@@ -26,6 +26,7 @@ app "http"
         Pages.Login,
         Pages.Register,
         Pages.Todo,
+        Pages.UserList,
     ]
     provides [main] to pf
 
@@ -81,26 +82,26 @@ handleReq = \session, dbPath, req ->
         (Get, ["site.js"]) -> staticReponse siteFile
         (Get, ["register"]) ->
             Pages.Register.view { session, user: Fresh, email: Valid } |> htmlResponse |> Task.ok
-        
+
         (Post, ["register"]) ->
             params = Http.parseFormUrlEncoded req.body |> Result.withDefault (Dict.empty {})
-        
+
             usernameResult = Dict.get params "user"
             emailResult = Dict.get params "email"
-        
+
             when (usernameResult, emailResult) is
                 (Ok username, Ok email) ->
-                    Sql.User.register {path: dbPath, name: username, email}
+                    Sql.User.register { path: dbPath, name: username, email }
                     |> Task.attempt \result ->
                         when result is
                             Ok {} -> redirect "/login" ## Redirect to login page after successful registration
                             Err UserAlreadyExists -> Pages.Register.view { session, user: UserAlreadyExists username, email: Valid } |> htmlResponse |> Task.ok
                             Err err -> handleErr err
-                _ -> 
-                    Pages.Register.view { session, user: UserNotProvided, email: NotProvided } 
-                    |> htmlResponse 
+
+                _ ->
+                    Pages.Register.view { session, user: UserNotProvided, email: NotProvided }
+                    |> htmlResponse
                     |> Task.ok
-        
 
         (Get, ["login"]) ->
             Pages.Login.view { session, user: Fresh } |> htmlResponse |> Task.ok
@@ -171,6 +172,11 @@ handleReq = \session, dbPath, req ->
             tasks <- Sql.Todo.list dbPath "" |> Task.await
 
             Pages.Todo.view { todos: tasks, searchQuery: "", session } |> htmlResponse |> Task.ok
+
+        (Get, ["user"]) ->
+            users <- Sql.User.list dbPath |> Task.await
+
+            Pages.UserList.view { users, session } |> htmlResponse |> Task.ok
 
         _ -> Task.err (URLNotFound req.url)
 

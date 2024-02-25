@@ -1,8 +1,8 @@
 interface Pages.TreeView
     exposes [view]
     imports [
-        html.Html.{ header, table, thead, form, tbody, h1, h5, td, th, tr, nav, meta, nav, button, span, link, body, button, a, input, div, text, ul, li, label },
-        html.Attribute.{ attribute, src, id, href, rel, name, integrity, crossorigin, action, method, class, value, role, for, width, height },
+        html.Html,
+        html.Attribute.{ attribute, class },
         Model.{ Session, Todo, Tree },
         Layout.{ layout },
         NavLinks,
@@ -21,9 +21,9 @@ view = \{ session, nodes } ->
             navLinks: NavLinks.navLinks "TreeView",
         }
         [
-            div [class "container"] [
-                div [class "row justify-content-center"] [
-                    ul [
+            Html.div [class "container"] [
+                Html.div [class "row justify-content-center"] [
+                    Html.ul [
                         class "todo-tree-ul",
                         (attribute "hx-get") "/treeview",
                         (attribute "hx-target") "body",
@@ -38,7 +38,7 @@ view = \{ session, nodes } ->
 nodesView : Tree Todo -> Html.Node
 nodesView = \node ->
     when node is
-        Empty -> li [] [text "EMPTY"]
+        Empty -> Html.li [] [Html.text "EMPTY"]
         Node todo children ->
 
             checkbox = 
@@ -47,9 +47,9 @@ nodesView = \node ->
                 else 
                     checkboxElem todo.task (Num.toStr todo.id) NotChecked
 
-            li [] [
-                span [] [checkbox],
-                ul [class "todo-tree-ul"] (List.map children nodesView),
+            Html.li [] [
+                Html.span [] [checkbox],
+                Html.ul [class "todo-tree-ul"] (List.map children nodesView),
             ]
 
 checkboxElem = \str, taskIdStr, check ->

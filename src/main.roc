@@ -136,26 +136,27 @@ handleReq = \session, dbPath, req ->
                     }
 
         (Get, ["task", "new"]) -> redirect "/task"
+
         (Post, ["task", idStr, "delete"]) ->
-            {} <- Sql.Todo.delete dbPath idStr |> Task.await
+            {} <- Sql.Todo.delete { path: dbPath, userId: idStr } |> Task.await
 
-            tasks <- Sql.Todo.list dbPath "" |> Task.await
+            tasks <- Sql.Todo.list { path: dbPath, filterQuery: "" } |> Task.await
 
-            Pages.Todo.listTodoView { todos: tasks, searchQuery: "" } |> htmlResponse |> Task.ok
+            Pages.Todo.listTodoView { todos: tasks, filterQuery: "" } |> htmlResponse |> Task.ok
 
         (Post, ["task", "search"]) ->
             params = Http.parseFormUrlEncoded req.body |> Result.withDefault (Dict.empty {})
 
-            filterTasksQuery = Dict.get params "filterTasks" |> Result.withDefault ""
+            filterQuery = Dict.get params "filterTasks" |> Result.withDefault ""
 
-            tasks <- Sql.Todo.list dbPath filterTasksQuery |> Task.await
+            tasks <- Sql.Todo.list { path: dbPath, filterQuery } |> Task.await
 
-            Pages.Todo.listTodoView { todos: tasks, searchQuery: filterTasksQuery } |> htmlResponse |> Task.ok
+            Pages.Todo.listTodoView { todos: tasks, filterQuery } |> htmlResponse |> Task.ok
 
         (Post, ["task", "new"]) ->
-            task <- parseTodo req.body |> Task.fromResult |> Task.await
+            newTodo <- parseTodo req.body |> Task.fromResult |> Task.await
 
-            Sql.Todo.create dbPath task
+            Sql.Todo.create { path: dbPath, newTodo }
             |> Task.attempt \result ->
                 when result is
                     Ok {} -> redirect "/task"
@@ -166,28 +167,26 @@ handleReq = \session, dbPath, req ->
             {} <- Sql.Todo.update { path: dbPath, taskIdStr, action: Completed } |> Task.await
 
             triggerResponse "todosUpdated"
-        
+
         (Put, ["task", taskIdStr, "in-progress"]) ->
             {} <- Sql.Todo.update { path: dbPath, taskIdStr, action: InProgress } |> Task.await
 
             triggerResponse "todosUpdated"
 
         (Get, ["task", "list"]) ->
-            
-            tasks <- Sql.Todo.list dbPath "" |> Task.await
+            tasks <- Sql.Todo.list { path: dbPath, filterQuery: "" } |> Task.await
 
-            Pages.Todo.listTodoView { todos: tasks, searchQuery: "" } |> htmlResponse |> Task.ok
+            Pages.Todo.listTodoView { todos: tasks, filterQuery: "" } |> htmlResponse |> Task.ok
 
         (Get, ["task"]) ->
-            tasks <- Sql.Todo.list dbPath "" |> Task.await
+            tasks <- Sql.Todo.list { path: dbPath, filterQuery: "" } |> Task.await
 
-            Pages.Todo.view { todos: tasks, searchQuery: "", session } |> htmlResponse |> Task.ok
+            Pages.Todo.view { todos: tasks, filterQuery: "", session } |> htmlResponse |> Task.ok
 
         (Get, ["treeview"]) ->
+            nodes <- Sql.Todo.tree { path: dbPath, userId: 1 } |> Task.await
 
-            nodes <- Sql.Todo.tree dbPath 1 |> Task.await
-                    
-            Pages.TreeView.view { session, nodes } |> htmlResponse |> Task.ok    
+            Pages.TreeView.view { session, nodes } |> htmlResponse |> Task.ok
 
         (Get, ["user"]) ->
             users <- Sql.User.list dbPath |> Task.await
@@ -213,7 +212,7 @@ parseTodo = \bytes ->
     Ok { id: 0, task, status }
 
 triggerResponse : Str -> Task Response []_
-triggerResponse = \trigger -> 
+triggerResponse = \trigger ->
     Task.ok {
         status: 200,
         headers: [

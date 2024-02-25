@@ -12,8 +12,8 @@ interface Sql.Todo
         Model.{ Todo, Tree, NestedSet },
     ]
 
-list : Str, Str -> Task (List Todo) [SqlError _]_
-list = \path, filterQuery ->
+list : { path : Str, filterQuery : Str } -> Task (List Todo) [SqlError _]_
+list = \{ path, filterQuery } ->
 
     (query, bindings) =
         if Str.isEmpty filterQuery then
@@ -38,8 +38,8 @@ list = \path, filterQuery ->
             _ -> crash "unexpected values returned for get, got $(Inspect.toStr cols)"
     |> Task.ok
 
-create : Str, Todo -> Task {} [TodoWasEmpty, SqlError _]_
-create = \path, newTodo ->
+create : { path : Str, newTodo : Todo } -> Task {} [TodoWasEmpty, SqlError _]_
+create = \{ path, newTodo } ->
     if Str.isEmpty newTodo.task then
         Task.err TodoWasEmpty
     else
@@ -54,11 +54,11 @@ create = \path, newTodo ->
         |> Task.onErr \err -> SqlError err |> Task.err
         |> Task.map \_ -> {}
 
-update : {path: Str, taskIdStr: Str, action: [Completed, InProgress]} -> Task {} _
-update = \{path, taskIdStr, action} ->
+update : { path : Str, taskIdStr : Str, action : [Completed, InProgress] } -> Task {} _
+update = \{ path, taskIdStr, action } ->
 
-    statusStr = 
-        when action is 
+    statusStr =
+        when action is
             Completed -> "Completed"
             InProgress -> "In-Progress"
 
@@ -69,25 +69,25 @@ update = \{path, taskIdStr, action} ->
             path,
             query: "UPDATE tasks SET status = (:status) WHERE id=:task_id;",
             bindings: [
-                { name: ":status", value: statusStr},
+                { name: ":status", value: statusStr },
                 { name: ":task_id", value: taskIdStr },
             ],
         }
         |> Task.onErr \err -> SqlError err |> Task.err
         |> Task.map \_ -> {}
 
-delete : Str, Str -> Task {} [SqlError _]_
-delete = \path, idStr ->
+delete : { path : Str, userId : Str } -> Task {} _
+delete = \{ path, userId } ->
     SQLite3.execute {
         path,
         query: "DELETE FROM tasks WHERE id = :id;",
-        bindings: [{ name: ":id", value: idStr }],
+        bindings: [{ name: ":id", value: userId }],
     }
-    |> Task.onErr \err -> SqlError err |> Task.err
+    |> Task.mapErr SqlError
     |> Task.map \_ -> {}
 
-tree : Str, U64 -> Task (Tree Todo) [SqlError _]_
-tree = \path, userId ->
+tree : { path : Str, userId : U64 } -> Task (Tree Todo) _
+tree = \{ path, userId } ->
 
     query =
         """
@@ -109,19 +109,18 @@ tree = \path, userId ->
 
     bindings = [{ name: ":user_id", value: Num.toStr userId }]
 
-    SQLite3.execute {path,query,bindings}
-    |> Task.onErr \err -> SqlError err |> Task.err
+    SQLite3.execute { path, query, bindings }
+    |> Task.mapErr SqlError
     |> Task.map \rows -> parseTreeRows rows []
 
 parseTreeRows : List (List SQLite3.Value), List (NestedSet Todo) -> Tree Todo
 parseTreeRows = \rows, acc ->
-    when rows is 
+    when rows is
         [] -> Model.nestedSetToTree acc
-        [[Integer id, String task, String status, Integer left, Integer right], .. as rest] -> 
-            
+        [[Integer id, String task, String status, Integer left, Integer right], .. as rest] ->
             todo : Todo
             todo = { id, task, status }
 
-            parseTreeRows rest (List.append acc {value: todo, left, right})
+            parseTreeRows rest (List.append acc { value: todo, left, right })
 
         _ -> crash "unexpected values returned for getting Todos as a tree, got $(Inspect.toStr rows)"

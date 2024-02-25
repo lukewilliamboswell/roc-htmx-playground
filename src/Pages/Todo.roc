@@ -11,8 +11,8 @@ interface Pages.Todo
         NavLinks,
     ]
 
-view : { todos : List Todo, searchQuery : Str, session : Session } -> Html.Node
-view = \{ todos, searchQuery, session } ->
+view : { todos : List Todo, filterQuery : Str, session : Session } -> Html.Node
+view = \{ todos, filterQuery, session } ->
 
     headerText =
         when session.user is
@@ -41,23 +41,23 @@ view = \{ todos, searchQuery, session } ->
                                 (attribute "type") "text",
                                 (attribute "placeholder") "Search",
                                 (attribute "type") "text",
-                                value searchQuery,
+                                value filterQuery,
                                 name "taskSearch",
                                 (attribute "hx-post") "/task/search",
                                 (attribute "hx-trigger") "input changed delay:500ms, search",
                                 (attribute "hx-target") "#taskTable",
-                                if Str.isEmpty searchQuery then id "nothing" else (attribute "autofocus") "",
+                                if Str.isEmpty filterQuery then id "nothing" else (attribute "autofocus") "",
                             ]
                             [],
-                        listTodoView { todos, searchQuery },
+                        listTodoView { todos, filterQuery },
                     ],
                 ],
             ],
         ]
 
-listTodoView : { todos : List Todo, searchQuery : Str } -> Html.Node
-listTodoView = \{ todos, searchQuery } ->
-    if List.isEmpty todos && Str.isEmpty searchQuery then
+listTodoView : { todos : List Todo, filterQuery : Str } -> Html.Node
+listTodoView = \{ todos, filterQuery } ->
+    if List.isEmpty todos && Str.isEmpty filterQuery then
         div [class "alert alert-info mt-2", role "alert"] [text "Nil todos, add a task to get started."]
     else if List.isEmpty todos then
         div [class "alert alert-info mt-2", role "alert"] [text "There are Nil todos matching your query."]

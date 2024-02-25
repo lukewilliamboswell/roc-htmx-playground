@@ -62,8 +62,8 @@ update = \{path, taskIdStr, action} ->
             Completed -> "Completed"
             InProgress -> "In-Progress"
 
-    if Str.toU64 taskIdStr |> Result.isOk then
-        Task.err InvalidTodoID
+    if Str.toU64 taskIdStr |> Result.isErr then
+        Task.err (InvalidTodoID taskIdStr)
     else
         SQLite3.execute {
             path,

@@ -81,12 +81,6 @@ handleReq = \session, dbPath, req ->
         (Get, ["robots.txt"]) -> staticReponse robotsTxt
         (Get, ["styles.css"]) -> staticReponse stylesFile
         (Get, ["site.js"]) -> staticReponse siteFile
-        (Get, ["treeview"]) ->
-
-            nodes <- Sql.Todo.tree dbPath 1 |> Task.await
-                    
-            Pages.TreeView.view { session, nodes } |> htmlResponse |> Task.ok
-            
         (Get, ["register"]) ->
             Pages.Register.view { session, user: Fresh, email: Valid } |> htmlResponse |> Task.ok
 
@@ -171,6 +165,15 @@ handleReq = \session, dbPath, req ->
         (Put, ["task", taskIdStr, "complete"]) ->
             {} <- Sql.Todo.update { path: dbPath, taskIdStr, action: Completed } |> Task.await
 
+            triggerResponse "todosUpdated"
+        
+        (Put, ["task", taskIdStr, "in-progress"]) ->
+            {} <- Sql.Todo.update { path: dbPath, taskIdStr, action: InProgress } |> Task.await
+
+            triggerResponse "todosUpdated"
+
+        (Get, ["task", "list"]) ->
+            
             tasks <- Sql.Todo.list dbPath "" |> Task.await
 
             Pages.Todo.listTodoView { todos: tasks, searchQuery: "" } |> htmlResponse |> Task.ok
@@ -179,6 +182,12 @@ handleReq = \session, dbPath, req ->
             tasks <- Sql.Todo.list dbPath "" |> Task.await
 
             Pages.Todo.view { todos: tasks, searchQuery: "", session } |> htmlResponse |> Task.ok
+
+        (Get, ["treeview"]) ->
+
+            nodes <- Sql.Todo.tree dbPath 1 |> Task.await
+                    
+            Pages.TreeView.view { session, nodes } |> htmlResponse |> Task.ok    
 
         (Get, ["user"]) ->
             users <- Sql.User.list dbPath |> Task.await
@@ -202,6 +211,16 @@ parseTodo = \bytes ->
         |> Result.try
 
     Ok { id: 0, task, status }
+
+triggerResponse : Str -> Task Response []_
+triggerResponse = \trigger -> 
+    Task.ok {
+        status: 200,
+        headers: [
+            { name: "HX-Trigger", value: Str.toUtf8 trigger },
+        ],
+        body: [],
+    }
 
 staticReponse : List U8 -> Task Response []_
 staticReponse = \bytes ->

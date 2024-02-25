@@ -23,7 +23,12 @@ view = \{ session, nodes } ->
         [
             div [class "container"] [
                 div [class "row justify-content-center"] [
-                    ul [class "todo-tree-ul"] [
+                    ul [
+                        class "todo-tree-ul",
+                        (attribute "hx-get") "/treeview",
+                        (attribute "hx-target") "body",
+                        (attribute "hx-trigger") "todosUpdated from:body"
+                    ] [
                         nodesView nodes 
                     ]
                 ],
@@ -38,27 +43,37 @@ nodesView = \node ->
 
             checkbox = 
                 if todo.status == "Completed" then
-                    checkboxElem todo.task Checked
+                    checkboxElem todo.task (Num.toStr todo.id) Checked
                 else 
-                    checkboxElem todo.task NotChecked
+                    checkboxElem todo.task (Num.toStr todo.id) NotChecked
 
             li [] [
                 span [] [checkbox],
                 ul [class "todo-tree-ul"] (List.map children nodesView),
             ]
 
-checkboxElem = \str, check ->
-    withCheck = \attrs ->
+checkboxElem = \str, taskIdStr, check ->
+    
+    (checkAttrs) = 
         when check is 
-            Checked -> List.append attrs ((attribute "checked") "")
-            NotChecked -> attrs
+            Checked -> 
+                ([
+                    (attribute "hx-put") "/task/$(taskIdStr)/in-progress",
+                    class "form-check-input",
+                    (attribute "type") "checkbox",
+                    (attribute "value") "",
+                    (attribute "checked") "",
+                ]) 
+            NotChecked -> 
+                ([
+                    (attribute "hx-put") "/task/$(taskIdStr)/complete",
+                    class "form-check-input",
+                    (attribute "type") "checkbox",
+                    (attribute "value") "",
+                ])
 
     Html.div [class "form-check"] [
-        Html.input (withCheck [
-            class "form-check-input",
-            (attribute "type") "checkbox",
-            (attribute "value") "",
-        ]) [],
+        Html.input checkAttrs [],
         Html.label [
             class "form-check-label",
         ] [

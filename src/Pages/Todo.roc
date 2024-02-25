@@ -66,7 +66,6 @@ listTodoView = \{ todos, searchQuery } ->
 
             completeButtonBaseAttr = [
                 (attribute "hx-put") "/task/$(Num.toStr task.id)/complete",
-                (attribute "hx-target") "#taskTable",
                 (attribute "aria-label") "complete task",
                 (attribute "style") "float: center;",
                 (attribute "type") "button",
@@ -75,12 +74,8 @@ listTodoView = \{ todos, searchQuery } ->
 
             completeButton =
                 when task.status is
-                    "Completed" ->
-                        (element "button")
-                            (List.concat [(attribute "disabled") "true"] completeButtonBaseAttr)
-                            [text "Complete"]
-
-                    _ ->
+                    "Completed" -> div [] []
+                    _ -> 
                         (element "button")
                             completeButtonBaseAttr
                             [text "Complete"]
@@ -109,6 +104,8 @@ listTodoView = \{ todos, searchQuery } ->
             [
                 id "taskTable",
                 class "table table-striped table-hover table-sm mt-2",
+                (attribute "hx-get") "/task/list",
+                (attribute "hx-trigger") "todosUpdated from:body",
             ]
             [
                 thead [] [

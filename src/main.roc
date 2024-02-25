@@ -1,7 +1,7 @@
 app "http"
     packages {
         pf: "../../basic-webserver/platform/main.roc",
-        html: "https://github.com/Hasnep/roc-html/releases/download/v0.2.1/gvFCxQTb3ytGwm7RQ87BVDMHzo7MNIM2uqY4GBDSP7M.tar.br",
+        html: "../../roc-html/src/main.roc",
         ansi: "https://github.com/lukewilliamboswell/roc-ansi/releases/download/0.1.1/cPHdNPNh8bjOrlOgfSaGBJDz6VleQwsPdW0LJK6dbGQ.tar.br",
     }
     imports [
@@ -27,6 +27,7 @@ app "http"
         Pages.Register,
         Pages.Todo,
         Pages.UserList,
+        Pages.TreeView,
     ]
     provides [main] to pf
 
@@ -80,6 +81,12 @@ handleReq = \session, dbPath, req ->
         (Get, ["robots.txt"]) -> staticReponse robotsTxt
         (Get, ["styles.css"]) -> staticReponse stylesFile
         (Get, ["site.js"]) -> staticReponse siteFile
+        (Get, ["treeview"]) ->
+
+            nodes <- Sql.Todo.tree dbPath 1 |> Task.await
+                    
+            Pages.TreeView.view { session, nodes } |> htmlResponse |> Task.ok
+            
         (Get, ["register"]) ->
             Pages.Register.view { session, user: Fresh, email: Valid } |> htmlResponse |> Task.ok
 
@@ -161,8 +168,8 @@ handleReq = \session, dbPath, req ->
                     Err TaskWasEmpty -> redirect "/task"
                     Err err -> handleErr err
 
-        (Put, ["task", idStr, "complete"]) ->
-            {} <- Sql.Todo.update dbPath idStr |> Task.await
+        (Put, ["task", taskIdStr, "complete"]) ->
+            {} <- Sql.Todo.update { path: dbPath, taskIdStr, action: Completed } |> Task.await
 
             tasks <- Sql.Todo.list dbPath "" |> Task.await
 

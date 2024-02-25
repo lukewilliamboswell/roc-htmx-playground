@@ -13,6 +13,7 @@ navLinks = \active ->
         Inactive { label: "Home", href: "/" },
         Inactive { label: "Tasks", href: "/task" },
         Inactive { label: "Users", href: "/user" },
+        Inactive { label: "TreeView", href: "/treeview" },
     ]
     |> List.map \navLink ->
         when navLink is

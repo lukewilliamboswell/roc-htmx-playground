@@ -10,7 +10,7 @@ Any PR's or ideas welcome. You are welcome to play with this and if you have som
 
 Ensure `sqlite3` and `roc` are on your `PATH`
 
-**create test.db** `sqlite3 test.db < test.sql`
+**create test.db** `rm -rf test.db && sqlite3 test.db < test.sql`
 
 **start server** `DB_PATH=test.db roc dev src/main.roc`
 

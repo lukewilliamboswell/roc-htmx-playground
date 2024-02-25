@@ -4,11 +4,12 @@ interface Sql.Todo
         create,
         delete,
         update,
+        tree,
     ]
     imports [
         pf.Task.{ Task },
         pf.SQLite3,
-        Model.{ Todo },
+        Model.{ Todo, Tree, NestedSet },
     ]
 
 list : Str, Str -> Task (List Todo) [SqlError _]_
@@ -53,18 +54,23 @@ create = \path, newTodo ->
         |> Task.onErr \err -> SqlError err |> Task.err
         |> Task.map \_ -> {}
 
-update : Str, Str -> Task {} [TodoWasEmpty, SqlError _]_
-update = \path, idStr ->
-    if Str.isEmpty idStr then
-        Task.err TodoIdWasEmpty
+update : {path: Str, taskIdStr: Str, action: [Completed, InProgress]} -> Task {} _
+update = \{path, taskIdStr, action} ->
+
+    statusStr = 
+        when action is 
+            Completed -> "Completed"
+            InProgress -> "In-Progress"
+
+    if Str.toU64 taskIdStr |> Result.isOk then
+        Task.err InvalidTodoID
     else
         SQLite3.execute {
             path,
-            query: "UPDATE tasks SET status = (:status) WHERE id=:id;",
+            query: "UPDATE tasks SET status = (:status) WHERE id=:task_id;",
             bindings: [
-                { name: ":status", value: "Completed" },
-                { name: ":id", value: idStr },
-
+                { name: ":status", value: statusStr},
+                { name: ":task_id", value: taskIdStr },
             ],
         }
         |> Task.onErr \err -> SqlError err |> Task.err
@@ -80,3 +86,42 @@ delete = \path, idStr ->
     |> Task.onErr \err -> SqlError err |> Task.err
     |> Task.map \_ -> {}
 
+tree : Str, U64 -> Task (Tree Todo) [SqlError _]_
+tree = \path, userId ->
+
+    query =
+        """
+        SELECT 
+            tasks.id,
+            tasks.task,
+            tasks.status,
+            TaskHeirachy.lft,
+            TaskHeirachy.rgt
+        FROM
+            users
+            JOIN TaskHeirachy ON users.user_id = TaskHeirachy.user_id
+            JOIN tasks ON TaskHeirachy.task_id = tasks.id
+        WHERE
+            users.user_id = :user_id
+        ORDER BY
+            TaskHeirachy.lft;
+        """
+
+    bindings = [{ name: ":user_id", value: Num.toStr userId }]
+
+    SQLite3.execute {path,query,bindings}
+    |> Task.onErr \err -> SqlError err |> Task.err
+    |> Task.map \rows -> parseTreeRows rows []
+
+parseTreeRows : List (List SQLite3.Value), List (NestedSet Todo) -> Tree Todo
+parseTreeRows = \rows, acc ->
+    when rows is 
+        [] -> Model.nestedSetToTree acc
+        [[Integer id, String task, String status, Integer left, Integer right], .. as rest] -> 
+            
+            todo : Todo
+            todo = { id, task, status }
+
+            parseTreeRows rest (List.append acc {value: todo, left, right})
+
+        _ -> crash "unexpected values returned for getting Todos as a tree, got $(Inspect.toStr rows)"

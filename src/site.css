@@ -7,3 +7,7 @@ body {}
 
     .btn {}
 }
+
+.todo-tree-ul {
+    list-style-type: none;
+}

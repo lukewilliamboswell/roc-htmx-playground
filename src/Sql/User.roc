@@ -13,20 +13,17 @@ interface Sql.User
 
 find : Str, Str -> Task User _
 find = \path, name ->
-
-    rows <-
-        SQLite3.execute {
-            path,
-            query: "SELECT user_id as userId, name, email FROM users WHERE name = :name;",
-            bindings: [{ name: ":name", value: name }],
-        }
-        |> Task.onErr \err -> SqlError err |> Task.err
-        |> Task.await
-
-    when rows is
-        [] -> Task.err (UserNotFound name)
-        [[Integer id, String _, String email], ..] -> Task.ok { id, name, email }
-        _ -> Task.err (UnexpectedValues "got $(Inspect.toStr rows)")
+    SQLite3.execute {
+        path,
+        query: "SELECT user_id as userId, name, email FROM users WHERE name = :name;",
+        bindings: [{ name: ":name", value: name }],
+    }
+    |> Task.onErr \err -> SqlError err |> Task.err
+    |> Task.await \rows ->
+        when rows is
+            [] -> Task.err (UserNotFound name)
+            [[Integer id, String _, String email], ..] -> Task.ok { id, name, email }
+            _ -> Task.err (UnexpectedValues "got $(Inspect.toStr rows)")
 
 login : Str, I64, Str -> Task {} _
 login = \path, sessionId, name ->
@@ -46,25 +43,22 @@ login = \path, sessionId, name ->
     ]
 
     SQLite3.execute { path, query, bindings }
-    |> Task.onErr \err -> SqlError err |> Task.err
+    |> Task.mapErr SqlError
     |> Task.map \_ -> {}
 
 findUserByName : { path : Str, name : Str } -> Task User _
 findUserByName = \{ path, name } ->
-
-    rows <-
-        SQLite3.execute {
-            path,
-            query: "SELECT user_id as userId, name, email FROM users WHERE name = :name;",
-            bindings: [{ name: ":name", value: name }],
-        }
-        |> Task.onErr \err -> SqlError err |> Task.err
-        |> Task.await
-
-    when rows is
-        [] -> Task.err UserNotFound
-        [[Integer id, String _, String email], ..] -> Task.ok { id, name: name, email }
-        _ -> Task.err (UnexpectedValues "got $(Inspect.toStr rows)")
+    SQLite3.execute {
+        path,
+        query: "SELECT user_id as userId, name, email FROM users WHERE name = :name;",
+        bindings: [{ name: ":name", value: name }],
+    }
+    |> Task.mapErr SqlError
+    |> Task.await \rows ->
+        when rows is
+            [] -> Task.err UserNotFound
+            [[Integer id, String _, String email], ..] -> Task.ok { id, name: name, email }
+            _ -> Task.err (UnexpectedValues "got $(Inspect.toStr rows)")
 
 register : { path : Str, name : Str, email : Str } -> Task {} _
 register = \{ path, name, email } ->
@@ -87,7 +81,7 @@ register = \{ path, name, email } ->
             ]
 
             SQLite3.execute { path, query, bindings }
-            |> Task.onErr \err -> SqlError err |> Task.err
+            |> Task.mapErr SqlError
             |> Task.map \_ -> {}
 
         Ok user -> UserAlreadyExists |> Task.err
@@ -95,19 +89,19 @@ register = \{ path, name, email } ->
 
 list : Str -> Task (List User) _
 list = \path ->
+    SQLite3.execute {
+        path,
+        query: "SELECT user_id as userId, name, email FROM users;",
+        bindings: [],
+    }
+    |> Task.mapErr SqlError
+    |> Task.await \rows -> parseListRows rows [] |> Task.fromResult
 
-    rows <-
-        SQLite3.execute {
-            path,
-            query: "SELECT user_id as userId, name, email FROM users;",
-            bindings: [],
-        }
-        |> Task.onErr \err -> SqlError err |> Task.err
-        |> Task.await
+parseListRows : List (List SQLite3.Value), List User -> Result (List User) _
+parseListRows = \rows, acc ->
+    when rows is
+        [] -> acc |> Ok
+        [[Integer id, String name, String email], .. as rest] ->
+            parseListRows rest (List.append acc { id, name, email })
 
-    rows
-    |> List.keepOks \row ->
-        when row is
-            [Integer id, String name, String email] -> Ok { id, name, email }
-            _ -> Err {}
-    |> Task.ok
+        _ -> Inspect.toStr rows |> UnexpectedSQLValues |> Err

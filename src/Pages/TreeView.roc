@@ -21,13 +21,16 @@ view = \{ session, nodes } ->
             navLinks: NavLinks.navLinks "TreeView",
         }
         [
-            Html.div [class "container"] [
+            Html.div [
+                class "container",
+                (attribute "hx-get") "/treeview",
+                (attribute "hx-target") "body",
+                (attribute "hx-trigger") "todosUpdated from:body"
+            ] [
                 Html.div [class "row justify-content-center"] [
                     Html.ul [
                         class "todo-tree-ul",
-                        (attribute "hx-get") "/treeview",
-                        (attribute "hx-target") "body",
-                        (attribute "hx-trigger") "todosUpdated from:body"
+                        
                     ] [
                         nodesView nodes 
                     ]
@@ -53,7 +56,6 @@ nodesView = \node ->
             ]
 
 checkboxElem = \str, taskIdStr, check ->
-    
     (checkAttrs) = 
         when check is 
             Checked -> 

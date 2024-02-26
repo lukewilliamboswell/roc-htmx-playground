@@ -12,7 +12,7 @@ interface Sql.Todo
         Model.{ Todo, Tree, NestedSet },
     ]
 
-list : { path : Str, filterQuery : Str } -> Task (List Todo) [SqlError _]_
+list : { path : Str, filterQuery : Str } -> Task (List Todo) _
 list = \{ path, filterQuery } ->
 
     (query, bindings) =
@@ -27,16 +27,17 @@ list = \{ path, filterQuery } ->
                 [{ name: ":task", value: "%$(filterQuery)%" }],
             )
 
-    rows <-
-        SQLite3.execute { path, query, bindings }
-        |> Task.onErr \err -> SqlError err |> Task.err
-        |> Task.await
+    SQLite3.execute { path, query, bindings }
+    |> Task.mapErr SqlError
+    |> Task.await \rows -> parseListRows rows [] |> Task.fromResult
 
-    List.map rows \cols ->
-        when cols is
-            [Integer id, String task, String status] -> { id, task, status }
-            _ -> crash "unexpected values returned for get, got $(Inspect.toStr cols)"
-    |> Task.ok
+parseListRows : List (List SQLite3.Value), List Todo -> Result (List Todo) _
+parseListRows = \rows, acc ->
+    when rows is
+        [] -> acc |> Ok
+        [[Integer id, String task, String status], .. as rest] -> 
+            parseListRows rest (List.append acc { id, task, status })
+        _ -> Inspect.toStr rows |> UnexpectedSQLValues |> Err
 
 create : { path : Str, newTodo : Todo } -> Task {} [TodoWasEmpty, SqlError _]_
 create = \{ path, newTodo } ->
@@ -51,7 +52,7 @@ create = \{ path, newTodo } ->
                 { name: ":status", value: newTodo.status },
             ],
         }
-        |> Task.onErr \err -> SqlError err |> Task.err
+        |> Task.mapErr SqlError
         |> Task.map \_ -> {}
 
 update : { path : Str, taskIdStr : Str, action : [Completed, InProgress] } -> Task {} _
@@ -73,7 +74,7 @@ update = \{ path, taskIdStr, action } ->
                 { name: ":task_id", value: taskIdStr },
             ],
         }
-        |> Task.onErr \err -> SqlError err |> Task.err
+        |> Task.mapErr SqlError
         |> Task.map \_ -> {}
 
 delete : { path : Str, userId : Str } -> Task {} _
@@ -111,16 +112,17 @@ tree = \{ path, userId } ->
 
     SQLite3.execute { path, query, bindings }
     |> Task.mapErr SqlError
-    |> Task.map \rows -> parseTreeRows rows []
+    |> Task.await \rows -> parseTreeRows rows [] |> Task.fromResult
 
-parseTreeRows : List (List SQLite3.Value), List (NestedSet Todo) -> Tree Todo
+parseTreeRows : List (List SQLite3.Value), List (NestedSet Todo) -> Result (Tree Todo) _
 parseTreeRows = \rows, acc ->
     when rows is
-        [] -> Model.nestedSetToTree acc
+        [] -> Model.nestedSetToTree acc |> Ok
         [[Integer id, String task, String status, Integer left, Integer right], .. as rest] ->
+
             todo : Todo
             todo = { id, task, status }
 
             parseTreeRows rest (List.append acc { value: todo, left, right })
 
-        _ -> crash "unexpected values returned for getting Todos as a tree, got $(Inspect.toStr rows)"
+        _ -> Inspect.toStr rows |> UnexpectedSQLValues |> Err

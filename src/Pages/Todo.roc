@@ -4,7 +4,7 @@ interface Pages.Todo
         listTodoView,
     ]
     imports [
-        html.Html.{ element, header, table, thead, form, tbody, h1, h5, td, th, tr, nav, meta, nav, button, span, body, button, a, input, div, text, ul, li, label },
+        html.Html.{ element, header, table, thead, form, tbody, h1, h5, td, th, tr, nav, meta, span, body, button, a, input, div, text, ul, li, label },
         html.Attribute.{ attribute, id, href, rel, name, action, method, class, value, role, for, width, height },
         Model.{ Session, Todo },
         Layout.{ layout },
@@ -47,8 +47,7 @@ view = \{ todos, filterQuery, session } ->
                                 (attribute "hx-trigger") "input changed delay:500ms, search",
                                 (attribute "hx-target") "#taskTable",
                                 if Str.isEmpty filterQuery then id "nothing" else (attribute "autofocus") "",
-                            ]
-                            [],
+                            ],
                         listTodoView { todos, filterQuery },
                     ],
                 ],
@@ -129,10 +128,9 @@ createAppTaskView =
                     class "form-control",
                     (attribute "placeholder") "Describe a new task",
                     (attribute "required") "",
-                ]
-                [],
+                ],
             label [for "task", class "d-none"] [text "input the task description"],
-            input [name "status", value "In-Progress", (attribute "type") "text", class "d-none"] [], # hidden form input
+            input [name "status", value "In-Progress", (attribute "type") "text", class "d-none"], # hidden form input
             button [(attribute "type") "submit", class "btn btn-primary"] [text "Add"],
         ],
     ]

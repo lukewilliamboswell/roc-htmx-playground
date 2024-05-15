@@ -75,7 +75,7 @@ checkboxElem = \str, taskIdStr, check ->
                 ])
 
     Html.div [class "form-check"] [
-        Html.input checkAttrs [],
+        Html.input checkAttrs,
         Html.label [
             class "form-check-label",
         ] [

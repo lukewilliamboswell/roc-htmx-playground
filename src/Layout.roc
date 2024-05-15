@@ -1,7 +1,7 @@
 interface Layout
     exposes [layout]
     imports [
-        html.Html.{ element, header, table, thead, form, tbody, h1, h5, td, th, tr, nav, meta, nav, button, span, link, body, button, a, input, div, text, ul, li, label },
+        html.Html.{ element, header, table, thead, form, tbody, h1, h5, td, th, tr, nav, meta, span, link, body, button, a, input, div, text, ul, li, label },
         html.Attribute.{ attribute, src, id, href, rel, name, integrity, crossorigin, action, method, class, value, role, for, width, height },
         Model.{Session},
         NavLinks.{NavLink},
@@ -36,19 +36,19 @@ layout = \{session, description, title, navLinks}, children ->
     Html.html [(attribute "lang") "en",  (attribute "data-bs-theme") "auto"] [
         Html.head [] [
             (element "title") [] [text title],
-            meta [(attribute "charset") "UTF-8"] [],
-            meta [name "description", (attribute "content") description] [],
-            meta [name "viewport", (attribute "content") "width=device-width, initial-scale=1"] [],
+            meta [(attribute "charset") "UTF-8"],
+            meta [name "description", (attribute "content") description],
+            meta [name "viewport", (attribute "content") "width=device-width, initial-scale=1"],
             link [
                 rel "stylesheet",
                 href "https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css",
                 integrity "sha384-T3c6CoIi6uLrA9TneNEoa7RxnatzjcDSCmG1MXxSR1GAsXEV/Dwwykc2MPK8M2HN",
                 crossorigin "anonymous",
-            ] [],
+            ],
             link [
                 rel "stylesheet",
                 href "/styles.css",
-            ] [],
+            ],
             # The scripts are here to prevent these being loaded each time htmx swaps content of the body
             (element "script") [
                 src "https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js",

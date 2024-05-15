@@ -1,7 +1,7 @@
 interface Pages.Register
     exposes [view]
     imports [
-        html.Html.{ header, table, thead, form, tbody, h1, h5, td, th, tr, nav, meta, nav, button, span, link, body, button, a, input, div, text, ul, li, label },
+        html.Html.{ header, table, thead, form, tbody, h1, h5, td, th, tr, nav, meta, span, link, body, button, a, input, div, text, ul, li, label },
         html.Attribute.{ attribute, src, id, href, rel, name, integrity, crossorigin, action, method, class, value, role, for, width, height },
         Model.{ Session },
         Layout.{ layout },
@@ -45,27 +45,27 @@ view = \{ session, user, email } ->
                                     label [class "col-form-label", for "registerUsername"] [text "Username"],
                                 ],
                                 div [class "col-auto"] [
-                                    input [class usernameInputClass, (attribute "type") "text", (attribute "required") "", id "registerUsername", name "user"] [],
+                                    input [class usernameInputClass, (attribute "type") "text", (attribute "required") "", id "registerUsername", name "user"],
                                     div [class usernameValidationClass] [text usernameValidationText],
                                 ],
                                 div [class "col-auto"] [
                                     label [class "col-form-label", for "registerEmail"] [text "Email"],
                                 ],
                                 div [class "col-auto"] [
-                                    input [class emailInputClass, (attribute "type") "email", (attribute "required") "", id "registerEmail", name "email"] [],
+                                    input [class emailInputClass, (attribute "type") "email", (attribute "required") "", id "registerEmail", name "email"],
                                     div [class emailValidationClass] [text emailValidationText],
                                 ],
                                 div [class "col-auto"] [
                                     label [class "col-form-label", for "registerPassword"] [text "Password"],
                                 ],
                                 div [class "col-auto"] [
-                                    input [class "form-control", (attribute "type") "password", (attribute "required") "", id "registerPassword", name "pass"] [],
+                                    input [class "form-control", (attribute "type") "password", (attribute "required") "", id "registerPassword", name "pass"],
                                 ],
                                 div [class "col-auto"] [
                                     label [class "col-form-label", for "confirmPassword"] [text "Confirm Password"],
                                 ],
                                 div [class "col-auto"] [
-                                    input [class "form-control", (attribute "type") "password", (attribute "required") "", id "confirmPassword", name "confirmPass"] [],
+                                    input [class "form-control", (attribute "type") "password", (attribute "required") "", id "confirmPassword", name "confirmPass"],
                                 ],
                                 div [class "col-auto mt-2"] [
                                     button [(attribute "type") "submit", class "btn btn-primary"] [text "Register"],

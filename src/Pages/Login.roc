@@ -1,7 +1,7 @@
 interface Pages.Login
     exposes [view]
     imports [
-        html.Html.{ header, table, thead, form, tbody, h1, h5, td, th, tr, nav, meta, nav, button, span, link, body, button, a, input, div, text, ul, li, label },
+        html.Html.{ header, table, thead, form, tbody, h1, h5, td, th, tr, nav, meta,  button, span, link, body,  a, input, div, text, ul, li, label },
         html.Attribute.{ attribute, src, id, href, rel, name, integrity, crossorigin, action, method, class, value, role, for, width, height },
         Model.{ Session },
         Layout.{ layout },
@@ -38,14 +38,14 @@ view = \{ session, user } ->
                                     label [class "col-form-label", for "loginUsername"] [text "Username"],
                                 ],
                                 div [class "col-auto"] [
-                                    input [class usernameInputClass, (attribute "type") "username", (attribute "required") "", id "loginUsername", name "user"] [],
+                                    input [class usernameInputClass, (attribute "type") "username", (attribute "required") "", id "loginUsername", name "user"],
                                     div [class usernameValidationClass] [text usernameValidationText],
                                 ],
                                 div [class "col-auto"] [
                                     label [class "col-form-label", for "loginPassword"] [text "Password (not used)"],
                                 ],
                                 div [class "col-auto"] [
-                                    input [class "form-control disabled", (attribute "type") "password", (attribute "disabled") "", id "loginPassword", name "pass"] [],
+                                    input [class "form-control disabled", (attribute "type") "password", (attribute "disabled") "", id "loginPassword", name "pass"],
                                 ],
                                 div [class "col-auto mt-2"] [
                                     button [(attribute "type") "submit", (attribute "type") "button", class "btn btn-primary"] [text "Submit"],

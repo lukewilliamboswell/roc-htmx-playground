@@ -1,15 +1,13 @@
-interface Pages.Todo
-    exposes [
-        view,
-        listTodoView,
-    ]
-    imports [
-        html.Html.{ element, header, table, thead, form, tbody, h1, h5, td, th, tr, nav, meta, span, body, button, a, input, div, text, ul, li, label },
-        html.Attribute.{ attribute, id, href, rel, name, action, method, class, value, role, for, width, height },
-        Model.{ Session, Todo },
-        Layout.{ layout },
-        NavLinks,
-    ]
+module [
+    view,
+    listTodoView,
+]
+
+import html.Html exposing [element, table, thead, form, tbody, h1, td, th, tr,  button,  input, div, text, label]
+import html.Attribute exposing [attribute, id,  name, action, method, class, value, role, for]
+import Model exposing [Session, Todo]
+import Layout exposing [layout]
+import NavLinks
 
 view : { todos : List Todo, filterQuery : Str, session : Session } -> Html.Node
 view = \{ todos, filterQuery, session } ->
@@ -34,20 +32,19 @@ view = \{ todos, filterQuery, session } ->
                     ],
                     div [class "col-md-9"] [
                         createAppTaskView,
-                        input
-                            [
-                                class "form-control mt-2",
-                                name "filterTasks",
-                                (attribute "type") "text",
-                                (attribute "placeholder") "Search",
-                                (attribute "type") "text",
-                                value filterQuery,
-                                name "taskSearch",
-                                (attribute "hx-post") "/task/search",
-                                (attribute "hx-trigger") "input changed delay:500ms, search",
-                                (attribute "hx-target") "#taskTable",
-                                if Str.isEmpty filterQuery then id "nothing" else (attribute "autofocus") "",
-                            ],
+                        input [
+                            class "form-control mt-2",
+                            name "filterTasks",
+                            (attribute "type") "text",
+                            (attribute "placeholder") "Search",
+                            (attribute "type") "text",
+                            value filterQuery,
+                            name "taskSearch",
+                            (attribute "hx-post") "/task/search",
+                            (attribute "hx-trigger") "input changed delay:500ms, search",
+                            (attribute "hx-target") "#taskTable",
+                            if Str.isEmpty filterQuery then id "nothing" else (attribute "autofocus") "",
+                        ],
                         listTodoView { todos, filterQuery },
                     ],
                 ],
@@ -74,7 +71,7 @@ listTodoView = \{ todos, filterQuery } ->
             completeButton =
                 when task.status is
                     "Completed" -> div [] []
-                    _ -> 
+                    _ ->
                         (element "button")
                             completeButtonBaseAttr
                             [text "Complete"]
@@ -120,15 +117,14 @@ createAppTaskView : Html.Node
 createAppTaskView =
     form [action "/task/new", method "post"] [
         div [class "input-group mb-3"] [
-            input
-                [
-                    id "task",
-                    name "task",
-                    (attribute "type") "text",
-                    class "form-control",
-                    (attribute "placeholder") "Describe a new task",
-                    (attribute "required") "",
-                ],
+            input [
+                id "task",
+                name "task",
+                (attribute "type") "text",
+                class "form-control",
+                (attribute "placeholder") "Describe a new task",
+                (attribute "required") "",
+            ],
             label [for "task", class "d-none"] [text "input the task description"],
             input [name "status", value "In-Progress", (attribute "type") "text", class "d-none"], # hidden form input
             button [(attribute "type") "submit", class "btn btn-primary"] [text "Add"],

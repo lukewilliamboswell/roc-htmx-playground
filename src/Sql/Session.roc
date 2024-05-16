@@ -1,15 +1,13 @@
-interface Sql.Session
-    exposes [
-        new,
-        parse,
-        get,
-    ]
-    imports [
-        pf.Task.{ Task },
-        pf.Http.{ Request },
-        pf.SQLite3,
-        Model.{ Session },
-    ]
+module [
+    new,
+    parse,
+    get,
+]
+
+import pf.Task exposing [Task]
+import pf.Http exposing [Request]
+import pf.SQLite3
+import Model exposing [Session]
 
 new : Str -> Task I64 _
 new = \path ->

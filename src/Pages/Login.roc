@@ -1,17 +1,17 @@
-interface Pages.Login
-    exposes [view]
-    imports [
-        html.Html.{ header, table, thead, form, tbody, h1, h5, td, th, tr, nav, meta,  button, span, link, body,  a, input, div, text, ul, li, label },
-        html.Attribute.{ attribute, src, id, href, rel, name, integrity, crossorigin, action, method, class, value, role, for, width, height },
-        Model.{ Session },
-        Layout.{ layout },
-        NavLinks,
-    ]
+module [view]
 
-view : {
-    session : Session,
-    user : [Fresh, UserNotProvided, UserNotFound Str],
-} -> Html.Node
+import html.Html exposing [form, h5,  button, a, input, div, text, label]
+import html.Attribute exposing [attribute, id, href, name, action, method, class,  for]
+import Model exposing [Session]
+import Layout exposing [layout]
+import NavLinks
+
+view :
+    {
+        session : Session,
+        user : [Fresh, UserNotProvided, UserNotFound Str],
+    }
+    -> Html.Node
 view = \{ session, user } ->
 
     (usernameInputClass, usernameValidationClass, usernameValidationText) =
@@ -51,8 +51,8 @@ view = \{ session, user } ->
                                     button [(attribute "type") "submit", (attribute "type") "button", class "btn btn-primary"] [text "Submit"],
                                 ],
                                 div [class "col-auto mt-3"] [
-                                    a [href "/register", class "btn btn-outline-primary"] [text "Register"]
-                                ],                                
+                                    a [href "/register", class "btn btn-outline-primary"] [text "Register"],
+                                ],
                             ],
                         ],
                     ],

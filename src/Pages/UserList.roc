@@ -1,14 +1,12 @@
-interface Pages.UserList
-    exposes [
-        view,
-    ]
-    imports [
-        html.Html.{ element, h1, td, th, tr, table, thead, tbody, div, text },
-        html.Attribute.{ class, id },
-        Model.{ User, Session },
-        Layout.{ layout },
-        NavLinks,
-    ]
+module [
+    view,
+]
+
+import html.Html exposing [h1, td, th, tr, table, thead, tbody, div, text]
+import html.Attribute exposing [class, id]
+import Model exposing [User, Session]
+import Layout exposing [layout]
+import NavLinks
 
 view : { users : List User, session : Session } -> Html.Node
 view = \{ users, session } ->

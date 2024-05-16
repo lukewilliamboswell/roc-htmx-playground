@@ -1,18 +1,18 @@
-interface Pages.Register
-    exposes [view]
-    imports [
-        html.Html.{ header, table, thead, form, tbody, h1, h5, td, th, tr, nav, meta, span, link, body, button, a, input, div, text, ul, li, label },
-        html.Attribute.{ attribute, src, id, href, rel, name, integrity, crossorigin, action, method, class, value, role, for, width, height },
-        Model.{ Session },
-        Layout.{ layout },
-        NavLinks,
-    ]
+module [view]
 
-view : {
-    session : Session,
-    user : [Fresh, UserAlreadyExists Str, UserNotProvided],
-    email : [Valid, Invalid Str, NotProvided],
-} -> Html.Node
+import html.Html exposing [header, table, thead, form, tbody, h1, h5, td, th, tr, nav, meta, span, link, body, button, a, input, div, text, ul, li, label]
+import html.Attribute exposing [attribute, src, id, href, rel, name, integrity, crossorigin, action, method, class, value, role, for, width, height]
+import Model exposing [Session]
+import Layout exposing [layout]
+import NavLinks
+
+view :
+    {
+        session : Session,
+        user : [Fresh, UserAlreadyExists Str, UserNotProvided],
+        email : [Valid, Invalid Str, NotProvided],
+    }
+    -> Html.Node
 view = \{ session, user, email } ->
 
     (usernameInputClass, usernameValidationClass, usernameValidationText) =

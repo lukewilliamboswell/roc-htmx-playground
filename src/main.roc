@@ -1,35 +1,32 @@
-app "http"
-    packages {
-        pf: "https://github.com/roc-lang/basic-webserver/releases/download/0.5.0/Vq-iXfrRf-aHxhJpAh71uoVUlC-rsWvmjzTYOJKhu4M.tar.br",
-        html: "https://github.com/Hasnep/roc-html/releases/download/v0.6.0/IOyNfA4U_bCVBihrs95US9Tf5PGAWh3qvrBN4DRbK5c.tar.br",
-        ansi: "https://github.com/lukewilliamboswell/roc-ansi/releases/download/0.1.1/cPHdNPNh8bjOrlOgfSaGBJDz6VleQwsPdW0LJK6dbGQ.tar.br",
-    }
-    imports [
-        pf.Stdout,
-        pf.Stderr,
-        pf.Task.{ Task },
-        pf.Http.{ Request, Response },
-        pf.Env,
-        pf.Utc,
-        pf.Url.{ Url },
-        pf.SQLite3,
-        html.Html,
-        html.Attribute,
-        ansi.Color,
-        "site.css" as stylesFile : List U8,
-        "site.js" as siteFile : List U8,
-        Sql.Todo,
-        Sql.Session,
-        Sql.User,
-        Model.{ Session, Todo },
-        Pages.Home,
-        Pages.Login,
-        Pages.Register,
-        Pages.Todo,
-        Pages.UserList,
-        Pages.TreeView,
-    ]
-    provides [main] to pf
+app [main] {
+    pf: platform "https://github.com/roc-lang/basic-webserver/releases/download/0.5.0/Vq-iXfrRf-aHxhJpAh71uoVUlC-rsWvmjzTYOJKhu4M.tar.br",
+    html: "https://github.com/Hasnep/roc-html/releases/download/v0.6.0/IOyNfA4U_bCVBihrs95US9Tf5PGAWh3qvrBN4DRbK5c.tar.br",
+    ansi: "https://github.com/lukewilliamboswell/roc-ansi/releases/download/0.1.1/cPHdNPNh8bjOrlOgfSaGBJDz6VleQwsPdW0LJK6dbGQ.tar.br",
+}
+
+import pf.Stdout
+import pf.Stderr
+import pf.Task exposing [Task]
+import pf.Http exposing [Request, Response]
+import pf.Env
+import pf.Utc
+import pf.Url exposing [Url]
+import pf.SQLite3
+import html.Html
+import html.Attribute
+import ansi.Color
+import "site.css" as stylesFile : List U8
+import "site.js" as siteFile : List U8
+import Sql.Todo
+import Sql.Session
+import Sql.User
+import Model exposing [Session, Todo]
+import Pages.Home
+import Pages.Login
+import Pages.Register
+import Pages.Todo
+import Pages.UserList
+import Pages.TreeView
 
 main : Request -> Task Response []
 main = \req ->
@@ -136,7 +133,6 @@ handleReq = \session, dbPath, req ->
                     }
 
         (Get, ["task", "new"]) -> redirect "/task"
-
         (Post, ["task", idStr, "delete"]) ->
             {} <- Sql.Todo.delete { path: dbPath, userId: idStr } |> Task.await
 

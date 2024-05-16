@@ -1,16 +1,14 @@
-interface Sql.Todo
-    exposes [
-        list,
-        create,
-        delete,
-        update,
-        tree,
-    ]
-    imports [
-        pf.Task.{ Task },
-        pf.SQLite3,
-        Model.{ Todo, Tree, NestedSet },
-    ]
+module [
+    list,
+    create,
+    delete,
+    update,
+    tree,
+]
+
+import pf.Task exposing [Task]
+import pf.SQLite3
+import Model exposing [Todo, Tree, NestedSet]
 
 list : { path : Str, filterQuery : Str } -> Task (List Todo) _
 list = \{ path, filterQuery } ->
@@ -35,8 +33,9 @@ parseListRows : List (List SQLite3.Value), List Todo -> Result (List Todo) _
 parseListRows = \rows, acc ->
     when rows is
         [] -> acc |> Ok
-        [[Integer id, String task, String status], .. as rest] -> 
+        [[Integer id, String task, String status], .. as rest] ->
             parseListRows rest (List.append acc { id, task, status })
+
         _ -> Inspect.toStr rows |> UnexpectedSQLValues |> Err
 
 create : { path : Str, newTodo : Todo } -> Task {} [TodoWasEmpty, SqlError _]_
@@ -119,7 +118,6 @@ parseTreeRows = \rows, acc ->
     when rows is
         [] -> Model.nestedSetToTree acc |> Ok
         [[Integer id, String task, String status, Integer left, Integer right], .. as rest] ->
-
             todo : Todo
             todo = { id, task, status }
 

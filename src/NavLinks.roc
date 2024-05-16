@@ -1,6 +1,4 @@
-interface NavLinks
-    exposes [NavLink, navLinks]
-    imports []
+module [NavLink, navLinks]
 
 NavLink : [
     Active { label : Str, href : Str },

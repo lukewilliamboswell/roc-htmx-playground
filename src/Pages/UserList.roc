@@ -2,7 +2,7 @@ module [
     view,
 ]
 
-import html.Html exposing [element, h1, td, th, tr, table, thead, tbody, div, text]
+import html.Html exposing [h1, td, th, tr, table, thead, tbody, div, text]
 import html.Attribute exposing [class, id]
 import Model exposing [User, Session]
 import Layout exposing [layout]

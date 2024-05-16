@@ -3,8 +3,8 @@ module [
     listTodoView,
 ]
 
-import html.Html exposing [element, header, table, thead, form, tbody, h1, h5, td, th, tr, nav, meta, span, body, button, a, input, div, text, ul, li, label]
-import html.Attribute exposing [attribute, id, href, rel, name, action, method, class, value, role, for, width, height]
+import html.Html exposing [element, table, thead, form, tbody, h1, td, th, tr,  button,  input, div, text, label]
+import html.Attribute exposing [attribute, id,  name, action, method, class, value, role, for]
 import Model exposing [Session, Todo]
 import Layout exposing [layout]
 import NavLinks

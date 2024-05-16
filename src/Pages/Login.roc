@@ -1,7 +1,7 @@
 module [view]
 
-import html.Html exposing [header, table, thead, form, tbody, h1, h5, td, th, tr, nav, meta, button, span, link, body, a, input, div, text, ul, li, label]
-import html.Attribute exposing [attribute, src, id, href, rel, name, integrity, crossorigin, action, method, class, value, role, for, width, height]
+import html.Html exposing [form, h5,  button, a, input, div, text, label]
+import html.Attribute exposing [attribute, id, href, name, action, method, class,  for]
 import Model exposing [Session]
 import Layout exposing [layout]
 import NavLinks

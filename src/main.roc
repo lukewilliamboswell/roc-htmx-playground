@@ -10,10 +10,8 @@ import pf.Task exposing [Task]
 import pf.Http exposing [Request, Response]
 import pf.Env
 import pf.Utc
-import pf.Url exposing [Url]
-import pf.SQLite3
+import pf.Url
 import html.Html
-import html.Attribute
 import ansi.Color
 import "site.css" as stylesFile : List U8
 import "site.js" as siteFile : List U8

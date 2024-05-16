@@ -82,7 +82,7 @@ register = \{ path, name, email } ->
             |> Task.mapErr SqlError
             |> Task.map \_ -> {}
 
-        Ok user -> UserAlreadyExists |> Task.err
+        Ok _user -> UserAlreadyExists |> Task.err
         Err err -> Task.err err
 
 list : Str -> Task (List User) _

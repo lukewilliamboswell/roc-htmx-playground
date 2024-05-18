@@ -1,4 +1,7 @@
 main
+kingfisher
 sql_snippets.sql
 
 *.db
+db.requests
+db.snapshot

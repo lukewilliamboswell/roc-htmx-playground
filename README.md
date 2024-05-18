@@ -14,3 +14,9 @@ Ensure `sqlite3` and `roc` are on your `PATH`
 
 **start server** `DB_PATH=test.db roc dev src/main.roc`
 
+
+## Getting with Kingfisher
+
+As an alternative to the basic-webserver, this playgroud can also be run with the [kingfisher platform](https://github.com/ostcar/kingfisher).
+
+**start server** roc run src/kingfisher.roc -- --no-snapshot

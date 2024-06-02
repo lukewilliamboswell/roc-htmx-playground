@@ -1,6 +1,6 @@
 module [view]
 
-import html.Html exposing [div, text]
+import html.Html exposing [div, text, h1, p]
 import html.Attribute exposing [class]
 import Layout
 
@@ -15,8 +15,8 @@ view = \{} ->
             div [class "container"] [
                 div [class "row align-items-center justify-content-center"] [
                     div [class "mt-5 mr-1 ml-1"] [
-                        Html.h1 [] [Html.text "Unauthorised"],
-                        Html.p [] [text "You are not authorised to view this resource, please contact and administrator."],
+                        h1 [] [text "Unauthorised"],
+                        p [] [text "You are not authorised to view this resource, please contact and administrator."],
                     ],
                 ],
             ],

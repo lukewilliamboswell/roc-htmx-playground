@@ -54,7 +54,7 @@ layout = \{ session, description, title, navLinks }, children ->
                             span [class "navbar-toggler-icon"] [],
                         ],
                     div [class "collapse navbar-collapse", id "navbarNav"] [
-                        a [class "navbar-brand", href "/"] [text "Roc+HTMX"],
+                        a [class "navbar-brand", href "/"] [text "RHTMX"],
                         ul
                             [class "navbar-nav me-auto"]
                             (

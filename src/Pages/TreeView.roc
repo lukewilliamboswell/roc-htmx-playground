@@ -18,7 +18,7 @@ view = \{ session, nodes } ->
             session,
             description: "TREE VIEW PAGE",
             title: "TREE VIEW",
-            navLinks: NavLinks.navLinks "TreeView",
+            navLinks: NavLinks.navLinks "Tree",
         }
         [
             Html.div

@@ -172,13 +172,11 @@ handleReq = \req ->
 
 getSession : Request, Str -> Task Session _
 getSession = \req, dbPath ->
-
-    sessionId = Sql.Session.parse req |> Task.fromResult!
-
-    sessionId
-    |> Sql.Session.get dbPath
+    Sql.Session.parse req
+    |> Task.fromResult
+    |> Task.await \id -> Sql.Session.get id dbPath
     |> Task.onErr \err ->
-        if err == SessionNotFound then
+        if err == SessionNotFound || err == NoSessionCookie then
             id = Sql.Session.new! dbPath
 
             Task.err (NewSession id)

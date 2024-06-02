@@ -4,7 +4,11 @@
 - Add new features to [roc-lang/basic-webserver](https://github.com/roc-lang/basic-webserver)
 - Generally tinker and have fun
 
-Any PR's or ideas welcome. You are welcome to play with this and if you have something to share then please do. 
+Any PR's or ideas welcome.
+
+You are welcome to play with this and if you have something to share then please do.
+
+![demo](demo.gif)
 
 ## Getting Started
 

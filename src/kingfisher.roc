@@ -1,5 +1,5 @@
 app [main, Model] {
-    webserver: platform "https://github.com/ostcar/kingfisher/releases/download/v0.0.2/zlcCcrA9VofMd0mIrHEGwktucdmnq7xPIOuVNgY8EjE.tar.br",
+    webserver: platform "https://github.com/ostcar/kingfisher/releases/download/v0.0.3/e8Mu5IplmOnXPU9VgpTCT6kyB463gX-SDC2nnMfAq7M.tar.br",
     html: "https://github.com/Hasnep/roc-html/releases/download/v0.6.0/IOyNfA4U_bCVBihrs95US9Tf5PGAWh3qvrBN4DRbK5c.tar.br",
     # json: "https://github.com/lukewilliamboswell/roc-json/releases/download/0.10.0/KbIfTNbxShRX1A1FgXei1SpO5Jn8sgP6HP6PXbi-xyA.tar.br",
 }

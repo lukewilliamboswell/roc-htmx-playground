@@ -25,11 +25,15 @@ import Pages.Register
 import Pages.Todo
 import Pages.UserList
 import Pages.TreeView
+import Pages.BigTask
 
 main : Request -> Task Response []
 main = \req -> Task.onErr (handleReq req) \err ->
     when err is
-        Unauthorized -> respondCodeLogError (Str.joinWith ["403 Unauthorized" |> Color.fg Red] " ") 403
+        Unauthorized ->
+            import Pages.Unauthorised
+            Pages.Unauthorised.view {} |> respondHtml
+
         NewSession sessionId ->
             # Redirect to the same URL with the new session ID
             Task.ok {
@@ -158,6 +162,12 @@ handleReq = \req ->
 
             Pages.UserList.view { users, session } |> respondHtml
 
+        (Get, ["bigTask"]) ->
+
+            verifyAuthenticated! session
+
+            Pages.BigTask.view {} |> respondHtml
+
         _ -> Task.err (URLNotFound req.url)
 
 getSession : Request, Str -> Task Session _
@@ -172,6 +182,13 @@ getSession = \req, dbPath ->
             Task.err (NewSession id)
         else
             Task.err err
+
+verifyAuthenticated : Session -> Task {} _
+verifyAuthenticated = \session ->
+    if session.user == Guest then
+        Task.err Unauthorized
+    else
+        Task.ok {}
 
 parseTodo : List U8 -> Result Todo _
 parseTodo = \bytes ->

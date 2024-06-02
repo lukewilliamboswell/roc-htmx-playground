@@ -1,5 +1,5 @@
 
--- USERS 
+-- USERS
 CREATE TABLE users (user_id INTEGER PRIMARY KEY AUTOINCREMENT, name TEXT, email TEXT);
 
 INSERT INTO users (name, email) values ('Henry', 'henry@cool.com');
@@ -7,13 +7,13 @@ INSERT INTO users (name, email) values ('Joe', 'joe@foo.com');
 
 -- SESSIONS
 CREATE TABLE sessions (
-    session_id INTEGER PRIMARY KEY, 
+    session_id INTEGER PRIMARY KEY,
     user_id INTEGER NULL,
-    
+
     CONSTRAINT fk_column
-        FOREIGN KEY (user_id) 
-        REFERENCES users (user_id) 
-        ON DELETE CASCADE 
+        FOREIGN KEY (user_id)
+        REFERENCES users (user_id)
+        ON DELETE CASCADE
 );
 
 -- TASKS
@@ -34,15 +34,15 @@ CREATE TABLE TaskHeirachy (
     task_id INTEGER,
     lft INTEGER,
     rgt INTEGER,
-    
+
     CONSTRAINT fk_user_id
-        FOREIGN KEY (user_id) 
-        REFERENCES users (user_id) 
+        FOREIGN KEY (user_id)
+        REFERENCES users (user_id)
         ON DELETE CASCADE,
-    
+
     CONSTRAINT fk_task_id
-        FOREIGN KEY (task_id) 
-        REFERENCES tasks (id) 
+        FOREIGN KEY (task_id)
+        REFERENCES tasks (id)
         ON DELETE CASCADE
 );
 
@@ -50,3 +50,23 @@ INSERT INTO TaskHeirachy VALUES(1,0,1,8);
 INSERT INTO TaskHeirachy VALUES(1,1,2,3);
 INSERT INTO TaskHeirachy VALUES(1,2,4,7);
 INSERT INTO TaskHeirachy VALUES(1,3,5,6);
+
+CREATE TABLE BigTask (
+    ID INTEGER PRIMARY KEY,
+    ReferenceID TEXT NOT NULL,
+    CustomerReferenceID TEXT NOT NULL,
+    DateCreated TEXT NOT NULL,
+    DateModified TEXT,
+    Title TEXT NOT NULL,
+    Description TEXT,
+    Status TEXT CHECK(Status IN ('Raised', 'Completed', 'Deferred', 'Approved', 'In-Progress')),
+    Priority TEXT CHECK(Priority IN ('High', 'Medium', 'Low')),
+    ScheduledStartDate TEXT,
+    ScheduledEndDate TEXT,
+    ActualStartDate TEXT,
+    ActualEndDate TEXT,
+    SystemName TEXT,
+    Location TEXT,
+    FileReference TEXT,
+    Comments TEXT
+);

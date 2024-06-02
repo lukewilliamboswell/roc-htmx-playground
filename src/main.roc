@@ -27,42 +27,28 @@ import Pages.UserList
 import Pages.TreeView
 
 main : Request -> Task Response []
-main = \req ->
+main = \req -> Task.onErr (handleReq req) \err ->
+    when err is
+        HeadersNotFound -> logErrAndRespond (Str.joinWith ["403 Unauthorized" |> Color.fg Red] " ") 403
+        URLNotFound url -> logErrAndRespond (Str.joinWith ["404 NotFound" |> Color.fg Red, url] " ") 404
+        _ -> logErrAndRespond (Str.joinWith ["SERVER ERROR" |> Color.fg Red, Inspect.toStr err] " ") 500
 
-    # Log the date, time, method, and url to stdout
-    {} <- logRequest req |> Task.await
+logErrAndRespond = \msg, code ->
+    Stderr.line! msg
+    Task.ok! {
+        status: code,
+        headers: [],
+        body: [],
+    }
 
-    # Read DB_PATH environment variable
-    dbPath <-
-        Env.var "DB_PATH"
-        |> Task.onErr \_ -> crash "unable to read DB_PATH environment variable"
-        |> Task.await
+handleReq : Request -> Task Response _
+handleReq = \req ->
 
-    maybeSession <- Sql.Session.parse req |> Sql.Session.get dbPath |> Task.attempt
-    when maybeSession is
-        # Session cookie should be sent with each request
-        Ok session -> handleReq session dbPath req |> Task.onErr handleErr
-        # If this is a new session we should create one and return it
-        Err SessionNotFound ->
-            maybeNewSession <- Sql.Session.new dbPath |> Task.attempt
+    logRequest! req # Log the date, time, method, and url to stdout
 
-            when maybeNewSession is
-                Err err -> handleErr err
-                Ok sessionId ->
-                    Task.ok {
-                        status: 303,
-                        headers: [
-                            { name: "Set-Cookie", value: Str.toUtf8 "sessionId=$(Num.toStr sessionId)" },
-                            { name: "Location", value: Str.toUtf8 req.url },
-                        ],
-                        body: [],
-                    }
+    dbPath = Env.var "DB_PATH" |> Task.mapErr! UnableToReadDbPATH
 
-        # Handle any server errors
-        Err err -> handleErr err
-
-handleReq : Session, Str, Request -> Task Response _
-handleReq = \session, dbPath, req ->
+    session = getSession! req dbPath
 
     urlSegments =
         req.url
@@ -116,9 +102,7 @@ handleReq = \session, dbPath, req ->
                             Err err -> handleErr err
 
         (Post, ["logout"]) ->
-            maybeNewSession <- Sql.Session.new dbPath |> Task.attempt
-
-            when maybeNewSession is
+            when Sql.Session.new dbPath |> Task.result! is
                 Err err -> handleErr err
                 Ok sessionId ->
                     Task.ok {
@@ -132,23 +116,27 @@ handleReq = \session, dbPath, req ->
 
         (Get, ["task", "new"]) -> redirect "/task"
         (Post, ["task", idStr, "delete"]) ->
-            {} <- Sql.Todo.delete { path: dbPath, userId: idStr } |> Task.await
+            Sql.Todo.delete! { path: dbPath, userId: idStr }
 
-            tasks <- Sql.Todo.list { path: dbPath, filterQuery: "" } |> Task.await
+            tasks = Sql.Todo.list! { path: dbPath, filterQuery: "" }
 
-            Pages.Todo.listTodoView { todos: tasks, filterQuery: "" } |> htmlResponse |> Task.ok
+            Pages.Todo.listTodoView { todos: tasks, filterQuery: "" }
+            |> htmlResponse
+            |> Task.ok
 
         (Post, ["task", "search"]) ->
             params = Http.parseFormUrlEncoded req.body |> Result.withDefault (Dict.empty {})
 
             filterQuery = Dict.get params "filterTasks" |> Result.withDefault ""
 
-            tasks <- Sql.Todo.list { path: dbPath, filterQuery } |> Task.await
+            tasks = Sql.Todo.list! { path: dbPath, filterQuery }
 
-            Pages.Todo.listTodoView { todos: tasks, filterQuery } |> htmlResponse |> Task.ok
+            Pages.Todo.listTodoView { todos: tasks, filterQuery }
+            |> htmlResponse
+            |> Task.ok
 
         (Post, ["task", "new"]) ->
-            newTodo <- parseTodo req.body |> Task.fromResult |> Task.await
+            newTodo = parseTodo req.body |> Task.fromResult!
 
             Sql.Todo.create { path: dbPath, newTodo }
             |> Task.attempt \result ->
@@ -158,36 +146,62 @@ handleReq = \session, dbPath, req ->
                     Err err -> handleErr err
 
         (Put, ["task", taskIdStr, "complete"]) ->
-            {} <- Sql.Todo.update { path: dbPath, taskIdStr, action: Completed } |> Task.await
+            Sql.Todo.update! { path: dbPath, taskIdStr, action: Completed }
 
             triggerResponse "todosUpdated"
 
         (Put, ["task", taskIdStr, "in-progress"]) ->
-            {} <- Sql.Todo.update { path: dbPath, taskIdStr, action: InProgress } |> Task.await
+            Sql.Todo.update! { path: dbPath, taskIdStr, action: InProgress }
 
             triggerResponse "todosUpdated"
 
         (Get, ["task", "list"]) ->
-            tasks <- Sql.Todo.list { path: dbPath, filterQuery: "" } |> Task.await
+            tasks = Sql.Todo.list! { path: dbPath, filterQuery: "" }
 
-            Pages.Todo.listTodoView { todos: tasks, filterQuery: "" } |> htmlResponse |> Task.ok
+            Pages.Todo.listTodoView { todos: tasks, filterQuery: "" }
+            |> htmlResponse
+            |> Task.ok
 
         (Get, ["task"]) ->
-            tasks <- Sql.Todo.list { path: dbPath, filterQuery: "" } |> Task.await
+            tasks = Sql.Todo.list! { path: dbPath, filterQuery: "" }
 
-            Pages.Todo.view { todos: tasks, filterQuery: "", session } |> htmlResponse |> Task.ok
+            Pages.Todo.view { todos: tasks, filterQuery: "", session }
+            |> htmlResponse
+            |> Task.ok
 
         (Get, ["treeview"]) ->
-            nodes <- Sql.Todo.tree { path: dbPath, userId: 1 } |> Task.await
+            nodes = Sql.Todo.tree! { path: dbPath, userId: 1 }
 
-            Pages.TreeView.view { session, nodes } |> htmlResponse |> Task.ok
+            Pages.TreeView.view { session, nodes }
+            |> htmlResponse
+            |> Task.ok
 
         (Get, ["user"]) ->
-            users <- Sql.User.list dbPath |> Task.await
+            users = Sql.User.list! dbPath
 
-            Pages.UserList.view { users, session } |> htmlResponse |> Task.ok
+            Pages.UserList.view { users, session }
+            |> htmlResponse
+            |> Task.ok
 
         _ -> Task.err (URLNotFound req.url)
+
+getSession : Request, Str -> Task Session _
+getSession = \req, dbPath ->
+
+    sessionId = Sql.Session.parse req |> Task.fromResult!
+
+    Sql.Session.get sessionId dbPath
+    |>  Task.onErr \err ->
+        if err == SessionNotFound then
+
+            id = Sql.Session.new! dbPath
+
+            Task.ok {
+                id,
+                user: Guest,
+            }
+
+        else Task.err err
 
 parseTodo : List U8 -> Result Todo [UnableToParseBodyTask _]_
 parseTodo = \bytes ->
@@ -252,7 +266,7 @@ handleErr = \err ->
             URLNotFound url -> (Str.joinWith ["404 NotFound" |> Color.fg Blue, url] " ", 404)
             _ -> (Str.joinWith ["SERVER ERROR" |> Color.fg Red, Inspect.toStr err] " ", 500)
 
-    {} <- Stderr.line msg |> Task.await
+    Stderr.line! msg
 
     Task.ok {
         status: code,

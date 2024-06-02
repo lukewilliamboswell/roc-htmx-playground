@@ -18,6 +18,7 @@ import "site.js" as siteFile : List U8
 import Sql.Todo
 import Sql.Session
 import Sql.User
+import Sql.BigTask
 import Model exposing [Session, Todo]
 import Pages.Home
 import Pages.Login
@@ -25,11 +26,15 @@ import Pages.Register
 import Pages.Todo
 import Pages.UserList
 import Pages.TreeView
+import Pages.BigTask
 
 main : Request -> Task Response []
 main = \req -> Task.onErr (handleReq req) \err ->
     when err is
-        Unauthorized -> respondCodeLogError (Str.joinWith ["403 Unauthorized" |> Color.fg Red] " ") 403
+        Unauthorized ->
+            import Pages.Unauthorised
+            Pages.Unauthorised.view {} |> respondHtml
+
         NewSession sessionId ->
             # Redirect to the same URL with the new session ID
             Task.ok {
@@ -40,6 +45,7 @@ main = \req -> Task.onErr (handleReq req) \err ->
                 ],
                 body: [],
             }
+
         URLNotFound url -> respondCodeLogError (Str.joinWith ["404 NotFound" |> Color.fg Red, url] " ") 404
         _ -> respondCodeLogError (Str.joinWith ["SERVER ERROR" |> Color.fg Red, Inspect.toStr err] " ") 500
 
@@ -99,9 +105,17 @@ handleReq = \req ->
                             Err err -> Task.err (ErrUserLogin (Inspect.toStr err))
 
         (Post, ["logout"]) ->
+
             id = Sql.Session.new! dbPath
 
-            Task.err (NewSession id)
+            Task.ok {
+                status: 303,
+                headers: [
+                    { name: "Set-Cookie", value: Str.toUtf8 "sessionId=$(Num.toStr id)" },
+                    { name: "Location", value: Str.toUtf8 "/" },
+                ],
+                body: [],
+            }
 
         (Get, ["task", "new"]) -> respondRedirect "/task"
         (Post, ["task", idStr, "delete"]) ->
@@ -158,6 +172,14 @@ handleReq = \req ->
 
             Pages.UserList.view { users, session } |> respondHtml
 
+        (Get, ["bigTask"]) ->
+
+            verifyAuthenticated! session
+
+            tasks = Sql.BigTask.list! {dbPath}
+
+            Pages.BigTask.view {session, tasks} |> respondHtml
+
         _ -> Task.err (URLNotFound req.url)
 
 getSession : Request, Str -> Task Session _
@@ -172,6 +194,13 @@ getSession = \req, dbPath ->
             Task.err (NewSession id)
         else
             Task.err err
+
+verifyAuthenticated : Session -> Task {} _
+verifyAuthenticated = \session ->
+    if session.user == Guest then
+        Task.err Unauthorized
+    else
+        Task.ok {}
 
 parseTodo : List U8 -> Result Todo _
 parseTodo = \bytes ->

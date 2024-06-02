@@ -1,4 +1,4 @@
-module [layout]
+module [layout, page]
 
 import html.Html exposing [element, header,form, nav, meta, span, link, body, button, a, div, text, ul, li]
 import html.Attribute exposing [attribute, src, id, href, rel, name, integrity, crossorigin, class, width, height]
@@ -36,6 +36,62 @@ layout = \{ session, description, title, navLinks }, children ->
                         [text "Logout"],
                 ]
 
+    page {description, title} [
+        header [] [
+            nav [class "navbar navbar-expand-sm mb-5"] [
+                div [class "container-fluid"] [
+                    button
+                        [
+                            class "navbar-toggler",
+                            (attribute "type") "button",
+                            (attribute "data-bs-toggle") "collapse",
+                            (attribute "data-bs-target") "#navbarNav",
+                            (attribute "aria-controls") "navbarNav",
+                            (attribute "aria-expanded") "false",
+                            (attribute "aria-label") "Toggle navigation",
+                        ]
+                        [
+                            span [class "navbar-toggler-icon"] [],
+                        ],
+                    div [class "collapse navbar-collapse", id "navbarNav"] [
+                        a [class "navbar-brand", href "/"] [text "RHTMX"],
+                        ul
+                            [class "navbar-nav me-auto"]
+                            (
+                                List.map navLinks \curr ->
+                                    li [class "nav-item"] [
+                                        (when curr is
+                                            Active config ->
+                                                a
+                                                    [
+                                                        class "nav-link active",
+                                                        (attribute "aria-current") "page",
+                                                        href config.href,
+                                                        (attribute "hx-push-url") "true",
+                                                    ]
+                                                    [text config.label]
+
+                                            Inactive config ->
+                                                a
+                                                    [
+                                                        class "nav-link",
+                                                        href config.href,
+                                                        (attribute "hx-push-url") "true",
+                                                    ]
+                                                    [text config.label]),
+                                    ]
+                            ),
+                        loginOrUser,
+                    ],
+                ],
+            ],
+        ],
+        (element "main") [] children,
+    ]
+
+
+page : {description : Str, title : Str}, List Html.Node -> Html.Node
+page = \{description, title}, children ->
     Html.html [(attribute "lang") "en", (attribute "data-bs-theme") "auto"] [
         Html.head [] [
             (element "title") [] [text title],
@@ -73,58 +129,7 @@ layout = \{ session, description, title, navLinks }, children ->
                 ]
                 [],
         ],
-        body [(attribute "hx-boost") "true"] [
-            header [] [
-                nav [class "navbar navbar-expand-sm mb-5"] [
-                    div [class "container-fluid"] [
-                        button
-                            [
-                                class "navbar-toggler",
-                                (attribute "type") "button",
-                                (attribute "data-bs-toggle") "collapse",
-                                (attribute "data-bs-target") "#navbarNav",
-                                (attribute "aria-controls") "navbarNav",
-                                (attribute "aria-expanded") "false",
-                                (attribute "aria-label") "Toggle navigation",
-                            ]
-                            [
-                                span [class "navbar-toggler-icon"] [],
-                            ],
-                        div [class "collapse navbar-collapse", id "navbarNav"] [
-                            a [class "navbar-brand", href "/"] [text "Roc+HTMX"],
-                            ul
-                                [class "navbar-nav me-auto"]
-                                (
-                                    List.map navLinks \curr ->
-                                        li [class "nav-item"] [
-                                            (when curr is
-                                                Active config ->
-                                                    a
-                                                        [
-                                                            class "nav-link active",
-                                                            (attribute "aria-current") "page",
-                                                            href config.href,
-                                                            (attribute "hx-push-url") "true",
-                                                        ]
-                                                        [text config.label]
-
-                                                Inactive config ->
-                                                    a
-                                                        [
-                                                            class "nav-link",
-                                                            href config.href,
-                                                            (attribute "hx-push-url") "true",
-                                                        ]
-                                                        [text config.label]),
-                                        ]
-                                ),
-                            loginOrUser,
-                        ],
-                    ],
-                ],
-            ],
-            (element "main") [] children,
-        ],
+        body [(attribute "hx-boost") "true"] children,
     ]
 
 personIcon =

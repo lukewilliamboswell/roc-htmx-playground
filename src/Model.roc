@@ -4,8 +4,15 @@ module [
     User,
     Tree,
     NestedSet,
+    BigTask,
+    Date,
+    Status,
+    Priority,
     emptyTodo,
     nestedSetToTree,
+    parseDate,
+    parseStatus,
+    parsePriority,
 ]
 
 Session : {
@@ -130,3 +137,78 @@ expect
 
     actual = nestedSetToTree testValues
     actual == expected
+
+Date : [NotSet, Simple {year : I64,month : I64,day : I64}, Invalid Str]
+
+# Not a serious implementation, just for demonstration purposes
+parseDate : Str -> Date
+parseDate = \date ->
+    validYear = \y -> y > 1970 && y < 3000
+    validMonth = \m -> m > 0 && m < 13
+    validDay = \d -> d > 0 && d < 32
+
+    # Format: yyyy-mm-dd
+    when Str.split date "-" is
+        [""] -> NotSet
+        [yyy, mm, dd] ->
+            when (Str.toI64 yyy, Str.toI64 mm, Str.toI64 dd) is
+                (Ok year, Ok month, Ok day) if validYear year && validMonth month && validDay day -> Simple { year, month, day }
+                _ -> Invalid date
+        _ -> Invalid date
+
+expect parseDate "2021-01-01" == Simple { year: 2021, month: 1, day: 1 }
+expect parseDate "01-01-2024" == Invalid "01-01-2024"
+expect parseDate "" == NotSet
+
+Status : [Raised, Completed, Deferred, Approved, InProgress, Invalid Str]
+
+parseStatus : Str -> Status
+parseStatus = \status ->
+    when status is
+        "Raised" -> Raised
+        "Completed" -> Completed
+        "Deferred" -> Deferred
+        "Approved" -> Approved
+        "In-Progress" -> InProgress
+        _ -> Invalid status
+
+expect parseStatus "Raised" == Raised
+expect parseStatus "Completed" == Completed
+expect parseStatus "Deferred" == Deferred
+expect parseStatus "Approved" == Approved
+expect parseStatus "In-Progress" == InProgress
+
+Priority : [Low, Medium, High, Invalid Str]
+
+parsePriority : Str -> Priority
+parsePriority = \priority ->
+    when priority is
+        "Low" -> Low
+        "Medium" -> Medium
+        "High" -> High
+        _ -> Invalid priority
+
+expect parsePriority "Low" == Low
+expect parsePriority "Medium" == Medium
+expect parsePriority "High" == High
+expect parsePriority "" == Invalid ""
+
+BigTask : {
+    id : I64,
+    referenceId : Str,
+    customerReferenceId : Str,
+    dateCreated : Date,
+    dateModified : Date,
+    title : Str,
+    description : Str,
+    status : Status,
+    priority : Priority,
+    scheduledStartDate : Date,
+    scheduledEndDate : Date,
+    actualStartDate : Date,
+    actualEndDate : Date,
+    systemName : Str,
+    location : Str,
+    fileReference : Str,
+    comments : Str,
+}

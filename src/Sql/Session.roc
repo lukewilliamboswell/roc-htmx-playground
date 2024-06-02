@@ -14,13 +14,12 @@ new = \path ->
 
     _ <-
         SQLite3.execute { path, query: "INSERT INTO sessions (session_id) VALUES (abs(random()));", bindings: [] }
-        |> Task.onErr \err -> SqlError err |> Task.err
+        |> Task.mapErr \err -> SqlError err
         |> Task.await
 
-    rows <-
+    rows =
         SQLite3.execute { path, query: "SELECT last_insert_rowid();", bindings: [] }
-        |> Task.onErr \err -> SqlError err |> Task.err
-        |> Task.await
+        |> Task.onErr! \err -> SqlError err |> Task.err
 
     when rows is
         [] -> Task.err NoRows
@@ -29,16 +28,14 @@ new = \path ->
 
 parse : Request -> Result I64 [NoSessionCookie, InvalidSessionCookie]
 parse = \req ->
-    req.headers
-    |> List.keepIf \reqHeader -> reqHeader.name == "cookie"
-    |> List.first
-    |> Result.mapErr \_ -> NoSessionCookie
-    |> Result.try \reqHeader ->
-        reqHeader.value
-        |> Str.fromUtf8
-        |> Result.try \str -> str |> Str.split "=" |> List.get 1
-        |> Result.try Str.toI64
-        |> Result.mapErr \_ -> InvalidSessionCookie
+    when req.headers |> List.keepIf \reqHeader -> reqHeader.name == "cookie" is
+        [reqHeader] ->
+            reqHeader.value
+            |> Str.fromUtf8
+            |> Result.try \str -> str |> Str.split "=" |> List.get 1
+            |> Result.try Str.toI64
+            |> Result.mapErr \_ -> InvalidSessionCookie
+        _ -> Err NoSessionCookie
 
 get : I64, Str -> Task Session _
 get = \sessionId, path ->

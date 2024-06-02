@@ -99,17 +99,9 @@ handleReq = \req ->
                             Err err -> Task.err (ErrUserLogin (Inspect.toStr err))
 
         (Post, ["logout"]) ->
-            when Sql.Session.new dbPath |> Task.result! is
-                Err err -> Task.err (ErrSessionNew (Inspect.toStr err))
-                Ok sessionId ->
-                    Task.ok {
-                        status: 303,
-                        headers: [
-                            { name: "Set-Cookie", value: Str.toUtf8 "sessionId=$(Num.toStr sessionId)" },
-                            { name: "Location", value: Str.toUtf8 "/" },
-                        ],
-                        body: [],
-                    }
+            id = Sql.Session.new! dbPath
+
+            Task.err (NewSession id)
 
         (Get, ["task", "new"]) -> respondRedirect "/task"
         (Post, ["task", idStr, "delete"]) ->
@@ -131,12 +123,10 @@ handleReq = \req ->
         (Post, ["task", "new"]) ->
             newTodo = parseTodo req.body |> Task.fromResult!
 
-            Sql.Todo.create { path: dbPath, newTodo }
-            |> Task.attempt \result ->
-                when result is
-                    Ok {} -> respondRedirect "/task"
-                    Err TaskWasEmpty -> respondRedirect "/task"
-                    Err err -> Task.err (ErrTodoCreate (Inspect.toStr err))
+            when Sql.Todo.create { path: dbPath, newTodo } |> Task.result! is
+                Ok {} -> respondRedirect "/task"
+                Err TaskWasEmpty -> respondRedirect "/task"
+                Err err -> Task.err (ErrTodoCreate (Inspect.toStr err))
 
         (Put, ["task", taskIdStr, "complete"]) ->
             Sql.Todo.update! { path: dbPath, taskIdStr, action: Completed }

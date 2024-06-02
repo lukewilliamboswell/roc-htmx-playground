@@ -44,6 +44,7 @@ main = \req -> Task.onErr (handleReq req) \err ->
                 ],
                 body: [],
             }
+
         URLNotFound url -> respondCodeLogError (Str.joinWith ["404 NotFound" |> Color.fg Red, url] " ") 404
         _ -> respondCodeLogError (Str.joinWith ["SERVER ERROR" |> Color.fg Red, Inspect.toStr err] " ") 500
 
@@ -103,9 +104,17 @@ handleReq = \req ->
                             Err err -> Task.err (ErrUserLogin (Inspect.toStr err))
 
         (Post, ["logout"]) ->
+
             id = Sql.Session.new! dbPath
 
-            Task.err (NewSession id)
+            Task.ok {
+                status: 303,
+                headers: [
+                    { name: "Set-Cookie", value: Str.toUtf8 "sessionId=$(Num.toStr id)" },
+                    { name: "Location", value: Str.toUtf8 "/" },
+                ],
+                body: [],
+            }
 
         (Get, ["task", "new"]) -> respondRedirect "/task"
         (Post, ["task", idStr, "delete"]) ->

@@ -14,47 +14,37 @@ new = \path ->
 
     _ <-
         SQLite3.execute { path, query: "INSERT INTO sessions (session_id) VALUES (abs(random()));", bindings: [] }
-        |> Task.onErr \err -> SqlError err |> Task.err
+        |> Task.mapErr \err -> SqlError err
         |> Task.await
 
-    rows <-
+    rows =
         SQLite3.execute { path, query: "SELECT last_insert_rowid();", bindings: [] }
-        |> Task.onErr \err -> SqlError err |> Task.err
-        |> Task.await
+        |> Task.onErr! \err -> SqlError err |> Task.err
 
     when rows is
         [] -> Task.err NoRows
         [[Integer id], ..] -> Task.ok id
         _ -> Task.err (UnexpectedValues "unexpected values in new Session, got $(Inspect.toStr rows)")
 
-parse : Request -> Result I64 {}
+parse : Request -> Result I64 [NoSessionCookie, InvalidSessionCookie]
 parse = \req ->
-    req.headers
-    |> List.keepIf \reqHeader -> reqHeader.name == "cookie"
-    |> List.first
-    |> Result.mapErr \_ -> {}
-    |> Result.try \reqHeader ->
-        reqHeader.value
-        |> Str.fromUtf8
-        |> Result.try \str -> str |> Str.split "=" |> List.get 1
-        |> Result.try Str.toI64
-        |> Result.mapErr \_ -> {}
+    when req.headers |> List.keepIf \reqHeader -> reqHeader.name == "cookie" is
+        [reqHeader] ->
+            reqHeader.value
+            |> Str.fromUtf8
+            |> Result.try \str -> str |> Str.split "=" |> List.get 1
+            |> Result.try Str.toI64
+            |> Result.mapErr \_ -> InvalidSessionCookie
+        _ -> Err NoSessionCookie
 
-get : Result I64 {}, Str -> Task Session _
-get = \maybeSessionId, path ->
+get : I64, Str -> Task Session _
+get = \sessionId, path ->
 
     notFoundStr = "NOT_FOUND"
 
-    # we take a result and unwrap here to simplify the use of this function
-    sessionId <-
-        maybeSessionId
-        |> Task.fromResult
-        |> Task.mapErr \_ -> SessionNotFound
-        |> Task.await
-
     query =
         """
-        SELECT sessions.session_id AS \"notUsed\", COALESCE(users.name,'$(notFoundStr)') AS \"username\" 
+        SELECT sessions.session_id AS \"notUsed\", COALESCE(users.name,'$(notFoundStr)') AS \"username\"
         FROM sessions
         LEFT OUTER JOIN users
         ON sessions.user_id = users.user_id
@@ -63,10 +53,7 @@ get = \maybeSessionId, path ->
 
     bindings = [{ name: ":sessionId", value: Num.toStr sessionId }]
 
-    rows <-
-        SQLite3.execute { path, query, bindings }
-        |> Task.onErr \err -> SqlError err |> Task.err
-        |> Task.await
+    rows = SQLite3.execute { path, query, bindings } |> Task.mapErr! SqlErrGettingSession
 
     when rows is
         [] -> Task.err SessionNotFound

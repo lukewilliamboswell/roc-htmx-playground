@@ -5,3 +5,5 @@ sql_snippets.sql
 *.db
 db.requests
 db.snapshot
+
+.DS_Store

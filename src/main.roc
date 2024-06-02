@@ -27,42 +27,30 @@ import Pages.UserList
 import Pages.TreeView
 
 main : Request -> Task Response []
-main = \req ->
+main = \req -> Task.onErr (handleReq req) \err ->
+    when err is
+        Unauthorized -> respondCodeLogError (Str.joinWith ["403 Unauthorized" |> Color.fg Red] " ") 403
+        NewSession sessionId ->
+            # Redirect to the same URL with the new session ID
+            Task.ok {
+                status: 303,
+                headers: [
+                    { name: "Set-Cookie", value: Str.toUtf8 "sessionId=$(Num.toStr sessionId)" },
+                    { name: "Location", value: Str.toUtf8 req.url },
+                ],
+                body: [],
+            }
+        URLNotFound url -> respondCodeLogError (Str.joinWith ["404 NotFound" |> Color.fg Red, url] " ") 404
+        _ -> respondCodeLogError (Str.joinWith ["SERVER ERROR" |> Color.fg Red, Inspect.toStr err] " ") 500
 
-    # Log the date, time, method, and url to stdout
-    {} <- logRequest req |> Task.await
+handleReq : Request -> Task Response _
+handleReq = \req ->
 
-    # Read DB_PATH environment variable
-    dbPath <-
-        Env.var "DB_PATH"
-        |> Task.onErr \_ -> crash "unable to read DB_PATH environment variable"
-        |> Task.await
+    logRequest! req # Log the date, time, method, and url to stdout
 
-    maybeSession <- Sql.Session.parse req |> Sql.Session.get dbPath |> Task.attempt
-    when maybeSession is
-        # Session cookie should be sent with each request
-        Ok session -> handleReq session dbPath req |> Task.onErr handleErr
-        # If this is a new session we should create one and return it
-        Err SessionNotFound ->
-            maybeNewSession <- Sql.Session.new dbPath |> Task.attempt
+    dbPath = Env.var "DB_PATH" |> Task.mapErr! UnableToReadDbPATH
 
-            when maybeNewSession is
-                Err err -> handleErr err
-                Ok sessionId ->
-                    Task.ok {
-                        status: 303,
-                        headers: [
-                            { name: "Set-Cookie", value: Str.toUtf8 "sessionId=$(Num.toStr sessionId)" },
-                            { name: "Location", value: Str.toUtf8 req.url },
-                        ],
-                        body: [],
-                    }
-
-        # Handle any server errors
-        Err err -> handleErr err
-
-handleReq : Session, Str, Request -> Task Response _
-handleReq = \session, dbPath, req ->
+    session = getSession! req dbPath
 
     urlSegments =
         req.url
@@ -72,54 +60,47 @@ handleReq = \session, dbPath, req ->
         |> List.dropFirst 1
 
     when (req.method, urlSegments) is
-        (Get, [""]) -> Pages.Home.view { session } |> htmlResponse |> Task.ok
-        (Get, ["robots.txt"]) -> staticReponse robotsTxt
-        (Get, ["styles.css"]) -> staticReponse stylesFile
-        (Get, ["site.js"]) -> staticReponse siteFile
+        (Get, [""]) -> Pages.Home.view { session } |> respondHtml
+        (Get, ["robots.txt"]) -> respondStatic robotsTxt
+        (Get, ["styles.css"]) -> respondStatic stylesFile
+        (Get, ["site.js"]) -> respondStatic siteFile
         (Get, ["register"]) ->
-            Pages.Register.view { session, user: Fresh, email: Valid } |> htmlResponse |> Task.ok
+            Pages.Register.view { session, user: Fresh, email: Valid } |> respondHtml
 
         (Post, ["register"]) ->
             params = Http.parseFormUrlEncoded req.body |> Result.withDefault (Dict.empty {})
 
-            usernameResult = Dict.get params "user"
-            emailResult = Dict.get params "email"
-
-            when (usernameResult, emailResult) is
+            when (Dict.get params "user", Dict.get params "email") is
                 (Ok username, Ok email) ->
                     Sql.User.register { path: dbPath, name: username, email }
                     |> Task.attempt \result ->
                         when result is
-                            Ok {} -> redirect "/login" ## Redirect to login page after successful registration
-                            Err UserAlreadyExists -> Pages.Register.view { session, user: UserAlreadyExists username, email: Valid } |> htmlResponse |> Task.ok
-                            Err err -> handleErr err
+                            Ok {} -> respondRedirect "/login" ## Redirect to login page after successful registration
+                            Err UserAlreadyExists -> Pages.Register.view { session, user: UserAlreadyExists username, email: Valid } |> respondHtml
+                            Err err -> Task.err (ErrRegisteringUser (Inspect.toStr err))
 
                 _ ->
-                    Pages.Register.view { session, user: UserNotProvided, email: NotProvided }
-                    |> htmlResponse
-                    |> Task.ok
+                    Pages.Register.view { session, user: UserNotProvided, email: NotProvided } |> respondHtml
 
         (Get, ["login"]) ->
-            Pages.Login.view { session, user: Fresh } |> htmlResponse |> Task.ok
+            Pages.Login.view { session, user: Fresh } |> respondHtml
 
         (Post, ["login"]) ->
             params = Http.parseFormUrlEncoded req.body |> Result.withDefault (Dict.empty {})
 
             when Dict.get params "user" is
-                Err _ -> Pages.Login.view { session, user: UserNotProvided } |> htmlResponse |> Task.ok
+                Err _ -> Pages.Login.view { session, user: UserNotProvided } |> respondHtml
                 Ok username ->
                     Sql.User.login dbPath session.id username
                     |> Task.attempt \result ->
                         when result is
-                            Ok {} -> redirect "/"
-                            Err (UserNotFound _) -> Pages.Login.view { session, user: UserNotFound username } |> htmlResponse |> Task.ok
-                            Err err -> handleErr err
+                            Ok {} -> respondRedirect "/"
+                            Err (UserNotFound _) -> Pages.Login.view { session, user: UserNotFound username } |> respondHtml
+                            Err err -> Task.err (ErrUserLogin (Inspect.toStr err))
 
         (Post, ["logout"]) ->
-            maybeNewSession <- Sql.Session.new dbPath |> Task.attempt
-
-            when maybeNewSession is
-                Err err -> handleErr err
+            when Sql.Session.new dbPath |> Task.result! is
+                Err err -> Task.err (ErrSessionNew (Inspect.toStr err))
                 Ok sessionId ->
                     Task.ok {
                         status: 303,
@@ -130,83 +111,90 @@ handleReq = \session, dbPath, req ->
                         body: [],
                     }
 
-        (Get, ["task", "new"]) -> redirect "/task"
+        (Get, ["task", "new"]) -> respondRedirect "/task"
         (Post, ["task", idStr, "delete"]) ->
-            {} <- Sql.Todo.delete { path: dbPath, userId: idStr } |> Task.await
+            Sql.Todo.delete! { path: dbPath, userId: idStr }
 
-            tasks <- Sql.Todo.list { path: dbPath, filterQuery: "" } |> Task.await
+            tasks = Sql.Todo.list! { path: dbPath, filterQuery: "" }
 
-            Pages.Todo.listTodoView { todos: tasks, filterQuery: "" } |> htmlResponse |> Task.ok
+            Pages.Todo.listTodoView { todos: tasks, filterQuery: "" } |> respondHtml
 
         (Post, ["task", "search"]) ->
             params = Http.parseFormUrlEncoded req.body |> Result.withDefault (Dict.empty {})
 
             filterQuery = Dict.get params "filterTasks" |> Result.withDefault ""
 
-            tasks <- Sql.Todo.list { path: dbPath, filterQuery } |> Task.await
+            tasks = Sql.Todo.list! { path: dbPath, filterQuery }
 
-            Pages.Todo.listTodoView { todos: tasks, filterQuery } |> htmlResponse |> Task.ok
+            Pages.Todo.listTodoView { todos: tasks, filterQuery } |> respondHtml
 
         (Post, ["task", "new"]) ->
-            newTodo <- parseTodo req.body |> Task.fromResult |> Task.await
+            newTodo = parseTodo req.body |> Task.fromResult!
 
             Sql.Todo.create { path: dbPath, newTodo }
             |> Task.attempt \result ->
                 when result is
-                    Ok {} -> redirect "/task"
-                    Err TaskWasEmpty -> redirect "/task"
-                    Err err -> handleErr err
+                    Ok {} -> respondRedirect "/task"
+                    Err TaskWasEmpty -> respondRedirect "/task"
+                    Err err -> Task.err (ErrTodoCreate (Inspect.toStr err))
 
         (Put, ["task", taskIdStr, "complete"]) ->
-            {} <- Sql.Todo.update { path: dbPath, taskIdStr, action: Completed } |> Task.await
+            Sql.Todo.update! { path: dbPath, taskIdStr, action: Completed }
 
-            triggerResponse "todosUpdated"
+            respondHxTrigger "todosUpdated"
 
         (Put, ["task", taskIdStr, "in-progress"]) ->
-            {} <- Sql.Todo.update { path: dbPath, taskIdStr, action: InProgress } |> Task.await
+            Sql.Todo.update! { path: dbPath, taskIdStr, action: InProgress }
 
-            triggerResponse "todosUpdated"
+            respondHxTrigger "todosUpdated"
 
         (Get, ["task", "list"]) ->
-            tasks <- Sql.Todo.list { path: dbPath, filterQuery: "" } |> Task.await
+            tasks = Sql.Todo.list! { path: dbPath, filterQuery: "" }
 
-            Pages.Todo.listTodoView { todos: tasks, filterQuery: "" } |> htmlResponse |> Task.ok
+            Pages.Todo.listTodoView { todos: tasks, filterQuery: "" } |> respondHtml
 
         (Get, ["task"]) ->
-            tasks <- Sql.Todo.list { path: dbPath, filterQuery: "" } |> Task.await
+            tasks = Sql.Todo.list! { path: dbPath, filterQuery: "" }
 
-            Pages.Todo.view { todos: tasks, filterQuery: "", session } |> htmlResponse |> Task.ok
+            Pages.Todo.view { todos: tasks, filterQuery: "", session } |> respondHtml
 
         (Get, ["treeview"]) ->
-            nodes <- Sql.Todo.tree { path: dbPath, userId: 1 } |> Task.await
+            nodes = Sql.Todo.tree! { path: dbPath, userId: 1 }
 
-            Pages.TreeView.view { session, nodes } |> htmlResponse |> Task.ok
+            Pages.TreeView.view { session, nodes } |> respondHtml
 
         (Get, ["user"]) ->
-            users <- Sql.User.list dbPath |> Task.await
+            users = Sql.User.list! dbPath
 
-            Pages.UserList.view { users, session } |> htmlResponse |> Task.ok
+            Pages.UserList.view { users, session } |> respondHtml
 
         _ -> Task.err (URLNotFound req.url)
 
-parseTodo : List U8 -> Result Todo [UnableToParseBodyTask _]_
+getSession : Request, Str -> Task Session _
+getSession = \req, dbPath ->
+
+    sessionId = Sql.Session.parse req |> Task.fromResult!
+
+    sessionId
+    |> Sql.Session.get dbPath
+    |> Task.onErr \err ->
+        if err == SessionNotFound then
+            id = Sql.Session.new! dbPath
+
+            Task.err (NewSession id)
+        else
+            Task.err err
+
+parseTodo : List U8 -> Result Todo _
 parseTodo = \bytes ->
     dict = Http.parseFormUrlEncoded bytes |> Result.withDefault (Dict.empty {})
 
-    task <-
-        Dict.get dict "task"
-        |> Result.mapErr \_ -> UnableToParseBodyTask bytes
-        |> Result.try
+    when (Dict.get dict "task", Dict.get dict "status") is
+        (Ok task, Ok status) -> Ok { id: 0, task, status }
+        _ -> Err (UnableToParseBodyTask bytes)
 
-    status <-
-        Dict.get dict "status"
-        |> Result.mapErr \_ -> UnableToParseBodyTask bytes
-        |> Result.try
-
-    Ok { id: 0, task, status }
-
-triggerResponse : Str -> Task Response []_
-triggerResponse = \trigger ->
+respondHxTrigger : Str -> Task Response []_
+respondHxTrigger = \trigger ->
     Task.ok {
         status: 200,
         headers: [
@@ -215,8 +203,8 @@ triggerResponse = \trigger ->
         body: [],
     }
 
-staticReponse : List U8 -> Task Response []_
-staticReponse = \bytes ->
+respondStatic : List U8 -> Task Response []_
+respondStatic = \bytes ->
     Task.ok {
         status: 200,
         headers: [
@@ -225,17 +213,26 @@ staticReponse = \bytes ->
         body: bytes,
     }
 
-htmlResponse : Html.Node -> Response
-htmlResponse = \node -> {
-    status: 200,
-    headers: [
-        { name: "Content-Type", value: Str.toUtf8 "text/html; charset=utf-8" },
-    ],
-    body: Str.toUtf8 (Html.render node),
-}
+respondHtml : Html.Node -> Task Response []_
+respondHtml = \node ->
+    Task.ok {
+        status: 200,
+        headers: [
+            { name: "Content-Type", value: Str.toUtf8 "text/html; charset=utf-8" },
+        ],
+        body: Str.toUtf8 (Html.render node),
+    }
 
-redirect : Str -> Task Response []_
-redirect = \next ->
+respondCodeLogError = \msg, code ->
+    Stderr.line! msg
+    Task.ok! {
+        status: code,
+        headers: [],
+        body: [],
+    }
+
+respondRedirect : Str -> Task Response []_
+respondRedirect = \next ->
     Task.ok {
         status: 303,
         headers: [
@@ -244,29 +241,14 @@ redirect = \next ->
         body: [],
     }
 
-handleErr : _ -> Task Response []_
-handleErr = \err ->
-
-    (msg, code) =
-        when err is
-            URLNotFound url -> (Str.joinWith ["404 NotFound" |> Color.fg Blue, url] " ", 404)
-            _ -> (Str.joinWith ["SERVER ERROR" |> Color.fg Red, Inspect.toStr err] " ", 500)
-
-    {} <- Stderr.line msg |> Task.await
-
-    Task.ok {
-        status: code,
-        headers: [],
-        body: [],
-    }
-
 logRequest : Request -> Task {} *
 logRequest = \req ->
-    dateTime <- Utc.now |> Task.map Utc.toIso8601Str |> Task.await
+    date = Utc.now |> Task.map! Utc.toIso8601Str
+    method = Http.methodToStr req.method
+    url = req.url
+    body = req.body |> Str.fromUtf8 |> Result.withDefault "<invalid utf8 body>"
 
-    reqBody = req.body |> Str.fromUtf8 |> Result.withDefault "<invalid utf8 body>"
-
-    Stdout.line "$(dateTime) $(Http.methodToStr req.method) $(req.url) $(reqBody)"
+    Stdout.line! "$(date) $(method) $(url) $(body)"
 
 robotsTxt : List U8
 robotsTxt =

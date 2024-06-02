@@ -18,6 +18,7 @@ import "site.js" as siteFile : List U8
 import Sql.Todo
 import Sql.Session
 import Sql.User
+import Sql.BigTask
 import Model exposing [Session, Todo]
 import Pages.Home
 import Pages.Login
@@ -175,7 +176,9 @@ handleReq = \req ->
 
             verifyAuthenticated! session
 
-            Pages.BigTask.view {} |> respondHtml
+            tasks = Sql.BigTask.list! {dbPath}
+
+            Pages.BigTask.view {session, tasks} |> respondHtml
 
         _ -> Task.err (URLNotFound req.url)
 

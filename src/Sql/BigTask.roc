@@ -4,32 +4,10 @@ module [
 
 import pf.Task exposing [Task]
 import pf.SQLite3
-import Model exposing [BigTask, Date]
+import Model exposing [BigTask]
 
-#Date : [NotSet, Simple {year : I64,month : I64,day : I64}]
-
-#BigTask : {
-#    id : I64,
-#    referenceId : Str,
-#    customerReferenceId : Str,
-#    dateCreated : Date,
-#    dateModified : Date,
-#    title : Str,
-#    description : Str,
-#    status : Str,
-#    priority : Str,
-#    scheduledStartDate : Date,
-#    scheduledEndDate : Date,
-#    actualStartDate : Date,
-#    actualEndDate : Date,
-#    systemName : Str,
-#    location : Str,
-#    fileReference : Str,
-#    comments : Str,
-#}
-
-list : Str, Str -> Task User _
-list = \path, name ->
+list : {dbPath : Str } -> Task (List BigTask) _
+list = \{dbPath} ->
 
     query =
         """
@@ -58,16 +36,13 @@ list = \path, name ->
         """
 
     SQLite3.execute {
-        path,
+        path: dbPath,
         query,
         bindings: [],
     }
     |> Task.onErr \err -> SqlError err |> Task.err
-    |> Task.await \rows ->
-        when rows is
-            [] -> Task.err (UserNotFound name)
-            [[Integer id, String _, String email], ..] -> Task.ok { id, name, email }
-            _ -> Task.err (UnexpectedValues "got $(Inspect.toStr rows)")
+    |> Task.await \rows -> parseListRows rows [] |> Task.fromResult
+    |> Task.mapErr ErrGettingBigTasks
 
 parseListRows : List (List SQLite3.Value), List BigTask -> Result (List BigTask) _
 parseListRows = \rows, acc ->

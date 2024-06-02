@@ -29,7 +29,17 @@ import Pages.TreeView
 main : Request -> Task Response []
 main = \req -> Task.onErr (handleReq req) \err ->
     when err is
-        HeadersNotFound -> respondCodeLogError (Str.joinWith ["403 Unauthorized" |> Color.fg Red] " ") 403
+        Unauthorized -> respondCodeLogError (Str.joinWith ["403 Unauthorized" |> Color.fg Red] " ") 403
+        NewSession sessionId ->
+            # Redirect to the same URL with the new session ID
+            Task.ok {
+                status: 303,
+                headers: [
+                    { name: "Set-Cookie", value: Str.toUtf8 "sessionId=$(Num.toStr sessionId)" },
+                    { name: "Location", value: Str.toUtf8 req.url },
+                ],
+                body: [],
+            }
         URLNotFound url -> respondCodeLogError (Str.joinWith ["404 NotFound" |> Color.fg Red, url] " ") 404
         _ -> respondCodeLogError (Str.joinWith ["SERVER ERROR" |> Color.fg Red, Inspect.toStr err] " ") 500
 
@@ -67,7 +77,7 @@ handleReq = \req ->
                         when result is
                             Ok {} -> respondRedirect "/login" ## Redirect to login page after successful registration
                             Err UserAlreadyExists -> Pages.Register.view { session, user: UserAlreadyExists username, email: Valid } |> respondHtml
-                            Err err -> handleErr err
+                            Err err -> Task.err (ErrRegisteringUser (Inspect.toStr err))
 
                 _ ->
                     Pages.Register.view { session, user: UserNotProvided, email: NotProvided } |> respondHtml
@@ -86,11 +96,11 @@ handleReq = \req ->
                         when result is
                             Ok {} -> respondRedirect "/"
                             Err (UserNotFound _) -> Pages.Login.view { session, user: UserNotFound username } |> respondHtml
-                            Err err -> handleErr err
+                            Err err -> Task.err (ErrUserLogin (Inspect.toStr err))
 
         (Post, ["logout"]) ->
             when Sql.Session.new dbPath |> Task.result! is
-                Err err -> handleErr err
+                Err err -> Task.err (ErrSessionNew (Inspect.toStr err))
                 Ok sessionId ->
                     Task.ok {
                         status: 303,
@@ -126,7 +136,7 @@ handleReq = \req ->
                 when result is
                     Ok {} -> respondRedirect "/task"
                     Err TaskWasEmpty -> respondRedirect "/task"
-                    Err err -> handleErr err
+                    Err err -> Task.err (ErrTodoCreate (Inspect.toStr err))
 
         (Put, ["task", taskIdStr, "complete"]) ->
             Sql.Todo.update! { path: dbPath, taskIdStr, action: Completed }
@@ -171,10 +181,7 @@ getSession = \req, dbPath ->
         if err == SessionNotFound then
             id = Sql.Session.new! dbPath
 
-            Task.ok {
-                id,
-                user: Guest,
-            }
+            Task.err (NewSession id)
         else
             Task.err err
 
@@ -231,22 +238,6 @@ respondRedirect = \next ->
         headers: [
             { name: "Location", value: Str.toUtf8 next },
         ],
-        body: [],
-    }
-
-handleErr : _ -> Task Response []_
-handleErr = \err ->
-
-    (msg, code) =
-        when err is
-            URLNotFound url -> (Str.joinWith ["404 NotFound" |> Color.fg Blue, url] " ", 404)
-            _ -> (Str.joinWith ["SERVER ERROR" |> Color.fg Red, Inspect.toStr err] " ", 500)
-
-    Stderr.line! msg
-
-    Task.ok {
-        status: code,
-        headers: [],
         body: [],
     }
 

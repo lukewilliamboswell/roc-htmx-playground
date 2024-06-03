@@ -10,7 +10,7 @@ import html.Attribute exposing [class]
 Heading a : {
     label : Str,
     sorted : [None, Asc, Desc],
-    renderValueFn : a -> Html.Node,
+    renderValueFn : a, U64 -> Html.Node,
 }
 
 DataTable a := {
@@ -41,8 +41,8 @@ renderHeadings = \headings -> List.map headings \{label} -> th [class "text-nowr
 renderRows : List a, List (Heading a) -> List Html.Node
 renderRows = \rows, headings ->
 
-    renderRow : a -> List Html.Node
-    renderRow = \row ->
-        List.map headings \{renderValueFn} -> td [] [renderValueFn row]
+    renderRow : a, U64 -> List Html.Node
+    renderRow = \row, idx ->
+        List.map headings \{renderValueFn} -> td [] [renderValueFn row idx]
 
-    List.map rows \row -> tr [] (renderRow row)
+    List.mapWithIndex rows \row, idx -> tr [] (renderRow row idx)

@@ -70,3 +70,8 @@ CREATE TABLE BigTask (
     FileReference TEXT,
     Comments TEXT
 );
+
+INSERT INTO BigTask VALUES (1, '123', '456', '2020-01-01', '2020-01-02', 'Task 1', 'Description 1', 'Raised', 'High', '2020-01-01', '2020-01-02', '2020-01-01', '2020-01-02', 'System 1', 'Location 1', 'File 1', 'Comments 1');
+INSERT INTO BigTask VALUES (2, '123', '456', '2020-01-01', '2020-01-02', 'Task 2', 'Description 2', 'Raised', 'High', '2020-01-01', '2020-01-02', '2020-01-01', '2020-01-02', 'System 2', 'Location 2', 'File 2', 'Comments 2');
+INSERT INTO BigTask VALUES (3, '123', '456', '2020-01-01', '2020-01-02', 'Task 3', 'Description 3', 'Raised', 'High', '2020-01-01', '2020-01-02', '2020-01-01', '2020-01-02', 'System 3', 'Location 3', 'File 3', 'Comments 3');
+INSERT INTO BigTask VALUES (4, '123', '456', '2020-01-01', '2020-01-02', 'Task 4', 'Description 4', 'Raised', 'High', '2020-01-01', '2020-01-02', '2020-01-01', '2020-01-02', 'System 4', 'Location 4', 'File 4', 'Comments 4');

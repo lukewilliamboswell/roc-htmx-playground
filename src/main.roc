@@ -30,24 +30,24 @@ import Pages.BigTask
 
 main : Request -> Task Response []
 main = \req -> Task.onErr (handleReq req) \err ->
-    when err is
-        Unauthorized ->
-            import Pages.Unauthorised
-            Pages.Unauthorised.view {} |> respondHtml
+        when err is
+            Unauthorized ->
+                import Pages.Unauthorised
+                Pages.Unauthorised.view {} |> respondHtml
 
-        NewSession sessionId ->
-            # Redirect to the same URL with the new session ID
-            Task.ok {
-                status: 303,
-                headers: [
-                    { name: "Set-Cookie", value: Str.toUtf8 "sessionId=$(Num.toStr sessionId)" },
-                    { name: "Location", value: Str.toUtf8 req.url },
-                ],
-                body: [],
-            }
+            NewSession sessionId ->
+                # Redirect to the same URL with the new session ID
+                Task.ok {
+                    status: 303,
+                    headers: [
+                        { name: "Set-Cookie", value: Str.toUtf8 "sessionId=$(Num.toStr sessionId)" },
+                        { name: "Location", value: Str.toUtf8 req.url },
+                    ],
+                    body: [],
+                }
 
-        URLNotFound url -> respondCodeLogError (Str.joinWith ["404 NotFound" |> Color.fg Red, url] " ") 404
-        _ -> respondCodeLogError (Str.joinWith ["SERVER ERROR" |> Color.fg Red, Inspect.toStr err] " ") 500
+            URLNotFound url -> respondCodeLogError (Str.joinWith ["404 NotFound" |> Color.fg Red, url] " ") 404
+            _ -> respondCodeLogError (Str.joinWith ["SERVER ERROR" |> Color.fg Red, Inspect.toStr err] " ") 500
 
 handleReq : Request -> Task Response _
 handleReq = \req ->
@@ -105,7 +105,6 @@ handleReq = \req ->
                             Err err -> Task.err (ErrUserLogin (Inspect.toStr err))
 
         (Post, ["logout"]) ->
-
             id = Sql.Session.new! dbPath
 
             Task.ok {
@@ -173,27 +172,26 @@ handleReq = \req ->
             Pages.UserList.view { users, session } |> respondHtml
 
         (Get, ["bigTask"]) ->
-
             verifyAuthenticated! session
 
-            tasks = Sql.BigTask.list! {dbPath}
+            tasks = Sql.BigTask.list! { dbPath }
 
-            Pages.BigTask.view {session, tasks} |> respondHtml
+            Pages.BigTask.view { session, tasks } |> respondHtml
 
         _ -> Task.err (URLNotFound req.url)
 
 getSession : Request, Str -> Task Session _
 getSession = \req, dbPath ->
     Sql.Session.parse req
-    |> Task.fromResult
-    |> Task.await \id -> Sql.Session.get id dbPath
-    |> Task.onErr \err ->
-        if err == SessionNotFound || err == NoSessionCookie then
-            id = Sql.Session.new! dbPath
+        |> Task.fromResult
+        |> Task.await \id -> Sql.Session.get id dbPath
+        |> Task.onErr \err ->
+            if err == SessionNotFound || err == NoSessionCookie then
+                id = Sql.Session.new! dbPath
 
-            Task.err (NewSession id)
-        else
-            Task.err err
+                Task.err (NewSession id)
+            else
+                Task.err err
 
 verifyAuthenticated : Session -> Task {} _
 verifyAuthenticated = \session ->
@@ -264,7 +262,6 @@ logRequest = \req ->
     method = Http.methodToStr req.method
     url = req.url
     body = req.body |> Str.fromUtf8 |> Result.withDefault "<invalid utf8 body>"
-
     Stdout.line! "$(date) $(method) $(url) $(body)"
 
 robotsTxt : List U8

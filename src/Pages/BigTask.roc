@@ -1,7 +1,7 @@
 module [view]
 
 import html.Html exposing [div, text, table, thead, tbody, tr, th, td]
-import html.Attribute exposing [class, role]
+import html.Attribute exposing [class]
 import Layout
 import Model
 import NavLinks
@@ -28,89 +28,91 @@ view = \{ session, tasks } ->
 
 exampleTable : List Model.BigTask -> Html.Node
 exampleTable = \tasks ->
-    Bootstrap.newTable {
+
+    dataTable : Bootstrap.DataTable Model.BigTask
+    dataTable = Bootstrap.newTable {
         headings : [
                 {
                     label: "Reference ID",
                     sorted: None,
-                    renderValue: \task -> Html.text task.referenceId,
+                    renderValueFn: \task -> Html.text task.referenceId,
                 },
                 {
                     label: "Customer ID",
                     sorted: None,
-                    renderValue: \task -> Html.text task.referenceId,
+                    renderValueFn: \task -> Html.text task.customerReferenceId,
                 },
                 {
                     label: "Date Created",
                     sorted: None,
-                    renderValue: \task -> Html.text task.referenceId,
+                    renderValueFn: \task -> Html.text (Model.dateToStr task.dateCreated),
                 },
                 {
                     label: "Date Modified",
                     sorted: None,
-                    renderValue: \task -> Html.text task.referenceId,
+                    renderValueFn: \task -> Html.text (Model.dateToStr task.dateCreated),
                 },
                 {
                     label: "Title",
                     sorted: None,
-                    renderValue: \task -> Html.text task.referenceId,
+                    renderValueFn: \task -> Html.text task.title,
                 },
                 {
                     label: "Description",
                     sorted: None,
-                    renderValue: \task -> Html.text task.referenceId,
+                    renderValueFn: \task -> Html.text task.description,
                 },
                 {
                     label: "Status",
                     sorted: None,
-                    renderValue: \task -> Html.text task.referenceId,
+                    renderValueFn: \task -> Html.text (Model.statusToStr task.status),
                 },
                 {
                     label: "Priority",
                     sorted: None,
-                    renderValue: \task -> Html.text task.referenceId,
+                    renderValueFn: \task -> Html.text (Model.priorityToStr task.priority),
                 },
                 {
                     label: "Scheduled Start Date",
                     sorted: None,
-                    renderValue: \task -> Html.text task.referenceId,
+                    renderValueFn: \task -> Html.text (Model.dateToStr task.scheduledStartDate),
                 },
                 {
                     label: "Scheduled End Date",
                     sorted: None,
-                    renderValue: \task -> Html.text task.referenceId,
+                    renderValueFn: \task -> Html.text (Model.dateToStr task.scheduledEndDate),
                 },
                 {
                     label: "Actual Start Date",
                     sorted: None,
-                    renderValue: \task -> Html.text task.referenceId,
+                    renderValueFn: \task -> Html.text (Model.dateToStr task.actualStartDate),
                 },
                 {
                     label: "Actual End Date",
                     sorted: None,
-                    renderValue: \task -> Html.text task.referenceId,
+                    renderValueFn: \task -> Html.text (Model.dateToStr task.actualEndDate),
                 },
                 {
                     label: "System Name",
                     sorted: None,
-                    renderValue: \task -> Html.text task.referenceId,
+                    renderValueFn: \task -> Html.text task.systemName,
                 },
                 {
                     label: "Location",
                     sorted: None,
-                    renderValue: \task -> Html.text task.referenceId,
+                    renderValueFn: \task -> Html.text task.location,
                 },
                 {
                     label: "File Reference",
                     sorted: None,
-                    renderValue: \task -> Html.text task.referenceId,
+                    renderValueFn: \task -> Html.text task.fileReference,
                 },
                 {
                     label: "Comments",
                     sorted: None,
-                    renderValue: \task -> Html.text task.referenceId,
+                    renderValueFn: \task -> Html.text task.comments,
                 },
             ],
-        rows : tasks,
     }
-    |> Bootstrap.renderTable
+
+    Bootstrap.renderTable dataTable tasks

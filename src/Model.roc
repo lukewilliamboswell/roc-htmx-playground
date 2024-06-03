@@ -13,6 +13,9 @@ module [
     parseDate,
     parseStatus,
     parsePriority,
+    dateToStr,
+    priorityToStr,
+    statusToStr,
 ]
 
 Session : {
@@ -140,6 +143,13 @@ expect
 
 Date : [NotSet, Simple {year : I64,month : I64,day : I64}, Invalid Str]
 
+dateToStr : Date -> Str
+dateToStr = \date ->
+    when date is
+        NotSet -> "Not Set"
+        Simple { year, month, day } -> "$(Num.toStr year)-$(Num.toStr month)-$(Num.toStr day)"
+        Invalid value -> "INVALID GOT '$(value)'"
+
 # Not a serious implementation, just for demonstration purposes
 parseDate : Str -> Date
 parseDate = \date ->
@@ -162,6 +172,16 @@ expect parseDate "" == NotSet
 
 Status : [Raised, Completed, Deferred, Approved, InProgress, Invalid Str]
 
+statusToStr : Status -> Str
+statusToStr = \s ->
+    when s is
+        Raised -> "Raised"
+        Completed -> "Completed"
+        Deferred -> "Deferred"
+        Approved -> "Approved"
+        InProgress -> "In-Progress"
+        Invalid value -> "INVALID GOT '$(value)'"
+
 parseStatus : Str -> Status
 parseStatus = \status ->
     when status is
@@ -179,6 +199,14 @@ expect parseStatus "Approved" == Approved
 expect parseStatus "In-Progress" == InProgress
 
 Priority : [Low, Medium, High, Invalid Str]
+
+priorityToStr : Priority -> Str
+priorityToStr = \p ->
+    when p is
+        Low -> "Low"
+        Medium -> "Medium"
+        High -> "High"
+        Invalid value -> "INVALID GOT '$(value)'"
 
 parsePriority : Str -> Priority
 parsePriority = \priority ->

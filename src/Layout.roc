@@ -38,7 +38,7 @@ layout = \{ session, description, title, navLinks }, children ->
 
     page {description, title} [
         header [] [
-            nav [class "navbar navbar-expand-sm mb-5"] [
+            nav [class "navbar navbar-expand-sm"] [
                 div [class "container-fluid"] [
                     button
                         [

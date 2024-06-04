@@ -33,6 +33,7 @@ dataTable = Bootstrap.newTable {
                 label: "Reference ID",
                 sorted: None,
                 renderValueFn: \task -> Html.text task.referenceId,
+                width: None,
             },
             {
                 label: "Customer ID",
@@ -49,7 +50,9 @@ dataTable = Bootstrap.newTable {
                         }],
                     }
                     |> Bootstrap.newDataTableForm
-                    |> Bootstrap.renderDataTableForm
+                    |> Bootstrap.renderDataTableForm,
+                width: None,
+
             },
             {
                 label: "Date Created",
@@ -67,21 +70,25 @@ dataTable = Bootstrap.newTable {
                     }
                     |> Bootstrap.newDataTableForm
                     |> Bootstrap.renderDataTableForm,
+                width: None,
             },
             {
                 label: "Date Modified",
                 sorted: None,
                 renderValueFn: \task -> Html.text (Model.dateToStr task.dateCreated),
+                width: None,
             },
             {
                 label: "Title",
                 sorted: None,
                 renderValueFn: \task -> Html.text task.title,
+                width: Rem 12,
             },
             {
                 label: "Description",
                 sorted: None,
                 renderValueFn: \task -> Html.text task.description,
+                width: Rem 12,
             },
             {
                 label: "Status",
@@ -102,51 +109,61 @@ dataTable = Bootstrap.newTable {
                     }
                     |> Bootstrap.newDataTableForm
                     |> Bootstrap.renderDataTableForm,
+                width: Rem 8,
             },
             {
                 label: "Priority",
                 sorted: None,
                 renderValueFn: \task -> Html.text (Model.priorityToStr task.priority),
+                width: None,
             },
             {
                 label: "Scheduled Start Date",
                 sorted: None,
                 renderValueFn: \task -> Html.text (Model.dateToStr task.scheduledStartDate),
+                width: None,
             },
             {
                 label: "Scheduled End Date",
                 sorted: None,
                 renderValueFn: \task -> Html.text (Model.dateToStr task.scheduledEndDate),
+                width: None,
             },
             {
                 label: "Actual Start Date",
                 sorted: None,
                 renderValueFn: \task -> Html.text (Model.dateToStr task.actualStartDate),
+                width: None,
             },
             {
                 label: "Actual End Date",
                 sorted: None,
                 renderValueFn: \task -> Html.text (Model.dateToStr task.actualEndDate),
+                width: None,
             },
             {
                 label: "System Name",
                 sorted: None,
                 renderValueFn: \task -> Html.text task.systemName,
+                width: None,
             },
             {
                 label: "Location",
                 sorted: None,
                 renderValueFn: \task -> Html.text task.location,
+                width: Rem 8,
             },
             {
                 label: "File Reference",
                 sorted: None,
                 renderValueFn: \task -> Html.text task.fileReference,
+                width: None,
             },
             {
                 label: "Comments",
                 sorted: None,
                 renderValueFn: \task -> Html.text task.comments,
+                width: Rem 20,
             },
         ],
 }

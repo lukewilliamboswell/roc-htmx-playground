@@ -8,7 +8,7 @@ module [
 ]
 
 import html.Html exposing [div, text, table, thead, tbody, tr, th, td]
-import html.Attribute exposing [class]
+import html.Attribute exposing [attribute, class, style]
 
 DataTableInputValidation : [None, Valid, Invalid Str]
 
@@ -34,9 +34,9 @@ renderDataTableForm = \@DataTableForm {updateUrl, inputs} ->
             Choice {selected, others} -> renderChoiceSection {name,id,selected, others,validation}
 
     Html.form [
-        (Attribute.attribute "hx-put") updateUrl,
-        (Attribute.attribute "hx-trigger") "input delay:250ms",
-        (Attribute.attribute "hx-swap") "outerHTML",
+        (attribute "hx-put") updateUrl,
+        (attribute "hx-trigger") "input delay:250ms",
+        (attribute "hx-swap") "outerHTML",
     ] (
         inputs
         |> List.map renderFormSection
@@ -73,7 +73,7 @@ renderChoiceSection = \{name,id,selected, others,validation} ->
 
     renderOption = \isSelected, value ->
         if isSelected then
-            (Html.element "option") [(Attribute.attribute "selected") ""] [Html.text value]
+            (Html.element "option") [(attribute "selected") ""] [Html.text value]
         else
             (Html.element "option") [] [Html.text value]
 
@@ -109,6 +109,7 @@ Heading a : {
     label : Str,
     sorted : [None, Asc, Desc],
     renderValueFn : a -> Html.Node,
+    width : [None, Pt U16, Px U16, Rem U16]
 }
 
 DataTable a := {
@@ -134,7 +135,16 @@ renderTable = \@DataTable {headings}, rows ->
     ]
 
 renderHeadings : List (Heading a) -> List Html.Node
-renderHeadings = \headings -> List.map headings \{label} -> th [class "text-nowrap w-auto"] [text label]
+renderHeadings = \headings ->
+    List.map headings \{label, width} ->
+        attrs =
+            when width is
+                None -> [class "text-nowrap w-auto"]
+                Pt size -> [class "text-nowrap w-auto", style "min-width:$(Num.toStr size)pt;"]
+                Px size -> [class "text-nowrap w-auto", style "min-width:$(Num.toStr size)px;"]
+                Rem size -> [class "text-nowrap w-auto", style "min-width:$(Num.toStr size)rem;"]
+
+        th attrs [text label]
 
 renderRows : List a, List (Heading a) -> List Html.Node
 renderRows = \rows, headings ->

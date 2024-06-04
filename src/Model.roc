@@ -141,34 +141,46 @@ expect
     actual = nestedSetToTree testValues
     actual == expected
 
-Date : [NotSet, Simple {year : I64,month : I64,day : I64}, Invalid Str]
+Date : [NotSet, Simple { year : I64, month : I64, day : I64 }, Invalid Str]
 
 dateToStr : Date -> Str
 dateToStr = \date ->
+
+    # we need to ensure we add the leading zero for yyyy-mm-dd
+    numToStr = \i64 ->
+        if i64 < 10 then
+            "0$(Num.toStr i64)"
+        else
+            Num.toStr i64
+
     when date is
         NotSet -> "Not Set"
-        Simple { year, month, day } -> "$(Num.toStr year)-$(Num.toStr month)-$(Num.toStr day)"
+        Simple { year, month, day } -> "$(numToStr year)-$(numToStr month)-$(numToStr day)"
         Invalid value -> "INVALID GOT '$(value)'"
 
 # Not a serious implementation, just for demonstration purposes
-parseDate : Str -> Date
+parseDate : Str -> Result Date [InvalidDate Str]
 parseDate = \date ->
     validYear = \y -> y > 1970 && y < 3000
     validMonth = \m -> m > 0 && m < 13
     validDay = \d -> d > 0 && d < 32
 
+    isFourChars = \str -> List.len (Str.toUtf8 str) == 4
+    isTwoChars = \str -> List.len (Str.toUtf8 str) == 2
+
     # Format: yyyy-mm-dd
     when Str.split date "-" is
-        [""] -> NotSet
-        [yyy, mm, dd] ->
-            when (Str.toI64 yyy, Str.toI64 mm, Str.toI64 dd) is
-                (Ok year, Ok month, Ok day) if validYear year && validMonth month && validDay day -> Simple { year, month, day }
-                _ -> Invalid date
-        _ -> Invalid date
+        [""] -> Ok NotSet
+        [yyyy, mm, dd] if isFourChars yyyy && isTwoChars mm && isTwoChars dd ->
+            when (Str.toI64 yyyy, Str.toI64 mm, Str.toI64 dd) is
+                (Ok year, Ok month, Ok day) if validYear year && validMonth month && validDay day -> Ok (Simple { year, month, day })
+                _ -> Err (InvalidDate date)
 
-expect parseDate "2021-01-01" == Simple { year: 2021, month: 1, day: 1 }
-expect parseDate "01-01-2024" == Invalid "01-01-2024"
-expect parseDate "" == NotSet
+        _ -> Err (InvalidDate date)
+
+expect parseDate "2021-01-01" == Ok (Simple { year: 2021, month: 1, day: 1 })
+expect parseDate "01-01-2024" == Err (InvalidDate "01-01-2024")
+expect parseDate "" == Ok NotSet
 
 Status : [Raised, Completed, Deferred, Approved, InProgress, Invalid Str]
 

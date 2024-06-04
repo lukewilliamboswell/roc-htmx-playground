@@ -196,18 +196,14 @@ handleReq = \req ->
 
         (Put, ["bigTask", "customerId", idStr]) ->
 
-            values =
-                Http.parseFormUrlEncoded req.body
-                |> Result.mapErr \BadUtf8 -> BadRequest InvalidFormEncoding
-                |> Task.fromResult!
+            values = decodeFormValues! req.body
 
             id =
                 Str.toI64 idStr
-                |> Result.mapErr \_ -> BadRequest (InvalidCustomerReferenceID idStr "expected a valid 64-bit integer")
+                |> Result.mapErr \_ -> BadRequest (InvalidBigTaskID idStr "expected a valid 64-bit integer")
                 |> Task.fromResult!
 
-            # Validate form values, here we check the reference ID is "correct"
-            valid =
+            validation =
                 Dict.get values "CustomerReferenceID"
                 |> Result.mapErr \_ -> BadRequest (MissingField "CustomerReferenceID")
                 |> Result.try \cridstr ->
@@ -217,7 +213,7 @@ handleReq = \req ->
                         _ -> Ok (Invalid "must be a number between 0 and 100,000")
                 |> Task.fromResult!
 
-            updateOnlyIfValid = if valid == Valid then Sql.BigTask.update {dbPath, id, values} else Task.ok {}
+            updateOnlyIfValid = if validation == Valid then Sql.BigTask.update {dbPath, id, values} else Task.ok {}
             updateOnlyIfValid!
 
             {
@@ -227,7 +223,41 @@ handleReq = \req ->
                     id : idStr,
                     # use the provided value here so we keep the user's input
                     value : String (Dict.get values "CustomerReferenceID" |> Result.withDefault ""),
-                    valid,
+                    validation,
+                }],
+            }
+            |> Bootstrap.newDataTableForm
+            |> Bootstrap.renderDataTableForm
+            |> respondHtml
+
+        (Put, ["bigTask", "dateCreated", idStr]) ->
+
+            values = decodeFormValues! req.body
+
+            id =
+                Str.toI64 idStr
+                |> Result.mapErr \_ -> BadRequest (InvalidBigTaskID idStr "expected a valid 64-bit integer")
+                |> Task.fromResult!
+
+            validation =
+                Dict.get values "DateCreated"
+                |> Result.mapErr \_ -> BadRequest (MissingField "DateCreated")
+                |> Result.try Model.parseDate
+                |> Result.map \_ -> Valid
+                |> Result.mapErr \_ -> Invalid "must be date format yyyy-mm-dd"
+                |> Task.fromResult!
+
+            updateOnlyIfValid = if validation == Valid then Sql.BigTask.update {dbPath, id, values} else Task.ok {}
+            updateOnlyIfValid!
+
+            {
+                updateUrl : "/bigTask/dateCreated/$(idStr)",
+                inputs : [{
+                    name : "DateCreated",
+                    id : idStr,
+                    # use the provided value here so we keep the user's input
+                    value : Date (Dict.get values "DateCreated" |> Result.withDefault ""),
+                    validation,
                 }],
             }
             |> Bootstrap.newDataTableForm
@@ -255,6 +285,11 @@ verifyAuthenticated = \session ->
         Task.err Unauthorized
     else
         Task.ok {}
+
+decodeFormValues = \body ->
+    Http.parseFormUrlEncoded body
+    |> Result.mapErr \BadUtf8 -> BadRequest InvalidFormEncoding
+    |> Task.fromResult
 
 parseTodo : List U8 -> Result Todo _
 parseTodo = \bytes ->

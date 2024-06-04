@@ -45,7 +45,7 @@ dataTable = Bootstrap.newTable {
                             name : "CustomerReferenceID",
                             id : idStr,
                             value : String task.customerReferenceId,
-                            valid : None,
+                            validation : None,
                         }],
                     }
                     |> Bootstrap.newDataTableForm
@@ -62,7 +62,7 @@ dataTable = Bootstrap.newTable {
                             name : "DateCreated",
                             id : idStr,
                             value : Date (Model.dateToStr task.dateCreated),
-                            valid : None,
+                            validation : None,
                         }],
                     }
                     |> Bootstrap.newDataTableForm

@@ -16,7 +16,7 @@ DataTableForm := {
         name : Str,
         id : Str,
         value : [String Str, Date Str],
-        valid : [None, Valid, Invalid Str],
+        validation : [None, Valid, Invalid Str],
     },
 }
 
@@ -25,7 +25,7 @@ newDataTableForm = @DataTableForm
 renderDataTableForm : DataTableForm -> Html.Node
 renderDataTableForm = \@DataTableForm {updateUrl, inputs} ->
 
-    renderInput = \{name,id,value,valid} ->
+    renderInput = \{name,id,value,validation} ->
 
         (valueAttr, typeAttr) =
             when value is
@@ -33,7 +33,7 @@ renderDataTableForm = \@DataTableForm {updateUrl, inputs} ->
                 Date str -> (Attribute.value str, Attribute.type "date")
 
         classAttr =
-            when valid is
+            when validation is
                 None -> class "form-control"
                 Valid -> class "form-control is-valid"
                 Invalid _ -> class "form-control is-invalid"
@@ -47,7 +47,7 @@ renderDataTableForm = \@DataTableForm {updateUrl, inputs} ->
                 Attribute.name name,
                 valueAttr,
             ] [],
-            when valid is
+            when validation is
                 None -> div [] []
                 Valid -> div [] []
                 Invalid msg -> div [class "text-danger mt-1"] [text msg]

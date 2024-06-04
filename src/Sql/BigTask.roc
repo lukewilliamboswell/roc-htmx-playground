@@ -7,6 +7,7 @@ module [
 
 import pf.Task exposing [Task]
 import pf.SQLite3
+import pf.Stdout
 import Model exposing [BigTask]
 
 list : {dbPath : Str } -> Task (List BigTask) _
@@ -112,16 +113,16 @@ parseListRows = \rows, acc ->
                 id,
                 referenceId,
                 customerReferenceId,
-                dateCreated : Model.parseDate dateCreatedRaw,
-                dateModified : Model.parseDate dateModifiedRaw,
+                dateCreated : Model.parseDate dateCreatedRaw |> Result.withDefault NotSet,
+                dateModified : Model.parseDate dateModifiedRaw |> Result.withDefault NotSet,
                 title,
                 description,
                 status : Model.parseStatus statusRaw,
                 priority : Model.parsePriority priorityRaw,
-                scheduledStartDate : Model.parseDate rawScheduledStartDate,
-                scheduledEndDate : Model.parseDate rawScheduledEndDate,
-                actualStartDate : Model.parseDate rawActualStartDate,
-                actualEndDate : Model.parseDate rawActualEndDate,
+                scheduledStartDate : Model.parseDate rawScheduledStartDate |> Result.withDefault NotSet,
+                scheduledEndDate : Model.parseDate rawScheduledEndDate |> Result.withDefault NotSet,
+                actualStartDate : Model.parseDate rawActualStartDate |> Result.withDefault NotSet,
+                actualEndDate : Model.parseDate rawActualEndDate |> Result.withDefault NotSet,
                 systemName,
                 location,
                 fileReference,
@@ -142,6 +143,8 @@ update = \{dbPath, id, values} ->
         $(sqlStr)
         WHERE ID = :id;
         """
+
+    Stdout.line! (Inspect.toStr (TT query id values))
 
     SQLite3.execute {
         path: dbPath,

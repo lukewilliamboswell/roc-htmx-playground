@@ -39,22 +39,34 @@ dataTable = Bootstrap.newTable {
                 sorted: None,
                 renderValueFn: \task ->
                     idStr = Num.toStr task.id
-                    form = Bootstrap.newDataTableForm {
+                    {
                         updateUrl : "/bigTask/customerId/$(idStr)",
                         inputs : [{
                             name : "CustomerReferenceID",
                             id : idStr,
-                            value : task.customerReferenceId,
+                            value : String task.customerReferenceId,
+                            valid : None,
                         }],
-                        errors: [],
                     }
-
-                    Bootstrap.renderDataTableForm form
+                    |> Bootstrap.newDataTableForm
+                    |> Bootstrap.renderDataTableForm
             },
             {
                 label: "Date Created",
                 sorted: None,
-                renderValueFn: \task -> Html.text (Model.dateToStr task.dateCreated),
+                renderValueFn: \task ->
+                    idStr = Num.toStr task.id
+                    {
+                        updateUrl : "/bigTask/dateCreated/$(idStr)",
+                        inputs : [{
+                            name : "DateCreated",
+                            id : idStr,
+                            value : Date (Model.dateToStr task.dateCreated),
+                            valid : None,
+                        }],
+                    }
+                    |> Bootstrap.newDataTableForm
+                    |> Bootstrap.renderDataTableForm,
             },
             {
                 label: "Date Modified",

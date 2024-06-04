@@ -17,6 +17,7 @@ view = \{} ->
                     div [class "mt-5 mr-1 ml-1"] [
                         h1 [] [text "Unauthorised"],
                         p [] [text "You are not authorised to view this resource, please contact and administrator."],
+                        p [] [text "HINT -- try logging in with user 'Henry'"],
                     ],
                 ],
             ],

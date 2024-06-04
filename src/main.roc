@@ -207,18 +207,18 @@ handleReq = \req ->
                 |> Task.fromResult!
 
             # Validate form values, here we check the reference ID is "correct"
-            errors =
+            valid =
                 Dict.get values "CustomerReferenceID"
                 |> Result.mapErr \_ -> BadRequest (MissingField "CustomerReferenceID")
                 |> Result.try \cridstr ->
                     when Str.toI64 cridstr is
                         # just an example... just check it's in range 0-100,000
-                        Ok i64 if i64 > 0 && i64 < 100000 -> Ok []
-                        _ -> Ok ["must be a number between 0 and 100,000"]
+                        Ok i64 if i64 > 0 && i64 < 100000 -> Ok Valid
+                        _ -> Ok (Invalid "must be a number between 0 and 100,000")
                 |> Task.fromResult!
 
-            updateOnlyIfNoErrors = if List.isEmpty errors then Sql.BigTask.update {dbPath, id, values} else Task.ok {}
-            updateOnlyIfNoErrors!
+            updateOnlyIfValid = if valid == Valid then Sql.BigTask.update {dbPath, id, values} else Task.ok {}
+            updateOnlyIfValid!
 
             {
                 updateUrl : "/bigTask/customerId/$(idStr)",
@@ -226,9 +226,9 @@ handleReq = \req ->
                     name : "CustomerReferenceID",
                     id : idStr,
                     # use the provided value here so we keep the user's input
-                    value : Dict.get values "CustomerReferenceID" |> Result.withDefault "",
+                    value : String (Dict.get values "CustomerReferenceID" |> Result.withDefault ""),
+                    valid,
                 }],
-                errors,
             }
             |> Bootstrap.newDataTableForm
             |> Bootstrap.renderDataTableForm

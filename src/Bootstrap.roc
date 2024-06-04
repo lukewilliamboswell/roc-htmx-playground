@@ -15,26 +15,42 @@ DataTableForm := {
     inputs : List {
         name : Str,
         id : Str,
-        value : Str,
+        value : [String Str, Date Str],
+        valid : [None, Valid, Invalid Str],
     },
-    errors : List Str,
 }
 
 newDataTableForm = @DataTableForm
 
 renderDataTableForm : DataTableForm -> Html.Node
-renderDataTableForm = \@DataTableForm {updateUrl, inputs, errors} ->
+renderDataTableForm = \@DataTableForm {updateUrl, inputs} ->
 
-    renderInput = \{name,id,value} ->
+    renderInput = \{name,id,value,valid} ->
+
+        (valueAttr, typeAttr) =
+            when value is
+                String str -> (Attribute.value str, Attribute.type "text")
+                Date str -> (Attribute.value str, Attribute.type "date")
+
+        classAttr =
+            when valid is
+                None -> class "form-control"
+                Valid -> class "form-control is-valid"
+                Invalid _ -> class "form-control is-invalid"
+
         [
             Html.label [Attribute.for id, Attribute.hidden ""] [Html.text name],
             (Html.element "input") [
-                Attribute.type "text",
-                class "form-control",
+                typeAttr,
+                classAttr,
                 Attribute.id id,
                 Attribute.name name,
-                Attribute.value value,
-            ] []
+                valueAttr,
+            ] [],
+            when valid is
+                None -> div [] []
+                Valid -> div [] []
+                Invalid msg -> div [class "text-danger mt-1"] [text msg]
         ]
 
     Html.form [
@@ -44,7 +60,6 @@ renderDataTableForm = \@DataTableForm {updateUrl, inputs, errors} ->
     ] (
         inputs
         |> List.map renderInput
-        |> List.concat [List.map errors \error -> div [class "alert alert-danger mt-1"] [text error]]
         |> List.join
     )
 

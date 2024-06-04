@@ -196,11 +196,14 @@ handleReq = \req ->
 
         (Put, ["bigTask", "customerId", idStr]) ->
 
-            values = Http.parseFormUrlEncoded req.body |> Result.withDefault (Dict.empty {})
+            values =
+                Http.parseFormUrlEncoded req.body
+                |> Result.mapErr \BadUtf8 -> BadRequest InvalidFormEncoding
+                |> Task.fromResult!
 
             id =
                 Str.toI64 idStr
-                |> Result.mapErr \_ -> BadRequest (InvalidCustomerID idStr "expected a valid 64-bit integer")
+                |> Result.mapErr \_ -> BadRequest (InvalidCustomerReferenceID idStr "expected a valid 64-bit integer")
                 |> Task.fromResult!
 
             # Validate form values, here we check the reference ID is "correct"

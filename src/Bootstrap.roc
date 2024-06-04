@@ -17,7 +17,7 @@ DataTableForm := {
     inputs : List {
         name : Str,
         id : Str,
-        value : [Text Str, Date Str, Choice {selected: Str, others: List Str}],
+        value : [Text Str, Date Str, Choice {selected: U64, options: List Str}],
         validation : DataTableInputValidation,
     },
 }
@@ -31,7 +31,7 @@ renderDataTableForm = \@DataTableForm {updateUrl, inputs} ->
         when value is
             Text str -> renderTextSection {name,id,str,validation}
             Date str -> renderDateSection {name,id,str,validation}
-            Choice {selected, others} -> renderChoiceSection {name,id,selected, others,validation}
+            Choice {selected, options} -> renderChoiceSection {name,id,selected,options,validation}
 
     Html.form [
         (attribute "hx-put") updateUrl,
@@ -69,17 +69,14 @@ renderDateSection = \{name,id,str,validation} ->
         validationMsg validation
     ]
 
-renderChoiceSection = \{name,id,selected, others,validation} ->
+renderChoiceSection = \{name,id,selected,options,validation} ->
 
-    renderOption = \isSelected, value ->
-        if isSelected then
-            (Html.element "option") [(attribute "selected") ""] [Html.text value]
-        else
-            (Html.element "option") [] [Html.text value]
-
-    options =
-        [renderOption Bool.true selected]
-        |> List.concat (List.map others \value -> renderOption Bool.false value)
+    renderedOptions =
+        List.mapWithIndex options \value, idx ->
+            if idx == selected then
+                (Html.element "option") [(attribute "selected") ""] [Html.text value]
+            else
+                (Html.element "option") [] [Html.text value]
 
     [
         Html.label [Attribute.for id, Attribute.hidden ""] [Html.text name],
@@ -87,7 +84,7 @@ renderChoiceSection = \{name,id,selected, others,validation} ->
             class "form-select $(validationClass validation)",
             Attribute.id id,
             Attribute.name name,
-        ] options,
+        ] renderedOptions,
         validationMsg validation
     ]
 

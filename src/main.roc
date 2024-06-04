@@ -198,10 +198,7 @@ handleReq = \req ->
 
             values = decodeFormValues! req.body
 
-            id =
-                Str.toI64 idStr
-                |> Result.mapErr \_ -> BadRequest (InvalidBigTaskID idStr "expected a valid 64-bit integer")
-                |> Task.fromResult!
+            id = decodeBigTaskId! idStr
 
             validation =
                 Dict.get values "CustomerReferenceID"
@@ -234,10 +231,7 @@ handleReq = \req ->
 
             values = decodeFormValues! req.body
 
-            id =
-                Str.toI64 idStr
-                |> Result.mapErr \_ -> BadRequest (InvalidBigTaskID idStr "expected a valid 64-bit integer")
-                |> Task.fromResult!
+            id = decodeBigTaskId! idStr
 
             validation =
                 Dict.get values "DateCreated"
@@ -257,6 +251,45 @@ handleReq = \req ->
                     id : idStr,
                     # use the provided value here so we keep the user's input
                     value : Date (Dict.get values "DateCreated" |> Result.withDefault ""),
+                    validation,
+                }],
+            }
+            |> Bootstrap.newDataTableForm
+            |> Bootstrap.renderDataTableForm
+            |> respondHtml
+
+        (Put, ["bigTask", "status", idStr]) ->
+
+            values = decodeFormValues! req.body
+
+            id = decodeBigTaskId! idStr
+
+            validation =
+                Dict.get values "Status"
+                |> Result.mapErr \_ -> BadRequest (MissingField "Status")
+                |> Result.try Model.parseStatus
+                |> Result.map \_ -> Valid
+                |> Result.mapErr \_ -> Invalid "must be 'Raised|Completed|Deferred|Approved|In-Progress'"
+                |> Task.fromResult!
+
+            updateOnlyIfValid = if validation == Valid then Sql.BigTask.update {dbPath, id, values} else Task.ok {}
+            updateOnlyIfValid!
+
+            selectedIndex =
+                Dict.get values "Status"
+                |> Result.try \selected -> Model.statusOptionIndex selected
+                |> Task.fromResult!
+
+            {
+                updateUrl : "/bigTask/status/$(idStr)",
+                inputs : [{
+                    name : "Status",
+                    id : idStr,
+                    # use the provided value here so we keep the user's input
+                    value : Choice {
+                        selected: selectedIndex,
+                        options: Model.statusOptions
+                    },
                     validation,
                 }],
             }
@@ -289,6 +322,11 @@ verifyAuthenticated = \session ->
 decodeFormValues = \body ->
     Http.parseFormUrlEncoded body
     |> Result.mapErr \BadUtf8 -> BadRequest InvalidFormEncoding
+    |> Task.fromResult
+
+decodeBigTaskId = \idStr ->
+    Str.toI64 idStr
+    |> Result.mapErr \_ -> BadRequest (InvalidBigTaskID idStr "expected a valid 64-bit integer")
     |> Task.fromResult
 
 parseTodo : List U8 -> Result Todo _

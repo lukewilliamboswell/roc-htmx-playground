@@ -109,6 +109,9 @@ parseListRows = \rows, acc ->
             String fileReference,
             String comments
         ], .. as rest] ->
+
+            # TODO we should do better than using Result.withDefault here
+
             parseListRows rest (List.append acc {
                 id,
                 referenceId,
@@ -117,7 +120,7 @@ parseListRows = \rows, acc ->
                 dateModified : Model.parseDate dateModifiedRaw |> Result.withDefault NotSet,
                 title,
                 description,
-                status : Model.parseStatus statusRaw,
+                status : Model.parseStatus statusRaw |> Result.withDefault Raised,
                 priority : Model.parsePriority priorityRaw,
                 scheduledStartDate : Model.parseDate rawScheduledStartDate |> Result.withDefault NotSet,
                 scheduledEndDate : Model.parseDate rawScheduledEndDate |> Result.withDefault NotSet,

@@ -16,6 +16,8 @@ module [
     dateToStr,
     priorityToStr,
     statusToStr,
+    statusOptions,
+    statusOptionIndex,
 ]
 
 Session : {
@@ -194,21 +196,32 @@ statusToStr = \s ->
         InProgress -> "In-Progress"
         Invalid value -> "INVALID GOT '$(value)'"
 
-parseStatus : Str -> Status
+statusOptions = ["Raised","Completed","Deferred","Approved","In-Progress"]
+statusOptionIndex = \str ->
+    when str is
+        "Raised" -> Ok 0
+        "Completed" -> Ok 1
+        "Deferred" -> Ok 2
+        "Approved" -> Ok 3
+        "In-Progress" -> Ok 4
+        _ -> Err (InvalidStatus str)
+
+parseStatus : Str -> Result Status [InvalidStatus Str]
 parseStatus = \status ->
     when status is
-        "Raised" -> Raised
-        "Completed" -> Completed
-        "Deferred" -> Deferred
-        "Approved" -> Approved
-        "In-Progress" -> InProgress
-        _ -> Invalid status
+        "Raised" -> Ok Raised
+        "Completed" -> Ok Completed
+        "Deferred" -> Ok Deferred
+        "Approved" -> Ok Approved
+        "In-Progress" -> Ok InProgress
+        _ -> Err (InvalidStatus status)
 
-expect parseStatus "Raised" == Raised
-expect parseStatus "Completed" == Completed
-expect parseStatus "Deferred" == Deferred
-expect parseStatus "Approved" == Approved
-expect parseStatus "In-Progress" == InProgress
+expect parseStatus "Raised" == Ok Raised
+expect parseStatus "Completed" == Ok Completed
+expect parseStatus "Deferred" == Ok Deferred
+expect parseStatus "Approved" == Ok Approved
+expect parseStatus "In-Progress" == Ok InProgress
+expect parseStatus "definitely not valid" == Err (InvalidStatus "definitely not valid")
 
 Priority : [Low, Medium, High, Invalid Str]
 

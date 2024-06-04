@@ -101,8 +101,12 @@ dataTable = Bootstrap.newTable {
                             name : "Status",
                             id : idStr,
                             value : Choice {
-                                selected: "FOO",
-                                others: ["bAR", "BAZ", Model.statusToStr task.status]
+                                selected:
+                                    task.status
+                                    |> Model.statusToStr
+                                    |> Model.statusOptionIndex
+                                    |> Result.withDefault 0,
+                                options: Model.statusOptions
                             },
                             validation : None,
                         }],

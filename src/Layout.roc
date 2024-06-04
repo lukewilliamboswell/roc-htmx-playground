@@ -1,7 +1,7 @@
 module [layout, page]
 
 import html.Html exposing [element, header,form, nav, meta, span, link, body, button, a, div, text, ul, li]
-import html.Attribute exposing [attribute, src, id, href, rel, name, integrity, crossorigin, class, width, height]
+import html.Attribute exposing [attribute, src, id, href, rel, name, class, width, height]
 import Model exposing [Session]
 import NavLinks exposing [NavLink]
 
@@ -98,31 +98,13 @@ page = \{description, title}, children ->
             meta [(attribute "charset") "UTF-8"],
             meta [name "description", (attribute "content") description],
             meta [name "viewport", (attribute "content") "width=device-width, initial-scale=1"],
-            link [
-                rel "stylesheet",
-                href "https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css",
-                integrity "sha384-T3c6CoIi6uLrA9TneNEoa7RxnatzjcDSCmG1MXxSR1GAsXEV/Dwwykc2MPK8M2HN",
-                crossorigin "anonymous",
-            ],
-            link [
-                rel "stylesheet",
-                href "/styles.css",
-            ],
-            # The scripts are here to prevent these being loaded each time htmx swaps content of the body
-            (element "script")
-                [
-                    src "https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js",
-                    integrity "sha384-C6RzsynM9kWDrMNeT87bh95OGNyZPhcTNXj1NW7RuBCsyN/o0jlpcV8Qyq46cDfL",
-                    crossorigin "anonymous",
-                ]
-                [],
-            (element "script")
-                [
-                    src "https://unpkg.com/htmx.org@1.9.9",
-                    integrity "sha384-QFjmbokDn2DjBjq+fM+8LUIVrAgqcNW2s0PjAxHETgRn9l4fvX31ZxDxvwQnyMOX",
-                    crossorigin "anonymous",
-                ]
-                [],
+            link [rel "stylesheet",href "/bootstrap-5-3-2.min.css"],
+            link [rel "stylesheet",href "/styles.css"],
+            # The scripts are here instead of at the end of the body
+            # to prevent these being loaded each time htmx swaps
+            # content of the body
+            (element "script") [src "/bootsrap.bundle-5-3-2.min.js"] [],
+            (element "script") [src "/htmx-1-9-9.min.js"] [],
             (element "script")
                 [
                     src "/site.js",

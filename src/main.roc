@@ -11,10 +11,14 @@ import pf.Http exposing [Request, Response]
 import pf.Env
 import pf.Utc
 import pf.Url
+import Bootstrap
 import html.Html
 import ansi.Color
 import "site.css" as stylesFile : List U8
 import "site.js" as siteFile : List U8
+import "../static/bootsrap.bundle-5-3-2.min.js" as bootstrapJSFile : List U8
+import "../static/bootstrap-5-3-2.min.css" as bootsrapCSSFile : List U8
+import "../static/htmx-1-9-9.min.js" as htmxJSFile : List U8
 import Sql.Todo
 import Sql.Session
 import Sql.User
@@ -31,6 +35,13 @@ import Pages.BigTask
 main : Request -> Task Response []
 main = \req -> Task.onErr (handleReq req) \err ->
         when err is
+
+            BadRequest inner -> Task.ok {
+                status: 400,
+                headers: [],
+                body: Str.toUtf8 (Inspect.toStr inner),
+            }
+
             Unauthorized ->
                 import Pages.Unauthorised
                 Pages.Unauthorised.view {} |> respondHtml
@@ -67,6 +78,9 @@ handleReq = \req ->
 
     when (req.method, urlSegments) is
         (Get, [""]) -> Pages.Home.view { session } |> respondHtml
+        (Get, ["bootsrap.bundle-5-3-2.min.js"]) -> respondStatic bootstrapJSFile
+        (Get, ["bootstrap-5-3-2.min.css"]) -> respondStatic bootsrapCSSFile
+        (Get, ["htmx-1-9-9.min.js"]) -> respondStatic htmxJSFile
         (Get, ["robots.txt"]) -> respondStatic robotsTxt
         (Get, ["styles.css"]) -> respondStatic stylesFile
         (Get, ["site.js"]) -> respondStatic siteFile
@@ -177,6 +191,40 @@ handleReq = \req ->
             tasks = Sql.BigTask.list! { dbPath }
 
             Pages.BigTask.view { session, tasks } |> respondHtml
+
+        (Put, ["bigTask", "customerId", idStr]) ->
+
+            values = Http.parseFormUrlEncoded req.body |> Result.withDefault (Dict.empty {})
+
+            id =
+                Str.toI64 idStr
+                |> Result.mapErr \_ -> BadRequest (InvalidCustomerID idStr "expected a valid 64-bit integer")
+                |> Task.fromResult!
+
+            # Validate form values, here we check the reference ID is "correct"
+            Dict.get values "CustomerReferenceID"
+            |> Result.mapErr \_ -> BadRequest (MissingField "CustomerReferenceID")
+            |> Result.try \cridstr ->
+                when Str.toI64 cridstr is
+                    # just an example... just check it's in range 0-100,000
+                    Ok i64 if i64 > 0 && i64 < 100000 -> Ok {}
+                    _ -> Err (BadRequest (InvalidCustomerReferenceID idStr))
+            |> Task.fromResult!
+
+            Sql.BigTask.update! {dbPath, id, values}
+
+            task = Sql.BigTask.get! {dbPath, id}
+
+            form = Bootstrap.newDataTableForm {
+                updateUrl : "/bigTask/customerId/$(idStr)",
+                inputs : [{
+                    name : "CustomerReferenceID",
+                    id : idStr,
+                    value : task.customerReferenceId,
+                }],
+            }
+
+            Bootstrap.renderDataTableForm form |> respondHtml
 
         _ -> Task.err (URLNotFound req.url)
 

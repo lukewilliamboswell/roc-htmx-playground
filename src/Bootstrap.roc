@@ -1,4 +1,7 @@
 module [
+    DataTableForm,
+    newDataTableForm,
+    renderDataTableForm,
     DataTable,
     newTable,
     renderTable,
@@ -7,10 +10,39 @@ module [
 import html.Html exposing [div, text, table, thead, tbody, tr, th, td]
 import html.Attribute exposing [class]
 
+DataTableForm := {
+    updateUrl : Str,
+    inputs : List {
+        name : Str,
+        id : Str,
+        value : Str,
+    },
+}
+
+newDataTableForm = @DataTableForm
+
+renderDataTableForm : DataTableForm -> Html.Node
+renderDataTableForm = \@DataTableForm {updateUrl, inputs} ->
+
+    renderInput = \{name,id,value} ->
+        [
+            Html.label [Attribute.for id, Attribute.hidden ""] [Html.text name],
+            (Html.element "input") [Attribute.type "text", class "form-control", Attribute.id id, Attribute.name name, Attribute.value value] []
+        ]
+
+    Html.form [
+        (Attribute.attribute "hx-put") updateUrl,
+        (Attribute.attribute "hx-trigger") "input delay:1000ms",
+    ] (
+        inputs
+        |> List.map renderInput
+        |> List.join
+    )
+
 Heading a : {
     label : Str,
     sorted : [None, Asc, Desc],
-    renderValueFn : a, U64 -> Html.Node,
+    renderValueFn : a -> Html.Node,
 }
 
 DataTable a := {
@@ -41,8 +73,8 @@ renderHeadings = \headings -> List.map headings \{label} -> th [class "text-nowr
 renderRows : List a, List (Heading a) -> List Html.Node
 renderRows = \rows, headings ->
 
-    renderRow : a, U64 -> List Html.Node
-    renderRow = \row, idx ->
-        List.map headings \{renderValueFn} -> td [] [renderValueFn row idx]
+    renderRow : a -> List Html.Node
+    renderRow = \row ->
+        List.map headings \{renderValueFn} -> td [] [renderValueFn row]
 
-    List.mapWithIndex rows \row, idx -> tr [] (renderRow row idx)
+    List.map rows \row -> tr [] (renderRow row)

@@ -1,6 +1,6 @@
 module [view]
 
-import html.Html exposing [div, text, table, thead, tbody, tr, th, td]
+import html.Html exposing [div, text]
 import html.Attribute exposing [class]
 import Layout
 import Model
@@ -32,87 +32,93 @@ dataTable = Bootstrap.newTable {
             {
                 label: "Reference ID",
                 sorted: None,
-                renderValueFn: \task, _ -> Html.text task.referenceId,
+                renderValueFn: \task -> Html.text task.referenceId,
             },
             {
                 label: "Customer ID",
                 sorted: None,
-                renderValueFn: \task, idx  ->
-                    idStr = "customer-id-$(Num.toStr idx)"
-                    Html.form [] [
-                        Html.label [Attribute.for idStr, Attribute.hidden ""] [Html.text "Customer ID $(Num.toStr idx)"],
-                        (Html.element "input") [Attribute.type "text", class "form-control", Attribute.id idStr, Attribute.name idStr, Attribute.value task.customerReferenceId] []
-                    ],
+                renderValueFn: \task ->
+                    idStr = Num.toStr task.id
+                    form = Bootstrap.newDataTableForm {
+                        updateUrl : "/bigTask/customerId/$(idStr)",
+                        inputs : [{
+                            name : "CustomerReferenceID",
+                            id : idStr,
+                            value : task.customerReferenceId,
+                        }],
+                    }
+
+                    Bootstrap.renderDataTableForm form
             },
             {
                 label: "Date Created",
                 sorted: None,
-                renderValueFn: \task, _ -> Html.text (Model.dateToStr task.dateCreated),
+                renderValueFn: \task -> Html.text (Model.dateToStr task.dateCreated),
             },
             {
                 label: "Date Modified",
                 sorted: None,
-                renderValueFn: \task, _ -> Html.text (Model.dateToStr task.dateCreated),
+                renderValueFn: \task -> Html.text (Model.dateToStr task.dateCreated),
             },
             {
                 label: "Title",
                 sorted: None,
-                renderValueFn: \task, _ -> Html.text task.title,
+                renderValueFn: \task -> Html.text task.title,
             },
             {
                 label: "Description",
                 sorted: None,
-                renderValueFn: \task, _ -> Html.text task.description,
+                renderValueFn: \task -> Html.text task.description,
             },
             {
                 label: "Status",
                 sorted: None,
-                renderValueFn: \task, _ -> Html.text (Model.statusToStr task.status),
+                renderValueFn: \task -> Html.text (Model.statusToStr task.status),
             },
             {
                 label: "Priority",
                 sorted: None,
-                renderValueFn: \task, _ -> Html.text (Model.priorityToStr task.priority),
+                renderValueFn: \task -> Html.text (Model.priorityToStr task.priority),
             },
             {
                 label: "Scheduled Start Date",
                 sorted: None,
-                renderValueFn: \task, _ -> Html.text (Model.dateToStr task.scheduledStartDate),
+                renderValueFn: \task -> Html.text (Model.dateToStr task.scheduledStartDate),
             },
             {
                 label: "Scheduled End Date",
                 sorted: None,
-                renderValueFn: \task, _ -> Html.text (Model.dateToStr task.scheduledEndDate),
+                renderValueFn: \task -> Html.text (Model.dateToStr task.scheduledEndDate),
             },
             {
                 label: "Actual Start Date",
                 sorted: None,
-                renderValueFn: \task, _ -> Html.text (Model.dateToStr task.actualStartDate),
+                renderValueFn: \task -> Html.text (Model.dateToStr task.actualStartDate),
             },
             {
                 label: "Actual End Date",
                 sorted: None,
-                renderValueFn: \task, _ -> Html.text (Model.dateToStr task.actualEndDate),
+                renderValueFn: \task -> Html.text (Model.dateToStr task.actualEndDate),
             },
             {
                 label: "System Name",
                 sorted: None,
-                renderValueFn: \task, _ -> Html.text task.systemName,
+                renderValueFn: \task -> Html.text task.systemName,
             },
             {
                 label: "Location",
                 sorted: None,
-                renderValueFn: \task, _ -> Html.text task.location,
+                renderValueFn: \task -> Html.text task.location,
             },
             {
                 label: "File Reference",
                 sorted: None,
-                renderValueFn: \task, _ -> Html.text task.fileReference,
+                renderValueFn: \task -> Html.text task.fileReference,
             },
             {
                 label: "Comments",
                 sorted: None,
-                renderValueFn: \task, _ -> Html.text task.comments,
+                renderValueFn: \task -> Html.text task.comments,
             },
         ],
 }

@@ -11,18 +11,16 @@ import pf.Http exposing [Request, Response]
 import pf.Env
 import pf.Utc
 import pf.Url
-import Bootstrap
-import html.Html
 import ansi.Color
 import "site.css" as stylesFile : List U8
 import "site.js" as siteFile : List U8
 import "../static/bootsrap.bundle-5-3-2.min.js" as bootstrapJSFile : List U8
 import "../static/bootstrap-5-3-2.min.css" as bootsrapCSSFile : List U8
 import "../static/htmx-1-9-9.min.js" as htmxJSFile : List U8
+import Helpers exposing [respondHtml]
 import Sql.Todo
 import Sql.Session
 import Sql.User
-import Sql.BigTask
 import Model exposing [Session, Todo]
 import Pages.Home
 import Pages.Login
@@ -30,7 +28,7 @@ import Pages.Register
 import Pages.Todo
 import Pages.UserList
 import Pages.TreeView
-import Pages.BigTask
+import Controllers.BigTask
 
 main : Request -> Task Response []
 main = \req -> Task.onErr (handleReq req) \err ->
@@ -187,115 +185,8 @@ handleReq = \req ->
 
             Pages.UserList.view { users, session } |> respondHtml
 
-        (Get, ["bigTask"]) ->
-            verifyAuthenticated! session
-
-            tasks = Sql.BigTask.list! { dbPath }
-
-            Pages.BigTask.view { session, tasks } |> respondHtml
-
-        (Put, ["bigTask", "customerId", idStr]) ->
-
-            values = decodeFormValues! req.body
-
-            id = decodeBigTaskId! idStr
-
-            validation =
-                Dict.get values "CustomerReferenceID"
-                |> Result.mapErr \_ -> BadRequest (MissingField "CustomerReferenceID")
-                |> Result.try \cridstr ->
-                    when Str.toI64 cridstr is
-                        # just an example... just check it's in range 0-100,000
-                        Ok i64 if i64 > 0 && i64 < 100000 -> Ok Valid
-                        _ -> Ok (Invalid "must be a number between 0 and 100,000")
-                |> Task.fromResult!
-
-            updateOnlyIfValid = if validation == Valid then Sql.BigTask.update {dbPath, id, values} else Task.ok {}
-            updateOnlyIfValid!
-
-            {
-                updateUrl : "/bigTask/customerId/$(idStr)",
-                inputs : [{
-                    name : "CustomerReferenceID",
-                    id : idStr,
-                    # use the provided value here so we keep the user's input
-                    value : Text (Dict.get values "CustomerReferenceID" |> Result.withDefault ""),
-                    validation,
-                }],
-            }
-            |> Bootstrap.newDataTableForm
-            |> Bootstrap.renderDataTableForm
-            |> respondHtml
-
-        (Put, ["bigTask", "dateCreated", idStr]) ->
-
-            values = decodeFormValues! req.body
-
-            id = decodeBigTaskId! idStr
-
-            validation =
-                Dict.get values "DateCreated"
-                |> Result.mapErr \_ -> BadRequest (MissingField "DateCreated")
-                |> Result.try Model.parseDate
-                |> Result.map \_ -> Valid
-                |> Result.mapErr \_ -> Invalid "must be date format yyyy-mm-dd"
-                |> Task.fromResult!
-
-            updateOnlyIfValid = if validation == Valid then Sql.BigTask.update {dbPath, id, values} else Task.ok {}
-            updateOnlyIfValid!
-
-            {
-                updateUrl : "/bigTask/dateCreated/$(idStr)",
-                inputs : [{
-                    name : "DateCreated",
-                    id : idStr,
-                    # use the provided value here so we keep the user's input
-                    value : Date (Dict.get values "DateCreated" |> Result.withDefault ""),
-                    validation,
-                }],
-            }
-            |> Bootstrap.newDataTableForm
-            |> Bootstrap.renderDataTableForm
-            |> respondHtml
-
-        (Put, ["bigTask", "status", idStr]) ->
-
-            values = decodeFormValues! req.body
-
-            id = decodeBigTaskId! idStr
-
-            validation =
-                Dict.get values "Status"
-                |> Result.mapErr \_ -> BadRequest (MissingField "Status")
-                |> Result.try Model.parseStatus
-                |> Result.map \_ -> Valid
-                |> Result.mapErr \_ -> Invalid "must be 'Raised|Completed|Deferred|Approved|In-Progress'"
-                |> Task.fromResult!
-
-            updateOnlyIfValid = if validation == Valid then Sql.BigTask.update {dbPath, id, values} else Task.ok {}
-            updateOnlyIfValid!
-
-            selectedIndex =
-                Dict.get values "Status"
-                |> Result.try \selected -> Model.statusOptionIndex selected
-                |> Task.fromResult!
-
-            {
-                updateUrl : "/bigTask/status/$(idStr)",
-                inputs : [{
-                    name : "Status",
-                    id : idStr,
-                    # use the provided value here so we keep the user's input
-                    value : Choice {
-                        selected: selectedIndex,
-                        options: Model.statusOptions
-                    },
-                    validation,
-                }],
-            }
-            |> Bootstrap.newDataTableForm
-            |> Bootstrap.renderDataTableForm
-            |> respondHtml
+        (Get, ["bigTask", ..]) -> Controllers.BigTask.respond { req, urlSegments : List.dropFirst urlSegments 1, dbPath, session }
+        (Put, ["bigTask", ..]) -> Controllers.BigTask.respond { req, urlSegments : List.dropFirst urlSegments 1, dbPath, session }
 
         _ -> Task.err (URLNotFound req.url)
 
@@ -311,23 +202,6 @@ getSession = \req, dbPath ->
                 Task.err (NewSession id)
             else
                 Task.err err
-
-verifyAuthenticated : Session -> Task {} _
-verifyAuthenticated = \session ->
-    if session.user == Guest then
-        Task.err Unauthorized
-    else
-        Task.ok {}
-
-decodeFormValues = \body ->
-    Http.parseFormUrlEncoded body
-    |> Result.mapErr \BadUtf8 -> BadRequest InvalidFormEncoding
-    |> Task.fromResult
-
-decodeBigTaskId = \idStr ->
-    Str.toI64 idStr
-    |> Result.mapErr \_ -> BadRequest (InvalidBigTaskID idStr "expected a valid 64-bit integer")
-    |> Task.fromResult
 
 parseTodo : List U8 -> Result Todo _
 parseTodo = \bytes ->
@@ -355,16 +229,6 @@ respondStatic = \bytes ->
             { name: "Cache-Control", value: Str.toUtf8 "max-age=120" },
         ],
         body: bytes,
-    }
-
-respondHtml : Html.Node -> Task Response []_
-respondHtml = \node ->
-    Task.ok {
-        status: 200,
-        headers: [
-            { name: "Content-Type", value: Str.toUtf8 "text/html; charset=utf-8" },
-        ],
-        body: Str.toUtf8 (Html.render node),
     }
 
 respondCodeLogError = \msg, code ->

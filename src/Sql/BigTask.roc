@@ -7,7 +7,6 @@ module [
 
 import pf.Task exposing [Task]
 import pf.SQLite3
-import pf.Stdout
 import Model exposing [BigTask]
 
 list : {dbPath : Str } -> Task (List BigTask) _
@@ -146,8 +145,6 @@ update = \{dbPath, id, values} ->
         $(sqlStr)
         WHERE ID = :id;
         """
-
-    Stdout.line! (Inspect.toStr (TT query id values))
 
     SQLite3.execute {
         path: dbPath,

@@ -8,6 +8,7 @@ module [
     Date,
     Status,
     Priority,
+    isAuthenticated,
     emptyTodo,
     nestedSetToTree,
     parseDate,
@@ -24,6 +25,13 @@ Session : {
     id : I64,
     user : [Guest, LoggedIn Str],
 }
+
+isAuthenticated : Session -> Result {} [Unauthorized]
+isAuthenticated = \session ->
+    if session.user == Guest then
+        Err Unauthorized
+    else
+        Ok {}
 
 Todo : {
     id : I64,

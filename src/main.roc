@@ -185,8 +185,7 @@ handleReq = \req ->
 
             Pages.UserList.view { users, session } |> respondHtml
 
-        (Get, ["bigTask", ..]) -> Controllers.BigTask.respond { req, urlSegments : List.dropFirst urlSegments 1, dbPath, session }
-        (Put, ["bigTask", ..]) -> Controllers.BigTask.respond { req, urlSegments : List.dropFirst urlSegments 1, dbPath, session }
+        (_, ["bigTask", ..]) -> Controllers.BigTask.respond { req, urlSegments : List.dropFirst urlSegments 1, dbPath, session }
 
         _ -> Task.err (URLNotFound req.url)
 

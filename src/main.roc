@@ -222,7 +222,7 @@ handleReq = \req ->
                     name : "CustomerReferenceID",
                     id : idStr,
                     # use the provided value here so we keep the user's input
-                    value : String (Dict.get values "CustomerReferenceID" |> Result.withDefault ""),
+                    value : Text (Dict.get values "CustomerReferenceID" |> Result.withDefault ""),
                     validation,
                 }],
             }

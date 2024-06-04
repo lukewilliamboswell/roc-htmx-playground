@@ -10,13 +10,15 @@ module [
 import html.Html exposing [div, text, table, thead, tbody, tr, th, td]
 import html.Attribute exposing [class]
 
+DataTableInputValidation : [None, Valid, Invalid Str]
+
 DataTableForm := {
     updateUrl : Str,
     inputs : List {
         name : Str,
         id : Str,
-        value : [String Str, Date Str],
-        validation : [None, Valid, Invalid Str],
+        value : [Text Str, Date Str, Choice {selected: Str, others: List Str}],
+        validation : DataTableInputValidation,
     },
 }
 
@@ -25,33 +27,11 @@ newDataTableForm = @DataTableForm
 renderDataTableForm : DataTableForm -> Html.Node
 renderDataTableForm = \@DataTableForm {updateUrl, inputs} ->
 
-    renderInput = \{name,id,value,validation} ->
-
-        (valueAttr, typeAttr) =
-            when value is
-                String str -> (Attribute.value str, Attribute.type "text")
-                Date str -> (Attribute.value str, Attribute.type "date")
-
-        classAttr =
-            when validation is
-                None -> class "form-control"
-                Valid -> class "form-control is-valid"
-                Invalid _ -> class "form-control is-invalid"
-
-        [
-            Html.label [Attribute.for id, Attribute.hidden ""] [Html.text name],
-            (Html.element "input") [
-                typeAttr,
-                classAttr,
-                Attribute.id id,
-                Attribute.name name,
-                valueAttr,
-            ] [],
-            when validation is
-                None -> div [] []
-                Valid -> div [] []
-                Invalid msg -> div [class "text-danger mt-1"] [text msg]
-        ]
+    renderFormSection = \{name,id,value,validation} ->
+        when value is
+            Text str -> renderTextSection {name,id,str,validation}
+            Date str -> renderDateSection {name,id,str,validation}
+            Choice {selected, others} -> renderChoiceSection {name,id,selected, others,validation}
 
     Html.form [
         (Attribute.attribute "hx-put") updateUrl,
@@ -59,9 +39,71 @@ renderDataTableForm = \@DataTableForm {updateUrl, inputs} ->
         (Attribute.attribute "hx-swap") "outerHTML",
     ] (
         inputs
-        |> List.map renderInput
+        |> List.map renderFormSection
         |> List.join
     )
+
+renderTextSection = \{name,id,str,validation} ->
+        [
+            Html.label [Attribute.for id, Attribute.hidden ""] [Html.text name],
+            (Html.element "input") [
+                Attribute.type "text",
+                class "form-control $(validationClass validation)",
+                Attribute.id id,
+                Attribute.name name,
+                Attribute.value str,
+            ] [],
+            validationMsg validation
+        ]
+
+renderDateSection = \{name,id,str,validation} ->
+    [
+        Html.label [Attribute.for id, Attribute.hidden ""] [Html.text name],
+        (Html.element "input") [
+            Attribute.type "date",
+            class "form-control $(validationClass validation)",
+            Attribute.id id,
+            Attribute.name name,
+            Attribute.value str,
+        ] [],
+        validationMsg validation
+    ]
+
+renderChoiceSection = \{name,id,selected, others,validation} ->
+
+    renderOption = \isSelected, value ->
+        if isSelected then
+            (Html.element "option") [(Attribute.attribute "selected") ""] [Html.text value]
+        else
+            (Html.element "option") [] [Html.text value]
+
+    options =
+        [renderOption Bool.true selected]
+        |> List.concat (List.map others \value -> renderOption Bool.false value)
+
+    [
+        Html.label [Attribute.for id, Attribute.hidden ""] [Html.text name],
+        (Html.element "select") [
+            class "form-select $(validationClass validation)",
+            Attribute.id id,
+            Attribute.name name,
+        ] options,
+        validationMsg validation
+    ]
+
+validationClass : DataTableInputValidation -> Str
+validationClass = \validation ->
+    when validation is
+        None -> ""
+        Valid -> "is-valid"
+        Invalid _ -> "is-invalid"
+
+validationMsg : DataTableInputValidation -> Html.Node
+validationMsg = \validation ->
+    when validation is
+            None -> div [] []
+            Valid -> div [] []
+            Invalid msg -> div [class "text-danger mt-1"] [text msg]
 
 Heading a : {
     label : Str,

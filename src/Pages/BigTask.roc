@@ -44,7 +44,7 @@ dataTable = Bootstrap.newTable {
                         inputs : [{
                             name : "CustomerReferenceID",
                             id : idStr,
-                            value : String task.customerReferenceId,
+                            value : Text task.customerReferenceId,
                             validation : None,
                         }],
                     }
@@ -86,7 +86,22 @@ dataTable = Bootstrap.newTable {
             {
                 label: "Status",
                 sorted: None,
-                renderValueFn: \task -> Html.text (Model.statusToStr task.status),
+                renderValueFn: \task ->
+                    idStr = Num.toStr task.id
+                    {
+                        updateUrl : "/bigTask/status/$(idStr)",
+                        inputs : [{
+                            name : "Status",
+                            id : idStr,
+                            value : Choice {
+                                selected: "FOO",
+                                others: ["bAR", "BAZ", Model.statusToStr task.status]
+                            },
+                            validation : None,
+                        }],
+                    }
+                    |> Bootstrap.newDataTableForm
+                    |> Bootstrap.renderDataTableForm,
             },
             {
                 label: "Priority",

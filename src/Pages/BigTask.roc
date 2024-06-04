@@ -46,6 +46,7 @@ dataTable = Bootstrap.newTable {
                             id : idStr,
                             value : task.customerReferenceId,
                         }],
+                        errors: [],
                     }
 
                     Bootstrap.renderDataTableForm form

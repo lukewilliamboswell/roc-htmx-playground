@@ -36,11 +36,13 @@ main : Request -> Task Response []
 main = \req -> Task.onErr (handleReq req) \err ->
         when err is
 
-            BadRequest inner -> Task.ok {
-                status: 400,
-                headers: [],
-                body: Str.toUtf8 (Inspect.toStr inner),
-            }
+            BadRequest inner ->
+                Stderr.line! (Inspect.toStr err)
+                Task.ok {
+                    status: 400,
+                    headers: [],
+                    body: Str.toUtf8 (Inspect.toStr inner),
+                }
 
             Unauthorized ->
                 import Pages.Unauthorised
@@ -202,29 +204,32 @@ handleReq = \req ->
                 |> Task.fromResult!
 
             # Validate form values, here we check the reference ID is "correct"
-            Dict.get values "CustomerReferenceID"
-            |> Result.mapErr \_ -> BadRequest (MissingField "CustomerReferenceID")
-            |> Result.try \cridstr ->
-                when Str.toI64 cridstr is
-                    # just an example... just check it's in range 0-100,000
-                    Ok i64 if i64 > 0 && i64 < 100000 -> Ok {}
-                    _ -> Err (BadRequest (InvalidCustomerReferenceID idStr))
-            |> Task.fromResult!
+            errors =
+                Dict.get values "CustomerReferenceID"
+                |> Result.mapErr \_ -> BadRequest (MissingField "CustomerReferenceID")
+                |> Result.try \cridstr ->
+                    when Str.toI64 cridstr is
+                        # just an example... just check it's in range 0-100,000
+                        Ok i64 if i64 > 0 && i64 < 100000 -> Ok []
+                        _ -> Ok ["must be a number between 0 and 100,000"]
+                |> Task.fromResult!
 
-            Sql.BigTask.update! {dbPath, id, values}
+            updateOnlyIfNoErrors = if List.isEmpty errors then Sql.BigTask.update {dbPath, id, values} else Task.ok {}
+            updateOnlyIfNoErrors!
 
-            task = Sql.BigTask.get! {dbPath, id}
-
-            form = Bootstrap.newDataTableForm {
+            {
                 updateUrl : "/bigTask/customerId/$(idStr)",
                 inputs : [{
                     name : "CustomerReferenceID",
                     id : idStr,
-                    value : task.customerReferenceId,
+                    # use the provided value here so we keep the user's input
+                    value : Dict.get values "CustomerReferenceID" |> Result.withDefault "",
                 }],
+                errors,
             }
-
-            Bootstrap.renderDataTableForm form |> respondHtml
+            |> Bootstrap.newDataTableForm
+            |> Bootstrap.renderDataTableForm
+            |> respondHtml
 
         _ -> Task.err (URLNotFound req.url)
 

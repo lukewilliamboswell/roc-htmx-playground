@@ -17,25 +17,34 @@ DataTableForm := {
         id : Str,
         value : Str,
     },
+    errors : List Str,
 }
 
 newDataTableForm = @DataTableForm
 
 renderDataTableForm : DataTableForm -> Html.Node
-renderDataTableForm = \@DataTableForm {updateUrl, inputs} ->
+renderDataTableForm = \@DataTableForm {updateUrl, inputs, errors} ->
 
     renderInput = \{name,id,value} ->
         [
             Html.label [Attribute.for id, Attribute.hidden ""] [Html.text name],
-            (Html.element "input") [Attribute.type "text", class "form-control", Attribute.id id, Attribute.name name, Attribute.value value] []
+            (Html.element "input") [
+                Attribute.type "text",
+                class "form-control",
+                Attribute.id id,
+                Attribute.name name,
+                Attribute.value value,
+            ] []
         ]
 
     Html.form [
         (Attribute.attribute "hx-put") updateUrl,
-        (Attribute.attribute "hx-trigger") "input delay:1000ms",
+        (Attribute.attribute "hx-trigger") "input delay:250ms",
+        (Attribute.attribute "hx-swap") "outerHTML",
     ] (
         inputs
         |> List.map renderInput
+        |> List.concat [List.map errors \error -> div [class "alert alert-danger mt-1"] [text error]]
         |> List.join
     )
 

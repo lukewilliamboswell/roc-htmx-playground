@@ -32,8 +32,7 @@ list = \{dbPath} ->
             Location,
             FileReference,
             Comments
-        FROM
-            BigTask;
+        FROM BigTask
         ORDER BY ID
         LIMIT 10 OFFSET 0;
         """

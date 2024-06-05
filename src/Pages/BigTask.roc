@@ -22,8 +22,36 @@ view = \{ session, tasks } ->
                     Html.h1 [] [Html.text "Big Task Table"],
                     Html.p [] [text "This table is big and has many tasks, each task is a big task..."],
                 ],
+                div [class "row"] [Bootstrap.renderTable dataTable tasks],
+                div [class "row"] [
+                    {
+                        description : "BigTable pagination",
+                        links : [
+                            {
+                                disabled : Bool.false,
+                                active : Bool.false,
+                                href : "#",
+                                label : "Previous",
+                            },
+                            {
+                                disabled : Bool.false,
+                                active : Bool.true,
+                                href : "#",
+                                label : "0",
+                            },
+                            {
+                                disabled : Bool.false,
+                                active : Bool.false,
+                                href : "#",
+                                label : "Next",
+                            }
+                        ],
+                    }
+                    |> Bootstrap.newPagination
+                    |> Bootstrap.renderPagination,
+                ]
             ],
-            Bootstrap.renderTable dataTable tasks,
+
         ]
 
 dataTable : Bootstrap.DataTable Model.BigTask

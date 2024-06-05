@@ -5,10 +5,14 @@ module [
     DataTable,
     newTable,
     renderTable,
+
+    Pagination,
+    newPagination,
+    renderPagination,
 ]
 
-import html.Html exposing [div, text, table, thead, tbody, tr, th, td]
-import html.Attribute exposing [attribute, class, style]
+import html.Html exposing [div, text, table, thead, tbody, tr, th, td, nav, ul, li, a]
+import html.Attribute exposing [attribute, class, style, href]
 
 DataTableInputValidation : [None, Valid, Invalid Str]
 
@@ -151,3 +155,33 @@ renderRows = \rows, headings ->
         List.map headings \{renderValueFn} -> td [] [renderValueFn row]
 
     List.map rows \row -> tr [] (renderRow row)
+
+PaginationLink : {
+    disabled : Bool,
+    active : Bool,
+    href : Str,
+    label : Str,
+}
+
+Pagination := {
+    description : Str,
+    links : List PaginationLink,
+}
+
+newPagination = @Pagination
+
+renderPaginationLink : PaginationLink -> Html.Node
+renderPaginationLink = \link ->
+    li [class "page-item $(if link.disabled then "disabled" else "") $(if link.active then "active" else "")"] [
+        a [
+            class "page-link",
+            href link.href,
+            if link.disabled then ((attribute "tabindex") "-1") else ((attribute "tabindex") "0"),
+        ] [text link.label]
+    ]
+
+renderPagination : Pagination -> Html.Node
+renderPagination = \@Pagination {description, links} ->
+    nav [(attribute "aria-label") description] [
+        ul [class "pagination"] (List.map links renderPaginationLink)
+    ]

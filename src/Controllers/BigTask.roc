@@ -17,9 +17,20 @@ respond = \{ req, urlSegments, dbPath, session } ->
     when (req.method, urlSegments) is
         (Get, []) ->
 
-            tasks = Sql.BigTask.list! { dbPath }
+            {page, items} =
+                Helpers.parseQueryParams req.url
+                |> Result.try Helpers.parsePagedParams
+                |> Result.withDefault {page: 1, items: 10}
 
-            Pages.BigTask.view { session, tasks } |> respondHtml
+            tasks = Sql.BigTask.list! { dbPath, page, items }
+
+            total = Sql.BigTask.total! { dbPath }
+
+            Pages.BigTask.view {
+                session,
+                tasks,
+                pagination : {page, items, total, baseHref: "/bigTask?"},
+            } |> respondHtml
 
         (Put, ["customerId", idStr]) ->
 

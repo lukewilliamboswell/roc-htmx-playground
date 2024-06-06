@@ -6,9 +6,14 @@ import Layout
 import Model
 import NavLinks
 import Bootstrap
+import Helpers
 
-view : { session : Model.Session, tasks : List Model.BigTask } -> Html.Node
-view = \{ session, tasks } ->
+view : {
+    session : Model.Session,
+    tasks : List Model.BigTask,
+    pagination : {page : I64, items : I64, total : I64, baseHref : Str},
+} -> Html.Node
+view = \{ session, tasks, pagination } ->
     Layout.layout
         {
             session,
@@ -24,31 +29,17 @@ view = \{ session, tasks } ->
                 ],
                 div [class "row"] [Bootstrap.renderTable dataTable tasks],
                 div [class "row"] [
-                    {
-                        description : "BigTable pagination",
-                        links : [
-                            {
-                                disabled : Bool.false,
-                                active : Bool.false,
-                                href : "#",
-                                label : "Previous",
-                            },
-                            {
-                                disabled : Bool.false,
-                                active : Bool.true,
-                                href : "#",
-                                label : "0",
-                            },
-                            {
-                                disabled : Bool.false,
-                                active : Bool.false,
-                                href : "#",
-                                label : "Next",
+                        {
+                            description : "BigTable pagination",
+                            links: Helpers.paginationLinks pagination,
+                            pagination : {
+                                currItemsPerPage : Num.intCast pagination.items,
+                                minItemsPerPage : 1,
+                                maxItemsPerPage : 10000,
                             }
-                        ],
-                    }
-                    |> Bootstrap.newPagination
-                    |> Bootstrap.renderPagination,
+                        }
+                        |> Bootstrap.newPagination
+                        |> Bootstrap.renderPagination,
                 ]
             ],
 
@@ -98,7 +89,7 @@ dataTable = Bootstrap.newTable {
                     }
                     |> Bootstrap.newDataTableForm
                     |> Bootstrap.renderDataTableForm,
-                width: None,
+                width: Rem 10,
             },
             {
                 label: "Date Modified",

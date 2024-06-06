@@ -3,14 +3,23 @@ module [
     list,
     get,
     update,
+    total,
 ]
 
 import pf.Task exposing [Task]
 import pf.SQLite3
 import Model exposing [BigTask]
 
-list : {dbPath : Str } -> Task (List BigTask) _
-list = \{dbPath} ->
+list : {dbPath : Str, page : I64, items : I64 } -> Task (List BigTask) _
+list = \{dbPath, page, items} ->
+
+    check =
+        if page >= 1 && items > 0 then
+            Task.ok {}
+        else
+            Task.err (InvalidPageOrItems page items "expected page >= 1 and items > 0")
+
+    check!
 
     query =
         """
@@ -34,17 +43,33 @@ list = \{dbPath} ->
             Comments
         FROM BigTask
         ORDER BY ID
-        LIMIT 10 OFFSET 0;
+        LIMIT :limit OFFSET :offset;
         """
 
     SQLite3.execute {
         path: dbPath,
         query,
-        bindings: [],
+        bindings: [
+            {name: ":limit", value: "$(Num.toStr items)"},
+            {name: ":offset", value: "$(Num.toStr ((page - 1) * items))"}
+        ],
     }
     |> Task.onErr \err -> SqlError err |> Task.err
     |> Task.await \rows -> parseListRows rows [] |> Task.fromResult
     |> Task.mapErr ErrGettingBigTasks
+
+total : {dbPath : Str } -> Task I64 _
+total = \{dbPath} ->
+    SQLite3.execute {
+        path: dbPath,
+        query: "SELECT COUNT(*) FROM BigTask;",
+        bindings: [],
+    }
+    |> Task.onErr \err -> SqlError err |> Task.err
+    |> Task.await \rows ->
+        when rows is
+            [[Integer count]] -> Task.ok count
+            _ -> UnexpectedSQLValues (Inspect.toStr rows) |> Task.err
 
 get : {dbPath : Str, id : I64} -> Task BigTask _
 get = \{dbPath, id} ->

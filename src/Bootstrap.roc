@@ -1,7 +1,9 @@
 module [
+
     DataTableForm,
     newDataTableForm,
     renderDataTableForm,
+
     DataTable,
     newTable,
     renderTable,
@@ -9,10 +11,15 @@ module [
     Pagination,
     newPagination,
     renderPagination,
+
 ]
 
-import html.Html exposing [div, text, table, thead, tbody, tr, th, td, nav, ul, li, a]
-import html.Attribute exposing [attribute, class, style, href]
+import html.Html exposing [element, div, text, table, thead, tbody, tr, th, td, nav, ul, li, a]
+import html.Attribute exposing [Attribute, attribute, class, style, href]
+import Icons
+
+styles : List Str -> Attribute
+styles = \s -> s |> Str.joinWith " " |> Attribute.style
 
 DataTableInputValidation : [None, Valid, Invalid Str]
 
@@ -126,7 +133,7 @@ renderTable = \@DataTable {headings}, rows ->
         div [class "row"] [
             div [class "col-12"] [
                 div [class "table-responsive"] [
-                    table [class "table table-striped table-bordered"] [
+                    table [class "table table-striped table-sm table-bordered table-hover"] [
                         thead [] [tr [] (renderHeadings headings)],
                         tbody [] (renderRows rows headings),
                     ],
@@ -166,6 +173,11 @@ PaginationLink : {
 Pagination := {
     description : Str,
     links : List PaginationLink,
+    pagination : {
+        currItemsPerPage : U64,
+        minItemsPerPage : U64,
+        maxItemsPerPage : U64,
+    },
 }
 
 newPagination = @Pagination
@@ -181,7 +193,46 @@ renderPaginationLink = \link ->
     ]
 
 renderPagination : Pagination -> Html.Node
-renderPagination = \@Pagination {description, links} ->
+renderPagination = \@Pagination {description, links, pagination} ->
     nav [(attribute "aria-label") description] [
-        ul [class "pagination"] (List.map links renderPaginationLink)
+        div [class "d-inline-block"] [ul [class "pagination"] (List.map links renderPaginationLink),],
+        div [
+                class "d-inline-block",
+                styles ["margin-left: 1rem;", "padding-top: 1px;"]
+            ] [
+            div [class "input-group"] [
+                div [class "input-group-prepend"] [
+                    div [
+                        class "input-group-text",
+                        styles [
+                            "border-top-right-radius: 0 !important;",
+                            "border-bottom-right-radius: 0 !important;",
+                            "height: 100%",
+                        ]
+                    ] [Icons.listOL]
+                ],
+                (element "input") [
+                    Attribute.type "number",
+                    class "form-control",
+                    (attribute "id") "itemsPerPage",
+                    Attribute.value "$(Num.toStr pagination.currItemsPerPage)",
+                    Attribute.min "$(Num.toStr pagination.minItemsPerPage)",
+                    Attribute.max "$(Num.toStr pagination.maxItemsPerPage)",
+                ] [],
+                Html.dangerouslyIncludeUnescapedHtml onItemsPerPageChange
+            ]
+        ]
     ]
+
+onItemsPerPageChange =
+    """
+    <script>
+        document.getElementById('itemsPerPage').addEventListener('change', function() {
+            const value = this.value;
+            const url = new URL(window.location.href);
+            url.searchParams.set('page', '1');
+            url.searchParams.set('items', value);
+            window.location.href = url;
+        });
+    </script>
+    """

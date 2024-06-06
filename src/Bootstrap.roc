@@ -195,10 +195,9 @@ renderPaginationLink = \link ->
 renderPagination : Pagination -> Html.Node
 renderPagination = \@Pagination {description, links, pagination} ->
     nav [(attribute "aria-label") description] [
-        div [class "d-inline-block"] [ul [class "pagination"] (List.map links renderPaginationLink),],
         div [
                 class "d-inline-block",
-                styles ["margin-left: 1rem;", "padding-top: 1px;"]
+                styles ["margin-right: 1rem;", "padding-top: 1px;"]
             ] [
             div [class "input-group"] [
                 div [class "input-group-prepend"] [
@@ -221,7 +220,8 @@ renderPagination = \@Pagination {description, links, pagination} ->
                 ] [],
                 Html.dangerouslyIncludeUnescapedHtml onItemsPerPageChange
             ]
-        ]
+        ],
+        div [class "d-inline-block"] [ul [class "pagination"] (List.map links renderPaginationLink)],
     ]
 
 onItemsPerPageChange =

@@ -63,7 +63,7 @@ dataTable = Bootstrap.newTable {
                         updateUrl : "/bigTask/customerId/$(idStr)",
                         inputs : [{
                             name : "CustomerReferenceID",
-                            id : idStr,
+                            id : "customer-id-$(idStr)",
                             value : Text task.customerReferenceId,
                             validation : None,
                         }],
@@ -82,7 +82,7 @@ dataTable = Bootstrap.newTable {
                         updateUrl : "/bigTask/dateCreated/$(idStr)",
                         inputs : [{
                             name : "DateCreated",
-                            id : idStr,
+                            id : "date-created-$(idStr)",
                             value : Date (Model.dateToStr task.dateCreated),
                             validation : None,
                         }],
@@ -118,7 +118,7 @@ dataTable = Bootstrap.newTable {
                         updateUrl : "/bigTask/status/$(idStr)",
                         inputs : [{
                             name : "Status",
-                            id : idStr,
+                            id : "status-$(idStr)",
                             value : Choice {
                                 selected:
                                     task.status

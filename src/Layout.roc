@@ -14,7 +14,7 @@ layout = \{ session, description, title, navLinks }, children ->
                 form [class "d-flex"] [
                     button
                         [
-                            class "btn btn-secondary",
+                            class "btn btn-primary",
                             (attribute "hx-get") "/login",
                             (attribute "hx-target") "body",
                             (attribute "hx-push-url") "true",
@@ -28,7 +28,7 @@ layout = \{ session, description, title, navLinks }, children ->
                     span [class "align-self-center d-none d-sm-block me-3"] [text username],
                     button
                         [
-                            class "btn btn-secondary",
+                            class "btn btn-primary",
                             (attribute "hx-post") "/logout",
                             (attribute "hx-target") "body",
                             (attribute "hx-push-url") "true",
@@ -38,7 +38,7 @@ layout = \{ session, description, title, navLinks }, children ->
 
     page {description, title} [
         header [] [
-            nav [class "navbar navbar-expand-sm"] [
+            nav [class "navbar navbar-expand-sm navbar-dark bg-dark mb-5"] [
                 div [class "container-fluid"] [
                     button
                         [

@@ -20,7 +20,7 @@ respond = \{ req, urlSegments, dbPath, session } ->
             {page, items} =
                 Helpers.parseQueryParams req.url
                 |> Result.try Helpers.parsePagedParams
-                |> Result.withDefault {page: 1, items: 10}
+                |> Result.withDefault {page: 1, items: 25}
 
             tasks = Sql.BigTask.list! { dbPath, page, items }
 
@@ -54,7 +54,7 @@ respond = \{ req, urlSegments, dbPath, session } ->
                 updateUrl : "/bigTask/customerId/$(idStr)",
                 inputs : [{
                     name : "CustomerReferenceID",
-                    id : idStr,
+                    id : "customer-id-$(idStr)",
                     # use the provided value here so we keep the user's input
                     value : Text (Dict.get values "CustomerReferenceID" |> Result.withDefault ""),
                     validation,
@@ -84,7 +84,7 @@ respond = \{ req, urlSegments, dbPath, session } ->
                 updateUrl : "/bigTask/dateCreated/$(idStr)",
                 inputs : [{
                     name : "DateCreated",
-                    id : idStr,
+                    id : "date-created-$(idStr)",
                     # use the provided value here so we keep the user's input
                     value : Date (Dict.get values "DateCreated" |> Result.withDefault ""),
                     validation,
@@ -119,7 +119,7 @@ respond = \{ req, urlSegments, dbPath, session } ->
                 updateUrl : "/bigTask/status/$(idStr)",
                 inputs : [{
                     name : "Status",
-                    id : idStr,
+                    id : "status-$(idStr)",
                     # use the provided value here so we keep the user's input
                     value : Choice {
                         selected: selectedIndex,

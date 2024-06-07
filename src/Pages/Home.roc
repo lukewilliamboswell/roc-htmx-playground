@@ -10,7 +10,7 @@ view : { session : Session {} } -> Html.Node
 view = \{ session } ->
     layout
         {
-            session,
+            user: session.user,
             description: "HOME PAGE",
             title: "HOME",
             navLinks: NavLinks.navLinks "Home",

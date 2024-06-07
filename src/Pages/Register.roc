@@ -2,18 +2,16 @@ module [view]
 
 import html.Html exposing [form, h5, button, input, div, text,  label]
 import html.Attribute exposing [attribute, id, name, action, method, class,  for]
-import Model exposing [Session]
 import Layout exposing [layout]
 import NavLinks
 
 view :
     {
-        session : Session {},
         user : [Fresh, UserAlreadyExists Str, UserNotProvided],
         email : [Valid, Invalid Str, NotProvided],
     }
     -> Html.Node
-view = \{ session, user, email } ->
+view = \{ user, email } ->
 
     (usernameInputClass, usernameValidationClass, usernameValidationText) =
         when user is
@@ -29,7 +27,7 @@ view = \{ session, user, email } ->
 
     layout
         {
-            session,
+            user: Guest,
             description: "REGISTRATION PAGE",
             title: "REGISTER",
             navLinks: NavLinks.navLinks "Register",

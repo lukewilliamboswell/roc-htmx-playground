@@ -19,7 +19,7 @@ view = \{ todos, filterQuery, session } ->
 
     layout
         {
-            session,
+            user: session.user,
             description: "TASK PAGE",
             title: "TASK",
             navLinks: NavLinks.navLinks "Tasks",

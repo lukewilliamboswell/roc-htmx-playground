@@ -87,7 +87,7 @@ handleReq = \req ->
         (Get, ["styles.css"]) -> respondStatic stylesFile
         (Get, ["site.js"]) -> respondStatic siteFile
         (Get, ["register"]) ->
-            Pages.Register.view { session, user: Fresh, email: Valid } |> respondHtml
+            Pages.Register.view { user: Fresh, email: Valid } |> respondHtml
 
         (Post, ["register"]) ->
             params = Http.parseFormUrlEncoded req.body |> Result.withDefault (Dict.empty {})
@@ -98,11 +98,11 @@ handleReq = \req ->
                     |> Task.attempt \result ->
                         when result is
                             Ok {} -> Helpers.respondRedirect "/login" ## Redirect to login page after successful registration
-                            Err UserAlreadyExists -> Pages.Register.view { session, user: UserAlreadyExists username, email: Valid } |> respondHtml
+                            Err UserAlreadyExists -> Pages.Register.view { user: UserAlreadyExists username, email: Valid } |> respondHtml
                             Err err -> Task.err (ErrRegisteringUser (Inspect.toStr err))
 
                 _ ->
-                    Pages.Register.view { session, user: UserNotProvided, email: NotProvided } |> respondHtml
+                    Pages.Register.view { user: UserNotProvided, email: NotProvided } |> respondHtml
 
         (Get, ["login"]) ->
             Pages.Login.view { session, user: Fresh } |> respondHtml
@@ -187,7 +187,9 @@ handleReq = \req ->
 
             Pages.UserList.view { users, session } |> respondHtml
 
-        (_, ["bigTask", ..]) -> Controllers.BigTask.respond { req, urlSegments : List.dropFirst urlSegments 1, dbPath, session }
+        (_, ["bigTask", ..]) ->
+            bigTaskSession = getSession! req dbPath Core.json
+            Controllers.BigTask.respond { req, urlSegments : List.dropFirst urlSegments 1, dbPath, session: bigTaskSession }
 
         _ -> Task.err (URLNotFound req.url)
 

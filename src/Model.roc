@@ -35,9 +35,9 @@ Session page : {
     page : Result page [NotSet],
 } where page implements Decoding
 
-isAuthenticated : Session m -> Result {} [Unauthorized]
-isAuthenticated = \session ->
-    if session.user == Guest then
+isAuthenticated : [Guest, LoggedIn Str] -> Result {} [Unauthorized]
+isAuthenticated = \user ->
+    if user == Guest then
         Err Unauthorized
     else
         Ok {}

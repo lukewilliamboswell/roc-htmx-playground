@@ -15,7 +15,7 @@ view :
 view = \{ session, nodes } ->
     layout
         {
-            session,
+            user: session.user,
             description: "TREE VIEW PAGE",
             title: "TREE VIEW",
             navLinks: NavLinks.navLinks "Tree",

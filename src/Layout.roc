@@ -2,14 +2,13 @@ module [layout, page]
 
 import html.Html exposing [element, header,form, nav, meta, span, link, body, button, a, div, text, ul, li]
 import html.Attribute exposing [attribute, src, id, href, rel, name, class, width, height]
-import Model exposing [Session]
 import NavLinks exposing [NavLink]
 
-layout : { session : Session {}, description : Str, title : Str, navLinks : List NavLink }, List Html.Node -> Html.Node
-layout = \{ session, description, title, navLinks }, children ->
+layout : { user : [Guest, LoggedIn Str], description : Str, title : Str, navLinks : List NavLink }, List Html.Node -> Html.Node
+layout = \{ user, description, title, navLinks }, children ->
 
     loginOrUser =
-        when session.user is
+        when user is
             Guest ->
                 form [class "d-flex"] [
                     button

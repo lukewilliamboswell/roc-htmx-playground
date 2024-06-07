@@ -15,7 +15,7 @@ view = \{ users, session } ->
 
     layout
         {
-            session,
+            user: session.user,
             description: "USER LIST PAGE",
             title: "Users",
             navLinks: NavLinks.navLinks "Users",

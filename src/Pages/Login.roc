@@ -22,7 +22,7 @@ view = \{ session, user } ->
 
     layout
         {
-            session,
+            user: session.user,
             description: "LOGIN PAGE",
             title: "LOGIN",
             navLinks: NavLinks.navLinks "Login",

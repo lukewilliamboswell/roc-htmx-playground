@@ -117,14 +117,13 @@ Heading a : {
     label : Str,
     sorted : [None, Sortable, Ascending, Descending],
     renderValueFn : a -> Html.Node,
-    width : [None, Pt U16, Px U16, Rem U16]
+    width : [None, Pt U16, Px U16, Rem U16],
 }
 
 DataTable a := {
     headings : List (Heading a),
 }
 
-# todo validate lenth and type of rows against headings
 newTable = @DataTable
 
 renderTable : DataTable a, List a -> Html.Node

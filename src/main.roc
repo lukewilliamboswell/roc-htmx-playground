@@ -14,9 +14,9 @@ import pf.Url
 import ansi.Color
 import "site.css" as stylesFile : List U8
 import "site.js" as siteFile : List U8
-import "../static/bootsrap.bundle-5-3-2.min.js" as bootstrapJSFile : List U8
-import "../static/bootstrap-5-3-2.min.css" as bootsrapCSSFile : List U8
-import "../static/htmx-1-9-9.min.js" as htmxJSFile : List U8
+import "../vendor/bootsrap.bundle-5-3-2.min.js" as bootstrapJSFile : List U8
+import "../vendor/bootstrap-5-3-2.min.css" as bootsrapCSSFile : List U8
+import "../vendor/htmx-1-9-9.min.js" as htmxJSFile : List U8
 import Helpers exposing [respondHtml]
 import Sql.Todo
 import Sql.Session

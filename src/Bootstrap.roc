@@ -14,7 +14,7 @@ module [
 
 ]
 
-import html.Html exposing [element, div, text, table, thead, tbody, tr, th, td, nav, ul, li, a]
+import html.Html exposing [element, div, text, table, thead, tbody, tr, th, td, nav, ul, li, a, span]
 import html.Attribute exposing [Attribute, attribute, class, style, href]
 import Icons
 
@@ -144,15 +144,24 @@ renderTable = \@DataTable {headings}, rows ->
 
 renderHeadings : List (Heading a) -> List Html.Node
 renderHeadings = \headings ->
-    List.map headings \{label, width} ->
+    List.map headings \{label, width, sorted} ->
         attrs =
             when width is
-                None -> [class "text-nowrap w-auto"]
-                Pt size -> [class "text-nowrap w-auto", style "min-width:$(Num.toStr size)pt;"]
-                Px size -> [class "text-nowrap w-auto", style "min-width:$(Num.toStr size)px;"]
-                Rem size -> [class "text-nowrap w-auto", style "min-width:$(Num.toStr size)rem;"]
+                None -> [class "text-nowrap w-auto", style "cursor:pointer;"]
+                Pt size -> [class "text-nowrap w-auto", style "min-width:$(Num.toStr size)pt; cursor:pointer;"]
+                Px size -> [class "text-nowrap w-auto", style "min-width:$(Num.toStr size)px; cursor:pointer;"]
+                Rem size -> [class "text-nowrap w-auto", style "min-width:$(Num.toStr size)rem; cursor:pointer;"]
 
-        th attrs [text label]
+        icon =
+            when sorted is
+                None -> Icons.arrowDownUp
+                Asc -> Icons.sortUp
+                Desc -> Icons.sortDown
+
+        th attrs [
+            span [style "padding: 0 0.5rem;"] [icon],
+            span [style "padding-right: 0.5rem;"] [text label],
+        ]
 
 renderRows : List a, List (Heading a) -> List Html.Node
 renderRows = \rows, headings ->
@@ -246,6 +255,7 @@ onItemsPerPageChange =
             url.searchParams.set('page', '1');
             url.searchParams.set('items', value);
             window.location.href = url;
+            /*TODO return focus to the itemsPerPage element*/
         });
     </script>
     """

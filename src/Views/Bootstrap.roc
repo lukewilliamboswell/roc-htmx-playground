@@ -16,7 +16,7 @@ module [
 
 import html.Html exposing [element, div, text, table, thead, tbody, tr, th, td, nav, ul, li, a, span]
 import html.Attribute exposing [Attribute, attribute, class, style, href]
-import Icons
+import Views.Icons
 
 styles : List Str -> Attribute
 styles = \s -> s |> Str.joinWith " " |> Attribute.style
@@ -155,9 +155,9 @@ renderHeadings = \headings ->
         sortedIcon =
             when sorted is
                 None -> text ""
-                Sortable -> span [style "padding: 0 0.5rem;"] [Icons.arrowDownUp]
-                Ascending -> span [style "padding: 0 0.5rem;"] [Icons.sortUp]
-                Descending -> span [style "padding: 0 0.5rem;"] [Icons.sortDown]
+                Sortable -> span [style "padding: 0 0.5rem;"] [Views.Icons.arrowDownUp]
+                Ascending -> span [style "padding: 0 0.5rem;"] [Views.Icons.sortUp]
+                Descending -> span [style "padding: 0 0.5rem;"] [Views.Icons.sortDown]
 
         if sorted == None then
             th [
@@ -233,7 +233,7 @@ renderPagination = \@Pagination {description, links, rowCount, startRow,totalRow
                             "border-bottom-right-radius: 0 !important;",
                             "height: 100%",
                         ]
-                    ] [Icons.listOL]
+                    ] [Views.Icons.listOL]
                 ],
                 Html.form [
                     (attribute "hx-post") "/bigTask/dataTable/itemsPerPage",

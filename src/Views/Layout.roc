@@ -2,7 +2,7 @@ module [layout, page]
 
 import html.Html exposing [element, header,form, nav, meta, span, link, body, button, a, div, text, ul, li]
 import html.Attribute exposing [attribute, src, id, href, rel, name, class, width, height]
-import NavLinks exposing [NavLink]
+import Models.NavLinks exposing [NavLink]
 
 layout : { user : [Guest, LoggedIn Str], description : Str, title : Str, navLinks : List NavLink }, List Html.Node -> Html.Node
 layout = \{ user, description, title, navLinks }, children ->

@@ -1,25 +1,27 @@
-module [view]
+module [page]
 
 import html.Html exposing [div, text]
 import html.Attribute exposing [class]
-import Layout
-import Model
-import NavLinks
-import Bootstrap
+import Views.Layout
+import Models.Session exposing [Session]
+import Models.Pages exposing [BigTaskPage]
+import Models.BigTask exposing [BigTask]
+import Models.NavLinks
+import Views.Bootstrap
 import Helpers
 
-view : {
-    session : Model.Session Model.BigTaskPage,
-    tasks : List Model.BigTask,
+page : {
+    session : Session BigTaskPage,
+    tasks : List BigTask,
     pagination : {page : I64, items : I64, total : I64, baseHref : Str},
 } -> Html.Node
-view = \{ session, tasks, pagination } ->
-    Layout.layout
+page = \{ session, tasks, pagination } ->
+    Views.Layout.layout
         {
             user: session.user,
             description: "Just making a big table",
             title: "BigTask",
-            navLinks: NavLinks.navLinks "BigTask",
+            navLinks: Models.NavLinks.navLinks "BigTask",
         }
         [
             div [class "container-fluid"] [
@@ -27,7 +29,7 @@ view = \{ session, tasks, pagination } ->
                     Html.h1 [] [Html.text "Big Task Table"],
                     Html.p [] [text "This table is big and has many tasks, each task is a big task..."],
                 ],
-                div [class "row"] [Bootstrap.renderTable dataTable tasks],
+                div [class "row"] [Views.Bootstrap.renderTable dataTable tasks],
                 div [class "row"] [
                         {
                             description : "BigTable pagination",
@@ -39,15 +41,15 @@ view = \{ session, tasks, pagination } ->
                             minItemsPerPage : 1,
                             maxItemsPerPage : 10000,
                         }
-                        |> Bootstrap.newPagination
-                        |> Bootstrap.renderPagination,
+                        |> Views.Bootstrap.newPagination
+                        |> Views.Bootstrap.renderPagination,
                 ]
             ],
 
         ]
 
-dataTable : Bootstrap.DataTable Model.BigTask
-dataTable = Bootstrap.newTable {
+dataTable : Views.Bootstrap.DataTable BigTask
+dataTable = Views.Bootstrap.newTable {
     headings : [
             {
                 label: "Reference ID",
@@ -69,8 +71,8 @@ dataTable = Bootstrap.newTable {
                             validation : None,
                         }],
                     }
-                    |> Bootstrap.newDataTableForm
-                    |> Bootstrap.renderDataTableForm,
+                    |> Views.Bootstrap.newDataTableForm
+                    |> Views.Bootstrap.renderDataTableForm,
                 width: None,
 
             },
@@ -84,18 +86,18 @@ dataTable = Bootstrap.newTable {
                         inputs : [{
                             name : "DateCreated",
                             id : "date-created-$(idStr)",
-                            value : Date (Model.dateToStr task.dateCreated),
+                            value : Date (Models.BigTask.dateToStr task.dateCreated),
                             validation : None,
                         }],
                     }
-                    |> Bootstrap.newDataTableForm
-                    |> Bootstrap.renderDataTableForm,
+                    |> Views.Bootstrap.newDataTableForm
+                    |> Views.Bootstrap.renderDataTableForm,
                 width: Rem 10,
             },
             {
                 label: "Date Modified",
                 sorted: None,
-                renderValueFn: \task -> Html.text (Model.dateToStr task.dateCreated),
+                renderValueFn: \task -> Html.text (Models.BigTask.dateToStr task.dateCreated),
                 width: None,
             },
             {
@@ -123,46 +125,46 @@ dataTable = Bootstrap.newTable {
                             value : Choice {
                                 selected:
                                     task.status
-                                    |> Model.statusToStr
-                                    |> Model.statusOptionIndex
+                                    |> Models.BigTask.statusToStr
+                                    |> Models.BigTask.statusOptionIndex
                                     |> Result.withDefault 0,
-                                options: Model.statusOptions
+                                options: Models.BigTask.statusOptions
                             },
                             validation : None,
                         }],
                     }
-                    |> Bootstrap.newDataTableForm
-                    |> Bootstrap.renderDataTableForm,
+                    |> Views.Bootstrap.newDataTableForm
+                    |> Views.Bootstrap.renderDataTableForm,
                 width: Rem 10,
             },
             {
                 label: "Priority",
                 sorted: None,
-                renderValueFn: \task -> Html.text (Model.priorityToStr task.priority),
+                renderValueFn: \task -> Html.text (Models.BigTask.priorityToStr task.priority),
                 width: None,
             },
             {
                 label: "Scheduled Start Date",
                 sorted: None,
-                renderValueFn: \task -> Html.text (Model.dateToStr task.scheduledStartDate),
+                renderValueFn: \task -> Html.text (Models.BigTask.dateToStr task.scheduledStartDate),
                 width: None,
             },
             {
                 label: "Scheduled End Date",
                 sorted: None,
-                renderValueFn: \task -> Html.text (Model.dateToStr task.scheduledEndDate),
+                renderValueFn: \task -> Html.text (Models.BigTask.dateToStr task.scheduledEndDate),
                 width: None,
             },
             {
                 label: "Actual Start Date",
                 sorted: None,
-                renderValueFn: \task -> Html.text (Model.dateToStr task.actualStartDate),
+                renderValueFn: \task -> Html.text (Models.BigTask.dateToStr task.actualStartDate),
                 width: None,
             },
             {
                 label: "Actual End Date",
                 sorted: None,
-                renderValueFn: \task -> Html.text (Model.dateToStr task.actualEndDate),
+                renderValueFn: \task -> Html.text (Models.BigTask.dateToStr task.actualEndDate),
                 width: None,
             },
             {

@@ -67,28 +67,28 @@ handleReadRequest = \req, model ->
         |> List.dropFirst 1
 
     when (req.method, urlSegments) is
-        (Get, [""]) -> Pages.Home.view { session } |> htmlResponse
+        (Get, [""]) -> Pages.Home.page { session } |> htmlResponse
         (Get, ["robots.txt"]) -> staticReponse robotsTxt
         (Get, ["styles.css"]) -> staticReponse stylesFile
         (Get, ["site.js"]) -> staticReponse siteFile
         (Get, ["register"]) ->
-            Pages.Register.view { session, user: Fresh, email: Valid } |> htmlResponse
+            Pages.Register.page { session, user: Fresh, email: Valid } |> htmlResponse
 
         (Get, ["login"]) ->
-            Pages.Login.view { session, user: Fresh } |> htmlResponse
+            Pages.Login.page { session, user: Fresh } |> htmlResponse
 
         (Get, ["task", "new"]) -> redirect "/task"
         (Get, ["task", "list"]) ->
             Pages.Todo.listTodoView { todos: model.todos, filterQuery: "" } |> htmlResponse
 
         (Get, ["task"]) ->
-            Pages.Todo.view { todos: model.todos, filterQuery: "", session } |> htmlResponse
+            Pages.Todo.page { todos: model.todos, filterQuery: "", session } |> htmlResponse
 
         # (Get, ["treeview"]) ->
         #     nodes <- Sql.Todo.tree { path: dbPath, userId: 1 } |> Task.await
-        #     Pages.TreeView.view { session, nodes } |> htmlResponse |> Task.ok
+        #     Pages.TreeView.page { session, nodes } |> htmlResponse |> Task.ok
         (Get, ["user"]) ->
-            Pages.UserList.view { users: model.users, session } |> htmlResponse
+            Pages.UserList.page { users: model.users, session } |> htmlResponse
 
         _ -> handleErr (URLNotFound req.url)
 
@@ -111,7 +111,7 @@ handleWriteRequest = \req, model ->
             when (usernameResult, emailResult) is
                 (Ok username, Ok email) ->
                     when List.findFirst model.users (\u -> u.name == username) is
-                        Ok _user -> Pages.Register.view { session, user: UserAlreadyExists username, email: Valid } |> htmlResponse |> \resp -> (resp, model)
+                        Ok _user -> Pages.Register.page { session, user: UserAlreadyExists username, email: Valid } |> htmlResponse |> \resp -> (resp, model)
                         Err _ ->
                             newUser = {
                                 id: List.len model.users |> Num.toI64,
@@ -122,13 +122,13 @@ handleWriteRequest = \req, model ->
                             (redirect "/login", newModel)
 
                 _ ->
-                    Pages.Register.view { session, user: UserNotProvided, email: NotProvided } |> htmlResponse |> \resp -> (resp, model)
+                    Pages.Register.page { session, user: UserNotProvided, email: NotProvided } |> htmlResponse |> \resp -> (resp, model)
 
         (Post, ["login"]) ->
             params = parseFormUrlEncoded req.body |> Result.withDefault (Dict.empty {})
 
             when Dict.get params "user" is
-                Err _ -> Pages.Login.view { session, user: UserNotProvided } |> htmlResponse |> \resp -> (resp, model)
+                Err _ -> Pages.Login.page { session, user: UserNotProvided } |> htmlResponse |> \resp -> (resp, model)
                 Ok username ->
                     when List.findFirst model.users (\u -> u.name == username) is
                         Ok _user ->
@@ -146,7 +146,7 @@ handleWriteRequest = \req, model ->
                                 newmodel,
                             )
 
-                        Err NotFound -> Pages.Login.view { session, user: UserNotFound username } |> htmlResponse |> \resp -> (resp, model)
+                        Err NotFound -> Pages.Login.page { session, user: UserNotFound username } |> htmlResponse |> \resp -> (resp, model)
 
         (Post, ["logout"]) ->
             newmodel = { model & sessions: List.update model.sessions (session.id |> Num.toU64) (\s -> { s & user: Guest }) }

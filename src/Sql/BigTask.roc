@@ -8,7 +8,7 @@ module [
 
 import pf.Task exposing [Task]
 import pf.SQLite3
-import Model exposing [BigTask]
+import Models.BigTask exposing [BigTask]
 
 list : {dbPath : Str, page : I64, items : I64 } -> Task (List BigTask) _
 list = \{dbPath, page, items} ->
@@ -139,16 +139,16 @@ parseListRows = \rows, acc ->
                 id,
                 referenceId,
                 customerReferenceId,
-                dateCreated : Model.parseDate dateCreatedRaw |> Result.withDefault NotSet,
-                dateModified : Model.parseDate dateModifiedRaw |> Result.withDefault NotSet,
+                dateCreated : Models.BigTask.parseDate dateCreatedRaw |> Result.withDefault NotSet,
+                dateModified : Models.BigTask.parseDate dateModifiedRaw |> Result.withDefault NotSet,
                 title,
                 description,
-                status : Model.parseStatus statusRaw |> Result.withDefault Raised,
-                priority : Model.parsePriority priorityRaw,
-                scheduledStartDate : Model.parseDate rawScheduledStartDate |> Result.withDefault NotSet,
-                scheduledEndDate : Model.parseDate rawScheduledEndDate |> Result.withDefault NotSet,
-                actualStartDate : Model.parseDate rawActualStartDate |> Result.withDefault NotSet,
-                actualEndDate : Model.parseDate rawActualEndDate |> Result.withDefault NotSet,
+                status : Models.BigTask.parseStatus statusRaw |> Result.withDefault Raised,
+                priority : Models.BigTask.parsePriority priorityRaw,
+                scheduledStartDate : Models.BigTask.parseDate rawScheduledStartDate |> Result.withDefault NotSet,
+                scheduledEndDate : Models.BigTask.parseDate rawScheduledEndDate |> Result.withDefault NotSet,
+                actualStartDate : Models.BigTask.parseDate rawActualStartDate |> Result.withDefault NotSet,
+                actualEndDate : Models.BigTask.parseDate rawActualEndDate |> Result.withDefault NotSet,
                 systemName,
                 location,
                 fileReference,

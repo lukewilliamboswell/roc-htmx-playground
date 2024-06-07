@@ -1,12 +1,12 @@
-module [view]
+module [page]
 
 import html.Html exposing [div, text, h1, p]
 import html.Attribute exposing [class]
-import Layout
+import Views.Layout
 
-view : {} -> Html.Node
-view = \{} ->
-    Layout.page
+page : {} -> Html.Node
+page = \{} ->
+    Views.Layout.page
         {
             description: "Unauthorised",
             title: "Unauthorised",

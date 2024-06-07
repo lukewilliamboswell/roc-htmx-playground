@@ -1,4 +1,7 @@
-module [NavLink, navLinks]
+module [
+    NavLink,
+    navLinks,
+]
 
 NavLink : [
     Active { label : Str, href : Str },

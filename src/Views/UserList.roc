@@ -1,15 +1,15 @@
 module [
-    view,
+    page,
 ]
 
 import html.Html exposing [h1, td, th, tr, table, thead, tbody, div, text]
 import html.Attribute exposing [class, id]
-import Model exposing [User, Session]
-import Layout exposing [layout]
-import NavLinks
+import Models.Session exposing [User, Session]
+import Models.NavLinks
+import Views.Layout exposing [layout]
 
-view : { users : List User, session : Session {}} -> Html.Node
-view = \{ users, session } ->
+page : { users : List User, session : Session {}} -> Html.Node
+page = \{ users, session } ->
 
     headerText = "User List"
 
@@ -18,7 +18,7 @@ view = \{ users, session } ->
             user: session.user,
             description: "USER LIST PAGE",
             title: "Users",
-            navLinks: NavLinks.navLinks "Users",
+            navLinks: Models.NavLinks.navLinks "Users",
         }
         [
             div [class "container-fluid"] [

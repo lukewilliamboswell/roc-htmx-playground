@@ -2,19 +2,21 @@ module [respond]
 
 import pf.Task exposing [Task]
 import pf.Http exposing [Request, Response]
-import json.Core
+import json.Json
 import Sql.BigTask
 import Sql.Session
-import Pages.BigTask
-import Bootstrap
-import Model
+import Views.BigTask
+import Views.Bootstrap
+import Models.Session exposing [Session]
+import Models.Pages
+import Models.BigTask
 import Helpers exposing [respondHtml, decodeFormValues]
 
-respond : {req : Request, urlSegments : List Str, dbPath : Str, session : Model.Session Model.BigTaskPage} -> Task Response _
+respond : {req : Request, urlSegments : List Str, dbPath : Str, session : Session Models.Pages.BigTaskPage} -> Task Response _
 respond = \{ req, urlSegments, dbPath, session } ->
 
     # confirm the user is Authenticated, these routes are all protected
-    Model.isAuthenticated session.user |> Task.fromResult!
+    Models.Session.isAuthenticated session.user |> Task.fromResult!
 
     when (req.method, urlSegments) is
         (Get, []) ->
@@ -28,7 +30,7 @@ respond = \{ req, urlSegments, dbPath, session } ->
 
             total = Sql.BigTask.total! { dbPath }
 
-            Pages.BigTask.view {
+            Views.BigTask.page {
                 session,
                 tasks,
                 pagination : {page, items, total, baseHref: "/bigTask?"},
@@ -62,8 +64,8 @@ respond = \{ req, urlSegments, dbPath, session } ->
                     validation,
                 }],
             }
-            |> Bootstrap.newDataTableForm
-            |> Bootstrap.renderDataTableForm
+            |> Views.Bootstrap.newDataTableForm
+            |> Views.Bootstrap.renderDataTableForm
             |> respondHtml
 
         (Put, ["dateCreated", idStr]) ->
@@ -75,7 +77,7 @@ respond = \{ req, urlSegments, dbPath, session } ->
             validation =
                 Dict.get values "DateCreated"
                 |> Result.mapErr \_ -> BadRequest (MissingField "DateCreated")
-                |> Result.try Model.parseDate
+                |> Result.try Models.BigTask.parseDate
                 |> Result.map \_ -> Valid
                 |> Result.mapErr \_ -> Invalid "must be date format yyyy-mm-dd"
                 |> Task.fromResult!
@@ -92,8 +94,8 @@ respond = \{ req, urlSegments, dbPath, session } ->
                     validation,
                 }],
             }
-            |> Bootstrap.newDataTableForm
-            |> Bootstrap.renderDataTableForm
+            |> Views.Bootstrap.newDataTableForm
+            |> Views.Bootstrap.renderDataTableForm
             |> respondHtml
 
         (Put, ["status", idStr]) ->
@@ -105,7 +107,7 @@ respond = \{ req, urlSegments, dbPath, session } ->
             validation =
                 Dict.get values "Status"
                 |> Result.mapErr \_ -> BadRequest (MissingField "Status")
-                |> Result.try Model.parseStatus
+                |> Result.try Models.BigTask.parseStatus
                 |> Result.map \_ -> Valid
                 |> Result.mapErr \_ -> Invalid "must be 'Raised|Completed|Deferred|Approved|In-Progress'"
                 |> Task.fromResult!
@@ -114,7 +116,7 @@ respond = \{ req, urlSegments, dbPath, session } ->
 
             selectedIndex =
                 Dict.get values "Status"
-                |> Result.try \selected -> Model.statusOptionIndex selected
+                |> Result.try \selected -> Models.BigTask.statusOptionIndex selected
                 |> Task.fromResult!
 
             {
@@ -125,13 +127,13 @@ respond = \{ req, urlSegments, dbPath, session } ->
                     # use the provided value here so we keep the user's input
                     value : Choice {
                         selected: selectedIndex,
-                        options: Model.statusOptions
+                        options: Models.BigTask.statusOptions
                     },
                     validation,
                 }],
             }
-            |> Bootstrap.newDataTableForm
-            |> Bootstrap.renderDataTableForm
+            |> Views.Bootstrap.newDataTableForm
+            |> Views.Bootstrap.renderDataTableForm
             |> respondHtml
 
         (Post, ["dataTable", "itemsPerPage"]) ->
@@ -155,7 +157,7 @@ respond = \{ req, urlSegments, dbPath, session } ->
                 sessionId: session.id,
                 dbPath,
                 newSession,
-                sessionEncoder: Core.json,
+                sessionEncoder: Json.utf8,
             }
 
             Task.err UpdateControllerNotImplementedYet

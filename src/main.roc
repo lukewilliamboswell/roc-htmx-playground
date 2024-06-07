@@ -2,7 +2,7 @@ app [main] {
     pf: platform "https://github.com/roc-lang/basic-webserver/releases/download/0.5.0/Vq-iXfrRf-aHxhJpAh71uoVUlC-rsWvmjzTYOJKhu4M.tar.br",
     html: "https://github.com/Hasnep/roc-html/releases/download/v0.6.0/IOyNfA4U_bCVBihrs95US9Tf5PGAWh3qvrBN4DRbK5c.tar.br",
     ansi: "https://github.com/lukewilliamboswell/roc-ansi/releases/download/0.1.1/cPHdNPNh8bjOrlOgfSaGBJDz6VleQwsPdW0LJK6dbGQ.tar.br",
-    json: "../../roc-json/package/main.roc",
+    json: "https://github.com/lukewilliamboswell/roc-json/releases/download/0.10.0/KbIfTNbxShRX1A1FgXei1SpO5Jn8sgP6HP6PXbi-xyA.tar.br",
 }
 
 import pf.Stdout
@@ -12,7 +12,7 @@ import pf.Http exposing [Request, Response]
 import pf.Env
 import pf.Utc
 import pf.Url
-import json.Core
+import json.Json
 import ansi.Color
 import "site.css" as stylesFile : List U8
 import "site.js" as siteFile : List U8
@@ -23,13 +23,14 @@ import Helpers exposing [respondHtml]
 import Sql.Todo
 import Sql.Session
 import Sql.User
-import Model exposing [Session, Todo]
-import Pages.Home
-import Pages.Login
-import Pages.Register
-import Pages.Todo
-import Pages.UserList
-import Pages.TreeView
+import Models.Session exposing [Session]
+import Models.Todo exposing [Todo]
+import Views.Home
+import Views.Login
+import Views.Register
+import Views.Todo
+import Views.UserList
+import Views.TreeView
 import Controllers.BigTask
 
 main : Request -> Task Response []
@@ -45,8 +46,8 @@ main = \req -> Task.onErr (handleReq req) \err ->
                 }
 
             Unauthorized ->
-                import Pages.Unauthorised
-                Pages.Unauthorised.view {} |> respondHtml
+                import Views.Unauthorised
+                Views.Unauthorised.page {} |> respondHtml
 
             NewSession sessionId ->
                 # Redirect to the same URL with the new session ID
@@ -69,7 +70,7 @@ handleReq = \req ->
 
     dbPath = Env.var "DB_PATH" |> Task.mapErr! UnableToReadDbPATH
 
-    session = getSession! req dbPath Core.json
+    session = getSession! req dbPath Json.utf8
 
     urlSegments =
         req.url
@@ -79,7 +80,7 @@ handleReq = \req ->
         |> List.dropFirst 1
 
     when (req.method, urlSegments) is
-        (Get, [""]) -> Pages.Home.view { session } |> respondHtml
+        (Get, [""]) -> Views.Home.page { session } |> respondHtml
         (Get, ["bootsrap.bundle-5-3-2.min.js"]) -> respondStatic bootstrapJSFile
         (Get, ["bootstrap-5-3-2.min.css"]) -> respondStatic bootsrapCSSFile
         (Get, ["htmx-1-9-9.min.js"]) -> respondStatic htmxJSFile
@@ -87,7 +88,7 @@ handleReq = \req ->
         (Get, ["styles.css"]) -> respondStatic stylesFile
         (Get, ["site.js"]) -> respondStatic siteFile
         (Get, ["register"]) ->
-            Pages.Register.view { user: Fresh, email: Valid } |> respondHtml
+            Views.Register.page { user: Fresh, email: Valid } |> respondHtml
 
         (Post, ["register"]) ->
             params = Http.parseFormUrlEncoded req.body |> Result.withDefault (Dict.empty {})
@@ -98,26 +99,26 @@ handleReq = \req ->
                     |> Task.attempt \result ->
                         when result is
                             Ok {} -> Helpers.respondRedirect "/login" ## Redirect to login page after successful registration
-                            Err UserAlreadyExists -> Pages.Register.view { user: UserAlreadyExists username, email: Valid } |> respondHtml
+                            Err UserAlreadyExists -> Views.Register.page { user: UserAlreadyExists username, email: Valid } |> respondHtml
                             Err err -> Task.err (ErrRegisteringUser (Inspect.toStr err))
 
                 _ ->
-                    Pages.Register.view { user: UserNotProvided, email: NotProvided } |> respondHtml
+                    Views.Register.page { user: UserNotProvided, email: NotProvided } |> respondHtml
 
         (Get, ["login"]) ->
-            Pages.Login.view { session, user: Fresh } |> respondHtml
+            Views.Login.page { session, user: Fresh } |> respondHtml
 
         (Post, ["login"]) ->
             params = Http.parseFormUrlEncoded req.body |> Result.withDefault (Dict.empty {})
 
             when Dict.get params "user" is
-                Err _ -> Pages.Login.view { session, user: UserNotProvided } |> respondHtml
+                Err _ -> Views.Login.page { session, user: UserNotProvided } |> respondHtml
                 Ok username ->
                     Sql.User.login dbPath session.id username
                     |> Task.attempt \result ->
                         when result is
                             Ok {} -> Helpers.respondRedirect "/"
-                            Err (UserNotFound _) -> Pages.Login.view { session, user: UserNotFound username } |> respondHtml
+                            Err (UserNotFound _) -> Views.Login.page { session, user: UserNotFound username } |> respondHtml
                             Err err -> Task.err (ErrUserLogin (Inspect.toStr err))
 
         (Post, ["logout"]) ->
@@ -138,7 +139,7 @@ handleReq = \req ->
 
             tasks = Sql.Todo.list! { path: dbPath, filterQuery: "" }
 
-            Pages.Todo.listTodoView { todos: tasks, filterQuery: "" } |> respondHtml
+            Views.Todo.listTodoView { todos: tasks, filterQuery: "" } |> respondHtml
 
         (Post, ["task", "search"]) ->
             params = Http.parseFormUrlEncoded req.body |> Result.withDefault (Dict.empty {})
@@ -147,7 +148,7 @@ handleReq = \req ->
 
             tasks = Sql.Todo.list! { path: dbPath, filterQuery }
 
-            Pages.Todo.listTodoView { todos: tasks, filterQuery } |> respondHtml
+            Views.Todo.listTodoView { todos: tasks, filterQuery } |> respondHtml
 
         (Post, ["task", "new"]) ->
             newTodo = parseTodo req.body |> Task.fromResult!
@@ -170,25 +171,25 @@ handleReq = \req ->
         (Get, ["task", "list"]) ->
             tasks = Sql.Todo.list! { path: dbPath, filterQuery: "" }
 
-            Pages.Todo.listTodoView { todos: tasks, filterQuery: "" } |> respondHtml
+            Views.Todo.listTodoView { todos: tasks, filterQuery: "" } |> respondHtml
 
         (Get, ["task"]) ->
             tasks = Sql.Todo.list! { path: dbPath, filterQuery: "" }
 
-            Pages.Todo.view { todos: tasks, filterQuery: "", session } |> respondHtml
+            Views.Todo.page { todos: tasks, filterQuery: "", session } |> respondHtml
 
         (Get, ["treeview"]) ->
             nodes = Sql.Todo.tree! { path: dbPath, userId: 1 }
 
-            Pages.TreeView.view { session, nodes } |> respondHtml
+            Views.TreeView.page { session, nodes } |> respondHtml
 
         (Get, ["user"]) ->
             users = Sql.User.list! dbPath
 
-            Pages.UserList.view { users, session } |> respondHtml
+            Views.UserList.page { users, session } |> respondHtml
 
         (_, ["bigTask", ..]) ->
-            bigTaskSession = getSession! req dbPath Core.json
+            bigTaskSession = getSession! req dbPath Json.utf8
             Controllers.BigTask.respond { req, urlSegments : List.dropFirst urlSegments 1, dbPath, session: bigTaskSession }
 
         _ -> Task.err (URLNotFound req.url)

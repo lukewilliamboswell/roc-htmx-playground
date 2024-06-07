@@ -9,8 +9,8 @@ module [
 import pf.Task exposing [Task]
 import pf.Http exposing [Request]
 import pf.SQLite3
-import json.Core
-import Model exposing [Session]
+import json.Json
+import Models.Session exposing [Session]
 
 new : Str -> Task I64 _
 new = \path ->
@@ -89,7 +89,7 @@ update = \{sessionId, dbPath, newSession, sessionEncoder} ->
 
     encodedPageCache =
         newSession
-        |> Encode.toBytes Core.json
+        |> Encode.toBytes Json.utf8
         |> Str.fromUtf8
         |> Result.withDefault "INVALID UTF-8 PAGE CACHE"
 

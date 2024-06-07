@@ -1,18 +1,18 @@
-module [view]
+module [page]
 
 import html.Html exposing [form, h5,  button, a, input, div, text, label]
 import html.Attribute exposing [attribute, id, href, name, action, method, class,  for]
-import Model exposing [Session]
-import Layout exposing [layout]
-import NavLinks
+import Models.Session exposing [Session]
+import Views.Layout exposing [layout]
+import Models.NavLinks
 
-view :
+page :
     {
         session : Session {},
         user : [Fresh, UserNotProvided, UserNotFound Str],
     }
     -> Html.Node
-view = \{ session, user } ->
+page = \{ session, user } ->
 
     (usernameInputClass, usernameValidationClass, usernameValidationText) =
         when user is
@@ -25,7 +25,7 @@ view = \{ session, user } ->
             user: session.user,
             description: "LOGIN PAGE",
             title: "LOGIN",
-            navLinks: NavLinks.navLinks "Login",
+            navLinks: Models.NavLinks.navLinks "Login",
         }
         [
             div [class "container"] [

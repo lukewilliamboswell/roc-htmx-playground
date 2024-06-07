@@ -8,7 +8,7 @@ import Bootstrap
 import Model
 import Helpers exposing [respondHtml, decodeFormValues]
 
-respond : {req : Request, urlSegments : List Str, dbPath : Str, session : Model.Session} -> Task Response _
+respond : {req : Request, urlSegments : List Str, dbPath : Str, session : Model.Session {}} -> Task Response _
 respond = \{ req, urlSegments, dbPath, session } ->
 
     # confirm the user is Authenticated, these routes are all protected

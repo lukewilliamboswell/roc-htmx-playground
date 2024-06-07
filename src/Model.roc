@@ -19,14 +19,23 @@ module [
     statusToStr,
     statusOptions,
     statusOptionIndex,
+
+    BigTaskPage,
 ]
 
-Session : {
-    id : I64,
-    user : [Guest, LoggedIn Str],
+BigTaskPage : {
+    page: U64,
+    items: U64,
+    sorted: Str,
 }
 
-isAuthenticated : Session -> Result {} [Unauthorized]
+Session page : {
+    id : I64,
+    user : [Guest, LoggedIn Str],
+    page : Result page [NotSet],
+} where page implements Decoding
+
+isAuthenticated : Session m -> Result {} [Unauthorized]
 isAuthenticated = \session ->
     if session.user == Guest then
         Err Unauthorized

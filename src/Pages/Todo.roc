@@ -9,7 +9,7 @@ import Model exposing [Session, Todo]
 import Layout exposing [layout]
 import NavLinks
 
-view : { todos : List Todo, filterQuery : Str, session : Session } -> Html.Node
+view : { todos : List Todo, filterQuery : Str, session : Session {} } -> Html.Node
 view = \{ todos, filterQuery, session } ->
 
     headerText =

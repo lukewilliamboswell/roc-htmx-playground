@@ -12,8 +12,13 @@ import Model exposing [Session]
 new : Str -> Task I64 _
 new = \path ->
 
+    query =
+        """
+        INSERT INTO sessions (session_id, page_cache) VALUES (abs(random()), "");
+        """
+
     _ <-
-        SQLite3.execute { path, query: "INSERT INTO sessions (session_id) VALUES (abs(random()));", bindings: [] }
+        SQLite3.execute { path, query, bindings: [] }
         |> Task.mapErr \err -> SqlError err
         |> Task.await
 
@@ -37,14 +42,14 @@ parse = \req ->
             |> Result.mapErr \_ -> InvalidSessionCookie
         _ -> Err NoSessionCookie
 
-get : I64, Str -> Task Session _
-get = \sessionId, path ->
+get : I64, Str, fmt -> Task (Session page) _ where page implements Decoding, fmt implements DecoderFormatting
+get = \sessionId, path, pageDecoder ->
 
     notFoundStr = "NOT_FOUND"
 
     query =
         """
-        SELECT sessions.session_id AS \"notUsed\", COALESCE(users.name,'$(notFoundStr)') AS \"username\"
+        SELECT sessions.session_id AS \"notUsed\", sessions.page_cache, COALESCE(users.name,'$(notFoundStr)') AS \"username\"
         FROM sessions
         LEFT OUTER JOIN users
         ON sessions.user_id = users.user_id
@@ -55,12 +60,18 @@ get = \sessionId, path ->
 
     rows = SQLite3.execute { path, query, bindings } |> Task.mapErr! SqlErrGettingSession
 
+    decodeModel = \str ->
+        str
+        |> Str.toUtf8
+        |> Decode.fromBytes pageDecoder
+        |> Result.mapErr \_ -> NotSet
+
     when rows is
         [] -> Task.err SessionNotFound
-        [[Integer id, String username], ..] ->
+        [[Integer id, String pageCacheRaw, String username], ..] ->
             if username == notFoundStr then
-                Task.ok { id, user: Guest }
+                Task.ok { id, user: Guest, page: decodeModel pageCacheRaw }
             else
-                Task.ok { id, user: LoggedIn username }
+                Task.ok { id, user: LoggedIn username, page: decodeModel pageCacheRaw }
 
         _ -> Task.err (UnexpectedValues "unexpected values in get Session, got $(Inspect.toStr rows)")

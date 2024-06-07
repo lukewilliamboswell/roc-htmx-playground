@@ -2,6 +2,7 @@ app [main] {
     pf: platform "https://github.com/roc-lang/basic-webserver/releases/download/0.5.0/Vq-iXfrRf-aHxhJpAh71uoVUlC-rsWvmjzTYOJKhu4M.tar.br",
     html: "https://github.com/Hasnep/roc-html/releases/download/v0.6.0/IOyNfA4U_bCVBihrs95US9Tf5PGAWh3qvrBN4DRbK5c.tar.br",
     ansi: "https://github.com/lukewilliamboswell/roc-ansi/releases/download/0.1.1/cPHdNPNh8bjOrlOgfSaGBJDz6VleQwsPdW0LJK6dbGQ.tar.br",
+    json: "../../roc-json/package/main.roc",
 }
 
 import pf.Stdout
@@ -11,6 +12,7 @@ import pf.Http exposing [Request, Response]
 import pf.Env
 import pf.Utc
 import pf.Url
+import json.Core
 import ansi.Color
 import "site.css" as stylesFile : List U8
 import "site.js" as siteFile : List U8
@@ -67,7 +69,7 @@ handleReq = \req ->
 
     dbPath = Env.var "DB_PATH" |> Task.mapErr! UnableToReadDbPATH
 
-    session = getSession! req dbPath
+    session = getSession! req dbPath Core.json
 
     urlSegments =
         req.url
@@ -189,11 +191,11 @@ handleReq = \req ->
 
         _ -> Task.err (URLNotFound req.url)
 
-getSession : Request, Str -> Task Session _
-getSession = \req, dbPath ->
+getSession : Request, Str, fmt -> Task (Session a) _ where a implements Decoding, fmt implements DecoderFormatting
+getSession = \req, dbPath, decoder ->
     Sql.Session.parse req
         |> Task.fromResult
-        |> Task.await \id -> Sql.Session.get id dbPath
+        |> Task.await \id -> Sql.Session.get id dbPath decoder
         |> Task.onErr \err ->
             if err == SessionNotFound || err == NoSessionCookie then
                 id = Sql.Session.new! dbPath

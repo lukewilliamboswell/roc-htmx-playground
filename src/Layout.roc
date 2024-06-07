@@ -5,7 +5,7 @@ import html.Attribute exposing [attribute, src, id, href, rel, name, class, widt
 import Model exposing [Session]
 import NavLinks exposing [NavLink]
 
-layout : { session : Session, description : Str, title : Str, navLinks : List NavLink }, List Html.Node -> Html.Node
+layout : { session : Session {}, description : Str, title : Str, navLinks : List NavLink }, List Html.Node -> Html.Node
 layout = \{ session, description, title, navLinks }, children ->
 
     loginOrUser =

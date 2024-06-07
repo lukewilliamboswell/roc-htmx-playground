@@ -6,7 +6,7 @@ import Model exposing [Session]
 import Layout exposing [layout]
 import NavLinks
 
-view : { session : Session } -> Html.Node
+view : { session : Session {} } -> Html.Node
 view = \{ session } ->
     layout
         {

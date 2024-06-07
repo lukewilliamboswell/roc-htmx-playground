@@ -8,7 +8,7 @@ import Model exposing [User, Session]
 import Layout exposing [layout]
 import NavLinks
 
-view : { users : List User, session : Session } -> Html.Node
+view : { users : List User, session : Session {}} -> Html.Node
 view = \{ users, session } ->
 
     headerText = "User List"

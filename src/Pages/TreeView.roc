@@ -8,7 +8,7 @@ import NavLinks
 
 view :
     {
-        session : Session,
+        session : Session {},
         nodes : Tree Todo,
     }
     -> Html.Node

@@ -8,7 +8,7 @@ import NavLinks
 
 view :
     {
-        session : Session,
+        session : Session {},
         user : [Fresh, UserAlreadyExists Str, UserNotProvided],
         email : [Valid, Invalid Str, NotProvided],
     }

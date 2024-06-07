@@ -9,7 +9,7 @@ import Bootstrap
 import Helpers
 
 view : {
-    session : Model.Session,
+    session : Model.Session {},
     tasks : List Model.BigTask,
     pagination : {page : I64, items : I64, total : I64, baseHref : Str},
 } -> Html.Node

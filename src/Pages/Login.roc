@@ -8,7 +8,7 @@ import NavLinks
 
 view :
     {
-        session : Session,
+        session : Session {},
         user : [Fresh, UserNotProvided, UserNotFound Str],
     }
     -> Html.Node

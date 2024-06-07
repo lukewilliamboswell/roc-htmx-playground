@@ -31,22 +31,32 @@ page = \{ session, tasks, pagination } ->
                 ],
                 div [class "row"] [Views.Bootstrap.renderTable dataTable tasks],
                 div [class "row"] [
-                        {
-                            description : "BigTable pagination",
-                            links: Helpers.paginationLinks pagination,
+                        paginationView {
+                            page : pagination.page,
+                            items : pagination.items,
+                            total : pagination.total,
+                            baseHref : pagination.baseHref,
                             rowCount : Num.toU64 (tasks |> List.map (\_ -> 1) |> List.sum),
                             startRow : Num.toU64 (((pagination.page-1)*pagination.items) + 1),
-                            totalRowCount : Num.toU64 pagination.total,
-                            currItemsPerPage : Num.toU64 pagination.items,
-                            minItemsPerPage : 1,
-                            maxItemsPerPage : 10000,
-                        }
-                        |> Views.Bootstrap.newPagination
-                        |> Views.Bootstrap.renderPagination,
+                        },
                 ]
             ],
 
         ]
+
+paginationView = \{page : pageNumber,items,total,baseHref,rowCount,startRow} ->
+    {
+        description : "BigTable pagination",
+        links: Helpers.paginationLinks {page: pageNumber, items, total, baseHref},
+        rowCount,
+        startRow,
+        totalRowCount : Num.toU64 total,
+        currItemsPerPage : Num.toU64 items,
+        minItemsPerPage : 1,
+        maxItemsPerPage : 10000,
+    }
+    |> Views.Bootstrap.newPagination
+    |> Views.Bootstrap.renderPagination
 
 dataTable : Views.Bootstrap.DataTable BigTask
 dataTable = Views.Bootstrap.newTable {

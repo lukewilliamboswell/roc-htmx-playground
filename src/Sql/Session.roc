@@ -9,7 +9,7 @@ module [
 import pf.Task exposing [Task]
 import pf.Http exposing [Request]
 import pf.SQLite3
-import json.Json
+import pf.Stdout
 import Models.Session exposing [Session]
 
 new : Str -> Task I64 _
@@ -45,33 +45,40 @@ parse = \req ->
             |> Result.mapErr \_ -> InvalidSessionCookie
         _ -> Err NoSessionCookie
 
-get : I64, Str, fmt -> Task (Session pageCache) _ where pageCache implements Decoding & Encoding, fmt implements DecoderFormatting
-get = \sessionId, path, pageDecoder ->
+get : I64, Str, fmt, pageCache -> Task (Session pageCache) _ where pageCache implements Decoding & Encoding, fmt implements DecoderFormatting
+get = \sessionId, path, pageDecoder, defaultCacheValue ->
 
     notFoundStr = "NOT_FOUND"
 
     query =
         """
-        SELECT sessions.session_id AS \"notUsed\", sessions.page_cache, COALESCE(users.name,'$(notFoundStr)') AS \"username\"
+        SELECT
+            sessions.session_id AS 'notUsed',
+            sessions.page_cache,
+            COALESCE(users.name,'$(notFoundStr)') AS 'username'
         FROM sessions
         LEFT OUTER JOIN users
         ON sessions.user_id = users.user_id
         WHERE sessions.session_id = :sessionId;
         """
 
-    bindings = [{ name: ":sessionId", value: Num.toStr sessionId }]
-
-    rows = SQLite3.execute { path, query, bindings } |> Task.mapErr! SqlErrGettingSession
-
     decodeModel = \str ->
         str
         |> Str.toUtf8
         |> Decode.fromBytes pageDecoder
-        |> Result.mapErr \_ -> NotSet
+        |> Result.mapErr \err -> crash "Error decoding page cache: $(str)\n$(Inspect.toStr err)"
+        |> Result.withDefault defaultCacheValue
+
+    bindings = [{ name: ":sessionId", value: Num.toStr sessionId }]
+
+    rows = SQLite3.execute { path, query, bindings } |> Task.mapErr! SqlErrGettingSession
 
     when rows is
         [] -> Task.err SessionNotFound
         [[Integer id, String pageCacheRaw, String username], ..] ->
+
+            Stdout.line! "GOT PAGE CACHE RAW: $(pageCacheRaw)"
+
             if username == notFoundStr then
                 Task.ok { id, user: Guest, page: decodeModel pageCacheRaw }
             else
@@ -88,14 +95,15 @@ update : {
 update = \{sessionId, dbPath, newSession, sessionEncoder} ->
 
     encodedPageCache =
-        newSession
-        |> Encode.toBytes Json.utf8
+        newSession.page
+        |> Encode.toBytes sessionEncoder
         |> Str.fromUtf8
-        |> Result.withDefault "INVALID UTF-8 PAGE CACHE"
+        |> Result.withDefault "UNREACHABLE, INVALID UTF-8 PAGE CACHE"
 
     query =
         """
-        UPDATE sessions SET page_cache = :pageCache
+        UPDATE sessions
+        SET page_cache = :pageCache
         WHERE sessions.session_id = :sessionId;
         """
 
@@ -103,6 +111,8 @@ update = \{sessionId, dbPath, newSession, sessionEncoder} ->
         { name: ":sessionId", value: Num.toStr sessionId },
         { name: ":pageCache", value: encodedPageCache},
     ]
+
+    Stdout.line! "QUERY: $(query)\nCACHE: $(encodedPageCache)"
 
     SQLite3.execute { path: dbPath, query, bindings }
     |> Task.map \_ -> {}

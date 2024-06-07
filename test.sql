@@ -9,7 +9,7 @@ INSERT INTO users (name, email) values ('Joe', 'joe@foo.com');
 CREATE TABLE sessions (
     session_id INTEGER PRIMARY KEY,
     user_id INTEGER NULL,
-    page_cache TEXT,
+    page_cache TEXT, -- TODO switch to BLOB??
 
     CONSTRAINT fk_column
         FOREIGN KEY (user_id)

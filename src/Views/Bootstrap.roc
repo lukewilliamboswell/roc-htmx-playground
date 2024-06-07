@@ -238,6 +238,7 @@ renderPagination = \@Pagination {description, links, rowCount, startRow,totalRow
                 Html.form [
                     (attribute "hx-post") "/bigTask/dataTable/itemsPerPage",
                     (attribute "hx-trigger") "input delay:250ms",
+                    (attribute "hx-target") "body",
                     (attribute "hx-swap") "outerHTML",
                 ] [
                     (element "input") [
@@ -264,17 +265,3 @@ renderPagination = \@Pagination {description, links, rowCount, startRow,totalRow
             text "Showing rows $(Num.toStr startRow) to $(Num.toStr (startRow + rowCount - 1)) of $(Num.toStr totalRowCount) total rows"
         ],
     ]
-
-onItemsPerPageChange =
-    """
-    <script>
-        document.getElementById('itemsPerPage').addEventListener('change', function() {
-            const value = this.value;
-            const url = new URL(window.location.href);
-            url.searchParams.set('page', '1');
-            url.searchParams.set('items', value);
-            window.location.href = url;
-            /*TODO return focus to the itemsPerPage element*/
-        });
-    </script>
-    """

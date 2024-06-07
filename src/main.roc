@@ -25,6 +25,7 @@ import Sql.Session
 import Sql.User
 import Models.Session exposing [Session]
 import Models.Todo exposing [Todo]
+import Models.Pages
 import Views.Home
 import Views.Login
 import Views.Register
@@ -70,7 +71,7 @@ handleReq = \req ->
 
     dbPath = Env.var "DB_PATH" |> Task.mapErr! UnableToReadDbPATH
 
-    session = getSession! req dbPath Json.utf8
+    session = getSession! req dbPath Json.utf8 {}
 
     urlSegments =
         req.url
@@ -189,16 +190,16 @@ handleReq = \req ->
             Views.UserList.page { users, session } |> respondHtml
 
         (_, ["bigTask", ..]) ->
-            bigTaskSession = getSession! req dbPath Json.utf8
+            bigTaskSession = getSession! req dbPath Json.utf8 Models.Pages.defaultBigTaskPage
             Controllers.BigTask.respond { req, urlSegments : List.dropFirst urlSegments 1, dbPath, session: bigTaskSession }
 
         _ -> Task.err (URLNotFound req.url)
 
-getSession : Request, Str, fmt -> Task (Session pageCache) _ where pageCache implements Decoding & Encoding, fmt implements DecoderFormatting
-getSession = \req, dbPath, decoder ->
+getSession : Request, Str, fmt, pageCache -> Task (Session pageCache) _ where pageCache implements Decoding & Encoding, fmt implements DecoderFormatting
+getSession = \req, dbPath, decoder, defaultCache ->
     Sql.Session.parse req
         |> Task.fromResult
-        |> Task.await \id -> Sql.Session.get id dbPath decoder
+        |> Task.await \id -> Sql.Session.get id dbPath decoder defaultCache
         |> Task.onErr \err ->
             if err == SessionNotFound || err == NoSessionCookie then
                 id = Sql.Session.new! dbPath

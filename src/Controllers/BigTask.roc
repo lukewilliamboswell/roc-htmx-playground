@@ -2,6 +2,7 @@ module [respond]
 
 import pf.Task exposing [Task]
 import pf.Http exposing [Request, Response]
+import pf.Stdout
 import json.Json
 import Sql.BigTask
 import Sql.Session
@@ -10,7 +11,7 @@ import Views.Bootstrap
 import Models.Session exposing [Session]
 import Models.Pages
 import Models.BigTask
-import Helpers exposing [respondHtml, decodeFormValues]
+import Helpers exposing [respondHtml, decodeFormValues, respondRedirect]
 
 respond : {req : Request, urlSegments : List Str, dbPath : Str, session : Session Models.Pages.BigTaskPage} -> Task Response _
 respond = \{ req, urlSegments, dbPath, session } ->
@@ -21,20 +22,27 @@ respond = \{ req, urlSegments, dbPath, session } ->
     when (req.method, urlSegments) is
         (Get, []) ->
 
-            {page, items} =
-                Helpers.parseQueryParams req.url
-                |> Result.try Helpers.parsePagedParams
-                |> Result.withDefault {page: 1, items: 25}
+            Stdout.line! "GOT SESISON IN CONTROLLER: $(Inspect.toStr session)"
 
-            tasks = Sql.BigTask.list! { dbPath, page, items }
+            tasks = Sql.BigTask.list! {
+                dbPath,
+                page: Num.toI64 session.page.page,
+                items: Num.toI64 session.page.items,
+            }
 
             total = Sql.BigTask.total! { dbPath }
 
             Views.BigTask.page {
                 session,
                 tasks,
-                pagination : {page, items, total, baseHref: "/bigTask?"},
-            } |> respondHtml
+                pagination : {
+                    page: Num.toI64 session.page.page,
+                    items: Num.toI64 session.page.items,
+                    total,
+                    baseHref: "/bigTask?",
+                },
+            }
+            |> respondHtml
 
         (Put, ["customerId", idStr]) ->
 
@@ -147,7 +155,7 @@ respond = \{ req, urlSegments, dbPath, session } ->
                 |> Result.mapErr \_ -> BadRequest (ExpectedFormValue "itemsPerPage" req.body)
                 |> Task.fromResult!
 
-            newSession = { session & page : Ok {
+            newSession = { session & page : {
                 page: 1,
                 items: itemsPerPage,
                 sorted: "NothingYet",
@@ -160,7 +168,9 @@ respond = \{ req, urlSegments, dbPath, session } ->
                 sessionEncoder: Json.utf8,
             }
 
-            Task.err UpdateControllerNotImplementedYet
+            Stdout.line! "updated Session, redirecting"
+
+            respondRedirect "/bigTask"
 
         _ -> Task.err (URLNotFound req.url)
 

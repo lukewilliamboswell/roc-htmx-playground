@@ -115,7 +115,7 @@ validationMsg = \validation ->
 
 Heading a : {
     label : Str,
-    sorted : [None, Asc, Desc],
+    sorted : [None, Sortable, Ascending, Descending],
     renderValueFn : a -> Html.Node,
     width : [None, Pt U16, Px U16, Rem U16]
 }
@@ -145,23 +145,36 @@ renderTable = \@DataTable {headings}, rows ->
 renderHeadings : List (Heading a) -> List Html.Node
 renderHeadings = \headings ->
     List.map headings \{label, width, sorted} ->
-        attrs =
+
+        minWidthStyle =
             when width is
-                None -> [class "text-nowrap w-auto", style "cursor:pointer;"]
-                Pt size -> [class "text-nowrap w-auto", style "min-width:$(Num.toStr size)pt; cursor:pointer;"]
-                Px size -> [class "text-nowrap w-auto", style "min-width:$(Num.toStr size)px; cursor:pointer;"]
-                Rem size -> [class "text-nowrap w-auto", style "min-width:$(Num.toStr size)rem; cursor:pointer;"]
+                None -> ""
+                Pt size -> "min-width:$(Num.toStr size)pt;"
+                Px size -> "min-width:$(Num.toStr size)px;"
+                Rem size -> "min-width:$(Num.toStr size)rem;"
 
-        icon =
+        sortedIcon =
             when sorted is
-                None -> Icons.arrowDownUp
-                Asc -> Icons.sortUp
-                Desc -> Icons.sortDown
+                None -> text ""
+                Sortable -> span [style "padding: 0 0.5rem;"] [Icons.arrowDownUp]
+                Ascending -> span [style "padding: 0 0.5rem;"] [Icons.sortUp]
+                Descending -> span [style "padding: 0 0.5rem;"] [Icons.sortDown]
 
-        th attrs [
-            span [style "padding: 0 0.5rem;"] [icon],
-            span [style "padding-right: 0.5rem;"] [text label],
-        ]
+        if sorted == None then
+            th [
+                class "text-nowrap w-auto",
+                style minWidthStyle
+            ] [
+                span [style "padding: 0 0.5rem;"] [text label],
+            ]
+        else
+            th [
+                class "text-nowrap w-auto",
+                styles [minWidthStyle, "cursor:pointer;"]
+            ] [
+                sortedIcon,
+                span [style "padding-right: 0.5rem;"] [text label],
+            ]
 
 renderRows : List a, List (Heading a) -> List Html.Node
 renderRows = \rows, headings ->

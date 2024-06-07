@@ -57,7 +57,7 @@ dataTable = Bootstrap.newTable {
             },
             {
                 label: "Customer ID",
-                sorted: None,
+                sorted: Sortable,
                 renderValueFn: \task ->
                     idStr = Num.toStr task.id
                     {

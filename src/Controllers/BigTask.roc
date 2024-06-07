@@ -2,7 +2,9 @@ module [respond]
 
 import pf.Task exposing [Task]
 import pf.Http exposing [Request, Response]
+import json.Core
 import Sql.BigTask
+import Sql.Session
 import Pages.BigTask
 import Bootstrap
 import Model
@@ -131,6 +133,32 @@ respond = \{ req, urlSegments, dbPath, session } ->
             |> Bootstrap.newDataTableForm
             |> Bootstrap.renderDataTableForm
             |> respondHtml
+
+        (Post, ["dataTable", "itemsPerPage"]) ->
+
+            values = decodeFormValues! req.body
+
+            itemsPerPage =
+                values
+                |> Dict.get "itemsPerPage"
+                |> Result.try Str.toU64
+                |> Result.mapErr \_ -> BadRequest (ExpectedFormValue "itemsPerPage" req.body)
+                |> Task.fromResult!
+
+            newSession = { session & page : Ok {
+                page: 1,
+                items: itemsPerPage,
+                sorted: "NothingYet",
+            }}
+
+            Sql.Session.update! {
+                sessionId: session.id,
+                dbPath,
+                newSession,
+                sessionEncoder: Core.json,
+            }
+
+            Task.err UpdateControllerNotImplementedYet
 
         _ -> Task.err (URLNotFound req.url)
 

@@ -193,7 +193,7 @@ handleReq = \req ->
 
         _ -> Task.err (URLNotFound req.url)
 
-getSession : Request, Str, fmt -> Task (Session a) _ where a implements Decoding, fmt implements DecoderFormatting
+getSession : Request, Str, fmt -> Task (Session pageCache) _ where pageCache implements Decoding & Encoding, fmt implements DecoderFormatting
 getSession = \req, dbPath, decoder ->
     Sql.Session.parse req
         |> Task.fromResult

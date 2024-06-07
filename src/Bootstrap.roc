@@ -235,19 +235,26 @@ renderPagination = \@Pagination {description, links, rowCount, startRow,totalRow
                         ]
                     ] [Icons.listOL]
                 ],
-                (element "input") [
-                    Attribute.type "number",
-                    class "form-control",
-                    (attribute "id") "itemsPerPage",
-                    Attribute.value "$(Num.toStr currItemsPerPage)",
-                    Attribute.min "$(Num.toStr minItemsPerPage)",
-                    Attribute.max "$(Num.toStr maxItemsPerPage)",
-                    styles [
-                        "border-top-right-radius: 5px;",
-                        "border-bottom-right-radius: 5px;",
-                    ],
-                ] [],
-                Html.dangerouslyIncludeUnescapedHtml onItemsPerPageChange
+                Html.form [
+                    (attribute "hx-post") "/bigTask/dataTable/itemsPerPage",
+                    (attribute "hx-trigger") "input delay:250ms",
+                    (attribute "hx-swap") "outerHTML",
+                ] [
+                    (element "input") [
+                        Attribute.type "number",
+                        Attribute.name "itemsPerPage",
+                        class "form-control",
+                        (attribute "id") "itemsPerPage",
+                        Attribute.value "$(Num.toStr currItemsPerPage)",
+                        Attribute.min "$(Num.toStr minItemsPerPage)",
+                        Attribute.max "$(Num.toStr maxItemsPerPage)",
+                        styles [
+                            "border-top-right-radius: 5px;",
+                            "border-bottom-right-radius: 5px;",
+                        ],
+                    ] []
+                ],
+                # Html.dangerouslyIncludeUnescapedHtml onItemsPerPageChange
             ]
         ],
         div [class "d-inline-block", styles ["margin-right: 1rem;"]] [

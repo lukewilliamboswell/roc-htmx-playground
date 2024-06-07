@@ -1,12 +1,15 @@
+
 module [
     new,
     parse,
     get,
+    update,
 ]
 
 import pf.Task exposing [Task]
 import pf.Http exposing [Request]
 import pf.SQLite3
+import json.Core
 import Model exposing [Session]
 
 new : Str -> Task I64 _
@@ -42,7 +45,7 @@ parse = \req ->
             |> Result.mapErr \_ -> InvalidSessionCookie
         _ -> Err NoSessionCookie
 
-get : I64, Str, fmt -> Task (Session page) _ where page implements Decoding, fmt implements DecoderFormatting
+get : I64, Str, fmt -> Task (Session pageCache) _ where pageCache implements Decoding & Encoding, fmt implements DecoderFormatting
 get = \sessionId, path, pageDecoder ->
 
     notFoundStr = "NOT_FOUND"
@@ -75,3 +78,32 @@ get = \sessionId, path, pageDecoder ->
                 Task.ok { id, user: LoggedIn username, page: decodeModel pageCacheRaw }
 
         _ -> Task.err (UnexpectedValues "unexpected values in get Session, got $(Inspect.toStr rows)")
+
+update : {
+    sessionId : I64,
+    dbPath : Str,
+    newSession: Session pageCache,
+    sessionEncoder: fmt,
+} -> Task {} _ where pageCache implements Decoding & Encoding, fmt implements EncoderFormatting
+update = \{sessionId, dbPath, newSession, sessionEncoder} ->
+
+    encodedPageCache =
+        newSession
+        |> Encode.toBytes Core.json
+        |> Str.fromUtf8
+        |> Result.withDefault "INVALID UTF-8 PAGE CACHE"
+
+    query =
+        """
+        UPDATE sessions SET page_cache = :pageCache
+        WHERE sessions.session_id = :sessionId;
+        """
+
+    bindings = [
+        { name: ":sessionId", value: Num.toStr sessionId },
+        { name: ":pageCache", value: encodedPageCache},
+    ]
+
+    SQLite3.execute { path: dbPath, query, bindings }
+    |> Task.map \_ -> {}
+    |> Task.mapErr SqlErrUpdatingSession

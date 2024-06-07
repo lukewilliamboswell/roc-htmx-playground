@@ -95,7 +95,7 @@ handleReq = \req ->
                     Sql.User.register { path: dbPath, name: username, email }
                     |> Task.attempt \result ->
                         when result is
-                            Ok {} -> respondRedirect "/login" ## Redirect to login page after successful registration
+                            Ok {} -> Helpers.respondRedirect "/login" ## Redirect to login page after successful registration
                             Err UserAlreadyExists -> Pages.Register.view { session, user: UserAlreadyExists username, email: Valid } |> respondHtml
                             Err err -> Task.err (ErrRegisteringUser (Inspect.toStr err))
 
@@ -114,7 +114,7 @@ handleReq = \req ->
                     Sql.User.login dbPath session.id username
                     |> Task.attempt \result ->
                         when result is
-                            Ok {} -> respondRedirect "/"
+                            Ok {} -> Helpers.respondRedirect "/"
                             Err (UserNotFound _) -> Pages.Login.view { session, user: UserNotFound username } |> respondHtml
                             Err err -> Task.err (ErrUserLogin (Inspect.toStr err))
 
@@ -130,7 +130,7 @@ handleReq = \req ->
                 body: [],
             }
 
-        (Get, ["task", "new"]) -> respondRedirect "/task"
+        (Get, ["task", "new"]) -> Helpers.respondRedirect "/task"
         (Post, ["task", idStr, "delete"]) ->
             Sql.Todo.delete! { path: dbPath, userId: idStr }
 
@@ -151,8 +151,8 @@ handleReq = \req ->
             newTodo = parseTodo req.body |> Task.fromResult!
 
             when Sql.Todo.create { path: dbPath, newTodo } |> Task.result! is
-                Ok {} -> respondRedirect "/task"
-                Err TaskWasEmpty -> respondRedirect "/task"
+                Ok {} -> Helpers.respondRedirect "/task"
+                Err TaskWasEmpty -> Helpers.respondRedirect "/task"
                 Err err -> Task.err (ErrTodoCreate (Inspect.toStr err))
 
         (Put, ["task", taskIdStr, "complete"]) ->
@@ -235,16 +235,6 @@ respondCodeLogError = \msg, code ->
     Task.ok! {
         status: code,
         headers: [],
-        body: [],
-    }
-
-respondRedirect : Str -> Task Response []_
-respondRedirect = \next ->
-    Task.ok {
-        status: 303,
-        headers: [
-            { name: "Location", value: Str.toUtf8 next },
-        ],
         body: [],
     }
 

@@ -1,7 +1,9 @@
 module [
+    respondRedirect,
     respondHtml,
     decodeFormValues,
     parseQueryParams,
+    queryParamsToUrl,
     parsePagedParams,
     paginationLinks,
 ]
@@ -9,6 +11,16 @@ module [
 import pf.Task exposing [Task]
 import pf.Http exposing [Response]
 import html.Html
+
+respondRedirect : Str -> Task Response []_
+respondRedirect = \next ->
+    Task.ok {
+        status: 303,
+        headers: [
+            { name: "Location", value: Str.toUtf8 next },
+        ],
+        body: [],
+    }
 
 respondHtml : Html.Node -> Task Response []_
 respondHtml = \node ->
@@ -31,6 +43,19 @@ parseQueryParams = \url ->
     when Str.split url "?" is
         [_, queryPart] -> queryPart |> Str.toUtf8 |> Http.parseFormUrlEncoded
         parts -> Err (InvalidQuery (Inspect.toStr parts))
+
+queryParamsToUrl : Dict Str Str -> Str
+queryParamsToUrl = \params ->
+    Dict.toList params
+    |> List.map \(k,v) ->"$(k)=$(v)"
+    |> Str.joinWith "&"
+
+expect
+    "localhost:8000?port=8000&name=Luke"
+    |> parseQueryParams
+    |> Result.map queryParamsToUrl
+    ==
+    Ok "port=8000&name=Luke"
 
 parsePagedParams : Dict Str Str -> Result {page: I64, items: I64} _
 parsePagedParams = \queryParams ->

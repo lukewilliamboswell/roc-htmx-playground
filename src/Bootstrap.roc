@@ -173,11 +173,12 @@ PaginationLink : {
 Pagination := {
     description : Str,
     links : List PaginationLink,
-    pagination : {
-        currItemsPerPage : U64,
-        minItemsPerPage : U64,
-        maxItemsPerPage : U64,
-    },
+    rowCount : U64,
+    startRow : U64,
+    totalRowCount : U64,
+    currItemsPerPage : U64,
+    minItemsPerPage : U64,
+    maxItemsPerPage : U64,
 }
 
 newPagination = @Pagination
@@ -193,11 +194,14 @@ renderPaginationLink = \link ->
     ]
 
 renderPagination : Pagination -> Html.Node
-renderPagination = \@Pagination {description, links, pagination} ->
+renderPagination = \@Pagination {description, links, rowCount, startRow,totalRowCount,currItemsPerPage,minItemsPerPage,maxItemsPerPage} ->
     nav [(attribute "aria-label") description] [
         div [
                 class "d-inline-block",
-                styles ["margin-right: 1rem;", "padding-top: 1px;"]
+                styles [
+                    "margin-right: 1rem;",
+                    "padding-top: 1px;",
+                ]
             ] [
             div [class "input-group"] [
                 div [class "input-group-prepend"] [
@@ -214,14 +218,23 @@ renderPagination = \@Pagination {description, links, pagination} ->
                     Attribute.type "number",
                     class "form-control",
                     (attribute "id") "itemsPerPage",
-                    Attribute.value "$(Num.toStr pagination.currItemsPerPage)",
-                    Attribute.min "$(Num.toStr pagination.minItemsPerPage)",
-                    Attribute.max "$(Num.toStr pagination.maxItemsPerPage)",
+                    Attribute.value "$(Num.toStr currItemsPerPage)",
+                    Attribute.min "$(Num.toStr minItemsPerPage)",
+                    Attribute.max "$(Num.toStr maxItemsPerPage)",
+                    styles [
+                        "border-top-right-radius: 5px;",
+                        "border-bottom-right-radius: 5px;",
+                    ],
                 ] [],
                 Html.dangerouslyIncludeUnescapedHtml onItemsPerPageChange
             ]
         ],
-        div [class "d-inline-block"] [ul [class "pagination"] (List.map links renderPaginationLink)],
+        div [class "d-inline-block", styles ["margin-right: 1rem;"]] [
+            ul [class "pagination"] (List.map links renderPaginationLink)
+        ],
+        div [class "d-inline-block"] [
+            text "Showing rows $(Num.toStr startRow) to $(Num.toStr (startRow + rowCount - 1)) of $(Num.toStr totalRowCount) total rows"
+        ],
     ]
 
 onItemsPerPageChange =

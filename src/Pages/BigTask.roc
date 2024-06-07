@@ -32,11 +32,12 @@ view = \{ session, tasks, pagination } ->
                         {
                             description : "BigTable pagination",
                             links: Helpers.paginationLinks pagination,
-                            pagination : {
-                                currItemsPerPage : Num.intCast pagination.items,
-                                minItemsPerPage : 1,
-                                maxItemsPerPage : 10000,
-                            }
+                            rowCount : Num.toU64 (tasks |> List.map (\_ -> 1) |> List.sum),
+                            startRow : Num.toU64 (((pagination.page-1)*pagination.items) + 1),
+                            totalRowCount : Num.toU64 pagination.total,
+                            currItemsPerPage : Num.toU64 pagination.items,
+                            minItemsPerPage : 1,
+                            maxItemsPerPage : 10000,
                         }
                         |> Bootstrap.newPagination
                         |> Bootstrap.renderPagination,
@@ -132,7 +133,7 @@ dataTable = Bootstrap.newTable {
                     }
                     |> Bootstrap.newDataTableForm
                     |> Bootstrap.renderDataTableForm,
-                width: Rem 8,
+                width: Rem 10,
             },
             {
                 label: "Priority",

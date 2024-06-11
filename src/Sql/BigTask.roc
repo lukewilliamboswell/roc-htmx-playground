@@ -10,8 +10,8 @@ import pf.Task exposing [Task]
 import pf.SQLite3
 import Models.BigTask exposing [BigTask]
 
-list : {dbPath : Str, page : I64, items : I64 } -> Task (List BigTask) _
-list = \{dbPath, page, items} ->
+list : {dbPath : Str, page : I64, items : I64, sortBy : Str } -> Task (List BigTask) _
+list = \{dbPath, page, items, sortBy} ->
 
     check =
         if page >= 1 && items > 0 then
@@ -42,8 +42,9 @@ list = \{dbPath, page, items} ->
             FileReference,
             Comments
         FROM BigTask
-        ORDER BY ID
-        LIMIT :limit OFFSET :offset;
+        ORDER BY $(parseColumnName sortBy |> Result.withDefault "ID") ASC
+        LIMIT :limit
+        OFFSET :offset;
         """
 
     SQLite3.execute {
@@ -51,7 +52,7 @@ list = \{dbPath, page, items} ->
         query,
         bindings: [
             {name: ":limit", value: "$(Num.toStr items)"},
-            {name: ":offset", value: "$(Num.toStr ((page - 1) * items))"}
+            {name: ":offset", value: "$(Num.toStr ((page - 1) * items))"},
         ],
     }
     |> Task.onErr \err -> SqlError err |> Task.err
@@ -246,3 +247,25 @@ expect
             { name: ":A", value: "foo" }
         ]
     }
+
+parseColumnName : Str -> Result _ [InvalidColumnName Str]
+parseColumnName = \name ->
+    when name is
+        "ID" -> Ok "ID"
+        "ReferenceID" -> Ok "ReferenceID"
+        "CustomerReferenceID" -> Ok "CustomerReferenceID"
+        "DateCreated" -> Ok "DateCreated"
+        "DateModified" -> Ok "DateModified"
+        "Title" -> Ok "Title"
+        "Description" -> Ok "Description"
+        "Status" -> Ok "Status"
+        "Priority" -> Ok "Priority"
+        "ScheduledStartDate" -> Ok "ScheduledStartDate"
+        "ScheduledEndDate" -> Ok "ScheduledEndDate"
+        "ActualStartDate" -> Ok "ActualStartDate"
+        "ActualEndDate" -> Ok "ActualEndDate"
+        "SystemName" -> Ok "SystemName"
+        "Location" -> Ok "Location"
+        "FileReference" -> Ok "FileReference"
+        "Comments" -> Ok "Comments"
+        _ -> InvalidColumnName name |> Err

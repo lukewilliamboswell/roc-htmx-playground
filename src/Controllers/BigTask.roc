@@ -42,10 +42,16 @@ respond = \{ req, urlSegments, dbPath, session } ->
                 |> Result.try Str.toI64
                 |> Result.withDefault 1
 
+            sortBy =
+                queryParams
+                |> Dict.get "sortBy"
+                |> Result.withDefault "ID"
+
             tasks = Sql.BigTask.list! {
                 dbPath,
                 page,
                 items,
+                sortBy,
             }
 
             total = Sql.BigTask.total! { dbPath }

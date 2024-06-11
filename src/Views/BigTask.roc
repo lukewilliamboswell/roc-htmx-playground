@@ -61,12 +61,14 @@ dataTable = Views.Bootstrap.newTable {
     headings : [
             {
                 label: "Reference ID",
-                sorted: None,
+                name: "ReferenceID",
+                sorted: Sortable,
                 renderValueFn: \task -> Html.text task.referenceId,
                 width: None,
             },
             {
                 label: "Customer ID",
+                name: "CustomerReferenceID",
                 sorted: Sortable,
                 renderValueFn: \task ->
                     idStr = Num.toStr task.id
@@ -86,7 +88,8 @@ dataTable = Views.Bootstrap.newTable {
             },
             {
                 label: "Date Created",
-                sorted: None,
+                name: "DateCreated",
+                sorted: Sortable,
                 renderValueFn: \task ->
                     idStr = Num.toStr task.id
                     {
@@ -104,25 +107,29 @@ dataTable = Views.Bootstrap.newTable {
             },
             {
                 label: "Date Modified",
-                sorted: None,
+                name: "DateModified",
+                sorted: Sortable,
                 renderValueFn: \task -> Html.text (Models.BigTask.dateToStr task.dateCreated),
                 width: None,
             },
             {
                 label: "Title",
-                sorted: None,
+                name: "Title",
+                sorted: Sortable,
                 renderValueFn: \task -> Html.text task.title,
                 width: Rem 12,
             },
             {
                 label: "Description",
-                sorted: None,
+                name: "Description",
+                sorted: Sortable,
                 renderValueFn: \task -> Html.text task.description,
                 width: Rem 12,
             },
             {
                 label: "Status",
-                sorted: None,
+                name: "Status",
+                sorted: Sortable,
                 renderValueFn: \task ->
                     idStr = Num.toStr task.id
                     {
@@ -147,55 +154,64 @@ dataTable = Views.Bootstrap.newTable {
             },
             {
                 label: "Priority",
-                sorted: None,
+                name: "Priority",
+                sorted: Sortable,
                 renderValueFn: \task -> Html.text (Models.BigTask.priorityToStr task.priority),
                 width: None,
             },
             {
                 label: "Scheduled Start Date",
-                sorted: None,
+                name: "ScheduledStartDate",
+                sorted: Sortable,
                 renderValueFn: \task -> Html.text (Models.BigTask.dateToStr task.scheduledStartDate),
                 width: None,
             },
             {
                 label: "Scheduled End Date",
-                sorted: None,
+                name: "ScheduledEndDate",
+                sorted: Sortable,
                 renderValueFn: \task -> Html.text (Models.BigTask.dateToStr task.scheduledEndDate),
                 width: None,
             },
             {
                 label: "Actual Start Date",
-                sorted: None,
+                name: "ActualStartDate",
+                sorted: Sortable,
                 renderValueFn: \task -> Html.text (Models.BigTask.dateToStr task.actualStartDate),
                 width: None,
             },
             {
                 label: "Actual End Date",
-                sorted: None,
+                name: "ActualEndDate",
+                sorted: Sortable,
                 renderValueFn: \task -> Html.text (Models.BigTask.dateToStr task.actualEndDate),
                 width: None,
             },
             {
                 label: "System Name",
-                sorted: None,
+                name: "SystemName",
+                sorted: Sortable,
                 renderValueFn: \task -> Html.text task.systemName,
                 width: None,
             },
             {
                 label: "Location",
-                sorted: None,
+                name: "Location",
+                sorted: Sortable,
                 renderValueFn: \task -> Html.text task.location,
                 width: Rem 8,
             },
             {
                 label: "File Reference",
-                sorted: None,
+                name: "FileReference",
+                sorted: Sortable,
                 renderValueFn: \task -> Html.text task.fileReference,
                 width: None,
             },
             {
                 label: "Comments",
-                sorted: None,
+                name: "Comments",
+                sorted: Sortable,
                 renderValueFn: \task -> Html.text task.comments,
                 width: Rem 20,
             },

@@ -115,6 +115,7 @@ validationMsg = \validation ->
 
 Heading a : {
     label : Str,
+    name : Str,
     sorted : [None, Sortable, Ascending, Descending],
     renderValueFn : a -> Html.Node,
     width : [None, Pt U16, Px U16, Rem U16],
@@ -143,7 +144,7 @@ renderTable = \@DataTable {headings}, rows ->
 
 renderHeadings : List (Heading a) -> List Html.Node
 renderHeadings = \headings ->
-    List.map headings \{label, width, sorted} ->
+    List.map headings \{label, name, width, sorted} ->
 
         minWidthStyle =
             when width is
@@ -162,14 +163,23 @@ renderHeadings = \headings ->
         if sorted == None then
             th [
                 class "text-nowrap w-auto",
-                style minWidthStyle
+                style minWidthStyle,
             ] [
                 span [style "padding: 0 0.5rem;"] [text label],
             ]
         else
             th [
                 class "text-nowrap w-auto",
-                styles [minWidthStyle, "cursor:pointer;"]
+                (Attribute.attribute "hx-get") "",
+                (Attribute.attribute "hx-target") "body",
+                (Attribute.attribute "hx-swap") "outerHTML",
+                (Attribute.attribute "hx-vals")
+                    """
+                    {
+                        "sortBy":"$(name)"
+                    }
+                    """,
+                styles [minWidthStyle, "cursor:pointer;"],
             ] [
                 sortedIcon,
                 span [style "padding-right: 0.5rem;"] [text label],

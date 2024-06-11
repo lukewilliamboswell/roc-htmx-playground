@@ -5,7 +5,6 @@ module [
     parseQueryParams,
     queryParamsToUrl,
     parsePagedParams,
-    paginationLinks,
 ]
 
 import pf.Task exposing [Task]
@@ -26,7 +25,7 @@ respondHtml : Html.Node -> Task Response []_
 respondHtml = \node ->
     Task.ok {
         status: 200,
-        headers: [
+        headers:  [
             { name: "Content-Type", value: Str.toUtf8 "text/html; charset=utf-8" },
         ],
         body: Str.toUtf8 (Html.render node),
@@ -87,58 +86,3 @@ expect
     |> Result.try parsePagedParams
     ==
     Err (InvalidQuery "[\"/bigTask\"]")
-
-# items is the number of items per page
-# page is the current page
-# page is 1-indexed
-paginationLinks : {page : I64, items : I64, total : I64, baseHref : Str} -> List {
-    disabled : Bool,
-    active : Bool,
-    href : Str,
-    label : Str,
-}
-paginationLinks = \{page, items, total, baseHref} ->
-
-    totalPages = Num.ceiling ((Num.toFrac total) / (Num.toFrac items)) |> Num.toI64
-
-    # Previous
-    prev = {
-        disabled: page == 1,
-        active: Bool.false,
-        href: if page == 1 then "#" else "$(baseHref)page=$(Num.toStr (page - 1))&items=$(Num.toStr items)",
-        label: "Previous",
-    }
-
-    # Numbered  -3 -2 -1 current +1 +2 +3
-    numbered =
-        List.range {
-                start: At (Num.max 1 (page - 3)),
-                end: At (Num.min totalPages (page + 3)),
-            }
-        |> List.map \n -> {
-            disabled: Bool.false,
-            active: n == page,
-            href: if n == page then "#" else "$(baseHref)page=$(Num.toStr n)&items=$(Num.toStr items)",
-            label: Num.toStr n,
-        }
-
-    # Current
-    current = {
-        disabled: Bool.false,
-        active: Bool.true,
-        href: "#",
-        label: Num.toStr page,
-    }
-
-    # Next
-    next = {
-        disabled: page == totalPages,
-        active: Bool.false,
-        href: if page == totalPages then "#" else "$(baseHref)page=$(Num.toStr (page + 1))&items=$(Num.toStr items)",
-        label: "Next",
-    }
-
-    if totalPages <= 7 then
-        numbered
-    else
-        [prev,current,next]

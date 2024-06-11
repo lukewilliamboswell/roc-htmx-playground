@@ -231,21 +231,22 @@ renderPagination = \@Pagination {description, links, rowCount, startRow,totalRow
                         styles [
                             "border-top-right-radius: 0 !important;",
                             "border-bottom-right-radius: 0 !important;",
-                            "height: 100%",
+                            "height: 100%;",
                         ]
                     ] [Views.Icons.listOL]
                 ],
                 Html.form [
-                    (attribute "hx-post") "/bigTask/dataTable/itemsPerPage",
-                    (attribute "hx-trigger") "input delay:250ms",
+                    (attribute "hx-get") "", # reload the current URL, including the curent parameters
+                    (attribute "hx-trigger") "input delay:500ms",
                     (attribute "hx-target") "body",
                     (attribute "hx-swap") "outerHTML",
+                    (attribute "id") "formUpdateItemsPerPage",
                 ] [
                     (element "input") [
                         Attribute.type "number",
-                        Attribute.name "itemsPerPage",
+                        Attribute.name "updateItemsPerPage",
                         class "form-control",
-                        (attribute "id") "itemsPerPage",
+                        (attribute "id") "updateItemsPerPage",
                         Attribute.value "$(Num.toStr currItemsPerPage)",
                         Attribute.min "$(Num.toStr minItemsPerPage)",
                         Attribute.max "$(Num.toStr maxItemsPerPage)",
@@ -255,7 +256,6 @@ renderPagination = \@Pagination {description, links, rowCount, startRow,totalRow
                         ],
                     ] []
                 ],
-                # Html.dangerouslyIncludeUnescapedHtml onItemsPerPageChange
             ]
         ],
         div [class "d-inline-block", styles ["margin-right: 1rem;"]] [

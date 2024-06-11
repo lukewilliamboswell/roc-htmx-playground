@@ -160,7 +160,27 @@ parseListRows = \rows, acc ->
 update : {dbPath : Str, id : I64, values: Dict Str Str} -> Task {} _
 update = \{dbPath, id, values} ->
 
-    {sqlStr, bindings} = valuesToSql values
+    {sqlStr, bindings} =
+        valuesToSql
+            values
+            [
+                "ReferenceID",
+                "CustomerReferenceID",
+                "DateCreated",
+                "DateModified",
+                "Title",
+                "Description",
+                "Status",
+                "Priority",
+                "ScheduledStartDate",
+                "ScheduledEndDate",
+                "ActualStartDate",
+                "ActualEndDate",
+                "SystemName",
+                "Location",
+                "FileReference",
+                "Comments"
+            ]
 
     query =
         """
@@ -178,22 +198,24 @@ update = \{dbPath, id, values} ->
     |> Task.onErr \err -> Task.err (ErrUpdatingBigTask (SqlError err) query)
     |> Task.await \_ -> Task.ok {}
 
-valuesToSql : Dict Str Str -> {sqlStr : Str, bindings : List SQLite3.Binding}
-valuesToSql = \values ->
+valuesToSql : Dict Str Str, List Str -> {sqlStr : Str, bindings : List SQLite3.Binding}
+valuesToSql = \values, columns ->
     sqlStr =
         Dict.toList values
+        |> List.keepIf \(k,_) -> List.contains columns k
         |> List.map \(k,_) ->
             "    $(k) = :$(k)"
         |> Str.joinWith ",\n"
 
     bindings =
         Dict.toList values
+        |> List.keepIf \(k,_) -> List.contains columns k
         |> List.map \(k,v) -> { name: ":$(k)", value : v}
 
     {sqlStr, bindings}
 
 expect
-    a = valuesToSql (Dict.fromList [("A", "foo"), ("B","bar"), ("C", "baz")])
+    a = valuesToSql (Dict.fromList [("A", "foo"), ("B","bar"), ("C", "baz")]) ["A", "B", "C"]
     a
     ==
     {
@@ -207,5 +229,20 @@ expect
             { name: ":A", value: "foo" },
             { name: ":B", value: "bar" },
             { name: ":C", value: "baz" }
+        ]
+    }
+
+## test valuesToSql only includes values for the columns list provided
+expect
+    a = valuesToSql (Dict.fromList [("A", "foo"), ("B","bar"), ("C", "baz")]) ["A"]
+    a
+    ==
+    {
+        sqlStr :
+            """
+                A = :A
+            """,
+        bindings : [
+            { name: ":A", value: "foo" }
         ]
     }

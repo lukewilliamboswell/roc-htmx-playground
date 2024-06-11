@@ -2,13 +2,12 @@ module [respond]
 
 import pf.Task exposing [Task]
 import pf.Http exposing [Request, Response]
-import pf.Stdout
 import Sql.BigTask
 import Views.BigTask
 import Views.Bootstrap
 import Models.Session exposing [Session]
 import Models.BigTask
-import Helpers exposing [respondHtml, decodeFormValues]
+import Helpers exposing [respondHtml, decodeFormValues, parseQueryParams]
 
 respond : {req : Request, urlSegments : List Str, dbPath : Str, session : Session} -> Task Response _
 respond = \{ req, urlSegments, dbPath, session } ->
@@ -19,12 +18,34 @@ respond = \{ req, urlSegments, dbPath, session } ->
     when (req.method, urlSegments) is
         (Get, []) ->
 
-            Stdout.line! "GOT SESISON IN CONTROLLER: $(Inspect.toStr session)"
+            queryParams =
+                    req.url
+                    |> parseQueryParams
+                    |> Result.withDefault (Dict.empty {})
+
+            # First check for the updateItemsPerPage form value,
+            # if not present then check for the items URL parameter,
+            # if not provided default to 25
+            items =
+                queryParams
+                |> Dict.get "updateItemsPerPage"
+                |> Result.try Str.toI64
+                |> Result.onErr \_ ->
+                    queryParams
+                    |> Dict.get "items"
+                    |> Result.try Str.toI64
+                |> Result.withDefault 25
+
+            page =
+                queryParams
+                |> Dict.get "page"
+                |> Result.try Str.toI64
+                |> Result.withDefault 1
 
             tasks = Sql.BigTask.list! {
                 dbPath,
-                page: Num.toI64 1,
-                items: Num.toI64 25,
+                page,
+                items,
             }
 
             total = Sql.BigTask.total! { dbPath }
@@ -33,8 +54,8 @@ respond = \{ req, urlSegments, dbPath, session } ->
                 session,
                 tasks,
                 pagination : {
-                    page: Num.toI64 1,
-                    items: Num.toI64 25,
+                    page,
+                    items,
                     total,
                     baseHref: "/bigTask?",
                 },
@@ -140,21 +161,6 @@ respond = \{ req, urlSegments, dbPath, session } ->
             |> Views.Bootstrap.newDataTableForm
             |> Views.Bootstrap.renderDataTableForm
             |> respondHtml
-
-        (Post, ["dataTable", "itemsPerPage"]) ->
-
-            #values = decodeFormValues! req.body
-
-            #itemsPerPage =
-            #    values
-            #    |> Dict.get "itemsPerPage"
-            #    |> Result.try Str.toU64
-            #    |> Result.mapErr \_ -> BadRequest (ExpectedFormValue "itemsPerPage" req.body)
-            #    |> Task.fromResult!
-
-            #newSession = { session }
-
-            Task.err TodoDataTableItemsPerPage
 
         _ -> Task.err (URLNotFound req.url)
 

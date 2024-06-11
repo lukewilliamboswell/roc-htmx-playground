@@ -7,7 +7,6 @@ import Models.Session exposing [Session]
 import Models.BigTask exposing [BigTask]
 import Models.NavLinks
 import Views.Bootstrap
-import Helpers
 
 page : {
     session : Session,
@@ -23,7 +22,7 @@ page = \{ session, tasks, pagination } ->
             navLinks: Models.NavLinks.navLinks "BigTask",
         }
         [
-            div [class "container-fluid"] [
+            div [ class "container-fluid" ] [
                 div [class "row align-items-center justify-content-center"] [
                     Html.h1 [] [Html.text "Big Task Table"],
                     Html.p [] [text "This table is big and has many tasks, each task is a big task..."],
@@ -46,7 +45,7 @@ page = \{ session, tasks, pagination } ->
 paginationView = \{page : pageNumber,items,total,baseHref,rowCount,startRow} ->
     {
         description : "BigTable pagination",
-        links: Helpers.paginationLinks {page: pageNumber, items, total, baseHref},
+        links: paginationLinks {page: pageNumber, items, total, baseHref},
         rowCount,
         startRow,
         totalRowCount : Num.toU64 total,
@@ -202,3 +201,58 @@ dataTable = Views.Bootstrap.newTable {
             },
         ],
 }
+
+# items is the number of items per page
+# page is the current page
+# page is 1-indexed
+paginationLinks : {page : I64, items : I64, total : I64, baseHref : Str} -> List {
+    disabled : Bool,
+    active : Bool,
+    href : Str,
+    label : Str,
+}
+paginationLinks = \{page: pageNumber, items, total, baseHref} ->
+
+    totalPages = Num.ceiling ((Num.toFrac total) / (Num.toFrac items)) |> Num.toI64
+
+    # Previous
+    prev = {
+        disabled: pageNumber == 1,
+        active: Bool.false,
+        href: if pageNumber == 1 then "#" else "$(baseHref)page=$(Num.toStr (pageNumber - 1))&items=$(Num.toStr items)",
+        label: "Previous",
+    }
+
+    # Numbered  -3 -2 -1 current +1 +2 +3
+    numbered =
+        List.range {
+                start: At (Num.max 1 (pageNumber - 3)),
+                end: At (Num.min totalPages (pageNumber + 3)),
+            }
+        |> List.map \n -> {
+            disabled: Bool.false,
+            active: n == pageNumber,
+            href: if n == pageNumber then "#" else "$(baseHref)page=$(Num.toStr n)&items=$(Num.toStr items)",
+            label: Num.toStr n,
+        }
+
+    # Current
+    current = {
+        disabled: Bool.false,
+        active: Bool.true,
+        href: "#",
+        label: Num.toStr pageNumber,
+    }
+
+    # Next
+    next = {
+        disabled: pageNumber == totalPages,
+        active: Bool.false,
+        href: if pageNumber == totalPages then "#" else "$(baseHref)page=$(Num.toStr (pageNumber + 1))&items=$(Num.toStr items)",
+        label: "Next",
+    }
+
+    if totalPages <= 7 then
+        numbered
+    else
+        [prev,current,next]

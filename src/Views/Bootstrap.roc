@@ -160,6 +160,14 @@ renderHeadings = \headings ->
                 Ascending -> span [style "padding: 0 0.5rem;"] [Views.Icons.sortUp]
                 Descending -> span [style "padding: 0 0.5rem;"] [Views.Icons.sortDown]
 
+        sortDirection =
+            when sorted is
+                None -> ""
+                Sortable -> "asc"
+                # note the click will alternate direction
+                Ascending -> "desc"
+                Descending -> "asc"
+
         if sorted == None then
             th [
                 class "text-nowrap w-auto",
@@ -176,7 +184,8 @@ renderHeadings = \headings ->
                 (Attribute.attribute "hx-vals")
                     """
                     {
-                        "sortBy":"$(name)"
+                        "sortBy":"$(name)",
+                        "sortDirection":"$(sortDirection)"
                     }
                     """,
                 styles [minWidthStyle, "cursor:pointer;"],

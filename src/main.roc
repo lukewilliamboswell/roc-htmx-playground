@@ -47,7 +47,7 @@ main = \req -> Task.onErr (handleReq req) \err ->
 
             Unauthorized ->
                 import Views.Unauthorised
-                Views.Unauthorised.page {} |> respondHtml
+                Views.Unauthorised.page {} |> respondHtml []
 
             NewSession sessionId ->
                 # Redirect to the same URL with the new session ID
@@ -80,7 +80,7 @@ handleReq = \req ->
         |> List.dropFirst 1
 
     when (req.method, urlSegments) is
-        (Get, [""]) -> Views.Home.page { session } |> respondHtml
+        (Get, [""]) -> Views.Home.page { session } |> respondHtml []
         (Get, ["bootsrap.bundle-5-3-2.min.js"]) -> respondStatic bootstrapJSFile
         (Get, ["bootstrap-5-3-2.min.css"]) -> respondStatic bootsrapCSSFile
         (Get, ["htmx-1-9-9.min.js"]) -> respondStatic htmxJSFile
@@ -88,7 +88,7 @@ handleReq = \req ->
         (Get, ["styles.css"]) -> respondStatic stylesFile
         (Get, ["site.js"]) -> respondStatic siteFile
         (Get, ["register"]) ->
-            Views.Register.page { user: Fresh, email: Valid } |> respondHtml
+            Views.Register.page { user: Fresh, email: Valid } |> respondHtml []
 
         (Post, ["register"]) ->
             params = Http.parseFormUrlEncoded req.body |> Result.withDefault (Dict.empty {})
@@ -99,26 +99,26 @@ handleReq = \req ->
                     |> Task.attempt \result ->
                         when result is
                             Ok {} -> Helpers.respondRedirect "/login" ## Redirect to login page after successful registration
-                            Err UserAlreadyExists -> Views.Register.page { user: UserAlreadyExists username, email: Valid } |> respondHtml
+                            Err UserAlreadyExists -> Views.Register.page { user: UserAlreadyExists username, email: Valid } |> respondHtml []
                             Err err -> Task.err (ErrRegisteringUser (Inspect.toStr err))
 
                 _ ->
-                    Views.Register.page { user: UserNotProvided, email: NotProvided } |> respondHtml
+                    Views.Register.page { user: UserNotProvided, email: NotProvided } |> respondHtml []
 
         (Get, ["login"]) ->
-            Views.Login.page { session, user: Fresh } |> respondHtml
+            Views.Login.page { session, user: Fresh } |> respondHtml []
 
         (Post, ["login"]) ->
             params = Http.parseFormUrlEncoded req.body |> Result.withDefault (Dict.empty {})
 
             when Dict.get params "user" is
-                Err _ -> Views.Login.page { session, user: UserNotProvided } |> respondHtml
+                Err _ -> Views.Login.page { session, user: UserNotProvided } |> respondHtml []
                 Ok username ->
                     Sql.User.login dbPath session.id username
                     |> Task.attempt \result ->
                         when result is
                             Ok {} -> Helpers.respondRedirect "/"
-                            Err (UserNotFound _) -> Views.Login.page { session, user: UserNotFound username } |> respondHtml
+                            Err (UserNotFound _) -> Views.Login.page { session, user: UserNotFound username } |> respondHtml []
                             Err err -> Task.err (ErrUserLogin (Inspect.toStr err))
 
         (Post, ["logout"]) ->
@@ -139,7 +139,7 @@ handleReq = \req ->
 
             tasks = Sql.Todo.list! { path: dbPath, filterQuery: "" }
 
-            Views.Todo.listTodoView { todos: tasks, filterQuery: "" } |> respondHtml
+            Views.Todo.listTodoView { todos: tasks, filterQuery: "" } |> respondHtml []
 
         (Post, ["task", "search"]) ->
             params = Http.parseFormUrlEncoded req.body |> Result.withDefault (Dict.empty {})
@@ -148,7 +148,7 @@ handleReq = \req ->
 
             tasks = Sql.Todo.list! { path: dbPath, filterQuery }
 
-            Views.Todo.listTodoView { todos: tasks, filterQuery } |> respondHtml
+            Views.Todo.listTodoView { todos: tasks, filterQuery } |> respondHtml []
 
         (Post, ["task", "new"]) ->
             newTodo = parseTodo req.body |> Task.fromResult!
@@ -171,22 +171,22 @@ handleReq = \req ->
         (Get, ["task", "list"]) ->
             tasks = Sql.Todo.list! { path: dbPath, filterQuery: "" }
 
-            Views.Todo.listTodoView { todos: tasks, filterQuery: "" } |> respondHtml
+            Views.Todo.listTodoView { todos: tasks, filterQuery: "" } |> respondHtml []
 
         (Get, ["task"]) ->
             tasks = Sql.Todo.list! { path: dbPath, filterQuery: "" }
 
-            Views.Todo.page { todos: tasks, filterQuery: "", session } |> respondHtml
+            Views.Todo.page { todos: tasks, filterQuery: "", session } |> respondHtml []
 
         (Get, ["treeview"]) ->
             nodes = Sql.Todo.tree! { path: dbPath, userId: 1 }
 
-            Views.TreeView.page { session, nodes } |> respondHtml
+            Views.TreeView.page { session, nodes } |> respondHtml []
 
         (Get, ["user"]) ->
             users = Sql.User.list! dbPath
 
-            Views.UserList.page { users, session } |> respondHtml
+            Views.UserList.page { users, session } |> respondHtml []
 
         (_, ["bigTask", ..]) ->
             Controllers.BigTask.respond { req, urlSegments : List.dropFirst urlSegments 1, dbPath, session }

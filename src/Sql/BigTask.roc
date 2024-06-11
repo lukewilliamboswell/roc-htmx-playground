@@ -10,8 +10,14 @@ import pf.Task exposing [Task]
 import pf.SQLite3
 import Models.BigTask exposing [BigTask]
 
-list : {dbPath : Str, page : I64, items : I64, sortBy : Str } -> Task (List BigTask) _
-list = \{dbPath, page, items, sortBy} ->
+list : {
+    dbPath : Str,
+    page : I64,
+    items : I64,
+    sortBy : Str,
+    sortDirection : [ASCENDING, DESCENDING],
+} -> Task (List BigTask) _
+list = \{dbPath, page, items, sortBy, sortDirection} ->
 
     check =
         if page >= 1 && items > 0 then
@@ -20,6 +26,11 @@ list = \{dbPath, page, items, sortBy} ->
             Task.err (InvalidPageOrItems page items "expected page >= 1 and items > 0")
 
     check!
+
+    sortDir =
+        when sortDirection is
+            ASCENDING -> "ASC"
+            DESCENDING -> "DESC"
 
     query =
         """
@@ -42,7 +53,7 @@ list = \{dbPath, page, items, sortBy} ->
             FileReference,
             Comments
         FROM BigTask
-        ORDER BY $(parseColumnName sortBy |> Result.withDefault "ID") ASC
+        ORDER BY $(parseColumnName sortBy |> Result.withDefault "ID") $(sortDir)
         LIMIT :limit
         OFFSET :offset;
         """

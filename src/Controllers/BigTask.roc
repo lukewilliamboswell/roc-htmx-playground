@@ -47,18 +47,36 @@ respond = \{ req, urlSegments, dbPath, session } ->
                 |> Dict.get "sortBy"
                 |> Result.withDefault "ID"
 
+            sortDirection =
+                when Dict.get queryParams "sortDirection" is
+                    Ok "asc" -> ASCENDING
+                    Ok "ASC" -> ASCENDING
+                    Ok "desc" -> DESCENDING
+                    Ok "DESC" -> DESCENDING
+                    _ -> ASCENDING
+
             tasks = Sql.BigTask.list! {
                 dbPath,
                 page,
                 items,
                 sortBy,
+                sortDirection,
             }
 
             total = Sql.BigTask.total! { dbPath }
 
+            sortDirectionStr =
+                when sortDirection is
+                    ASCENDING -> "asc"
+                    DESCENDING -> "desc"
+
+            updateURL = "/bigTask?page=$(Num.toStr page)&items=$(Num.toStr items)&sortBy=$(sortBy)&sortDirection=$(sortDirectionStr)"
+
             Views.BigTask.page {
                 session,
                 tasks,
+                sortBy,
+                sortDirection,
                 pagination : {
                     page,
                     items,
@@ -66,7 +84,7 @@ respond = \{ req, urlSegments, dbPath, session } ->
                     baseHref: "/bigTask?",
                 },
             }
-            |> respondHtml
+            |> respondHtml [{name : "HX-Push-Url", value : Str.toUtf8 updateURL}]
 
         (Put, ["customerId", idStr]) ->
 
@@ -98,7 +116,7 @@ respond = \{ req, urlSegments, dbPath, session } ->
             }
             |> Views.Bootstrap.newDataTableForm
             |> Views.Bootstrap.renderDataTableForm
-            |> respondHtml
+            |> respondHtml []
 
         (Put, ["dateCreated", idStr]) ->
 
@@ -128,7 +146,7 @@ respond = \{ req, urlSegments, dbPath, session } ->
             }
             |> Views.Bootstrap.newDataTableForm
             |> Views.Bootstrap.renderDataTableForm
-            |> respondHtml
+            |> respondHtml []
 
         (Put, ["status", idStr]) ->
 
@@ -166,7 +184,7 @@ respond = \{ req, urlSegments, dbPath, session } ->
             }
             |> Views.Bootstrap.newDataTableForm
             |> Views.Bootstrap.renderDataTableForm
-            |> respondHtml
+            |> respondHtml []
 
         _ -> Task.err (URLNotFound req.url)
 

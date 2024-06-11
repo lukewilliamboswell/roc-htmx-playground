@@ -21,13 +21,14 @@ respondRedirect = \next ->
         body: [],
     }
 
-respondHtml : Html.Node -> Task Response []_
-respondHtml = \node ->
+respondHtml : Html.Node, List {name: Str, value : List U8} -> Task Response []_
+respondHtml = \node, otherHeaders ->
     Task.ok {
         status: 200,
         headers:  [
             { name: "Content-Type", value: Str.toUtf8 "text/html; charset=utf-8" },
-        ],
+        ]
+        |> List.concat otherHeaders,
         body: Str.toUtf8 (Html.render node),
     }
 

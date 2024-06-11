@@ -4,11 +4,10 @@ module [
     isAuthenticated,
 ]
 
-Session page : {
+Session : {
     id : I64,
     user : [Guest, LoggedIn Str],
-    page : page,
-} where page implements Decoding & Encoding
+}
 
 isAuthenticated : [Guest, LoggedIn Str] -> Result {} [Unauthorized]
 isAuthenticated = \user ->

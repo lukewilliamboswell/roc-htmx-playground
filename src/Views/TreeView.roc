@@ -10,7 +10,7 @@ import Views.Layout exposing [layout]
 
 page :
     {
-        session : Session {},
+        session : Session,
         nodes : Tree Todo,
     }
     -> Html.Node

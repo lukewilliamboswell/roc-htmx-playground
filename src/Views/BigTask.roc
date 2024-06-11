@@ -4,14 +4,13 @@ import html.Html exposing [div, text]
 import html.Attribute exposing [class]
 import Views.Layout
 import Models.Session exposing [Session]
-import Models.Pages exposing [BigTaskPage]
 import Models.BigTask exposing [BigTask]
 import Models.NavLinks
 import Views.Bootstrap
 import Helpers
 
 page : {
-    session : Session BigTaskPage,
+    session : Session,
     tasks : List BigTask,
     pagination : {page : I64, items : I64, total : I64, baseHref : Str},
 } -> Html.Node

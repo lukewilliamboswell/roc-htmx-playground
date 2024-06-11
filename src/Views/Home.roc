@@ -6,7 +6,7 @@ import Models.Session exposing [Session]
 import Views.Layout exposing [layout]
 import Models.NavLinks
 
-page : { session : Session {} } -> Html.Node
+page : { session : Session } -> Html.Node
 page = \{ session } ->
     layout
         {

@@ -3,17 +3,14 @@ module [respond]
 import pf.Task exposing [Task]
 import pf.Http exposing [Request, Response]
 import pf.Stdout
-import json.Json
 import Sql.BigTask
-import Sql.Session
 import Views.BigTask
 import Views.Bootstrap
 import Models.Session exposing [Session]
-import Models.Pages
 import Models.BigTask
-import Helpers exposing [respondHtml, decodeFormValues, respondRedirect]
+import Helpers exposing [respondHtml, decodeFormValues]
 
-respond : {req : Request, urlSegments : List Str, dbPath : Str, session : Session Models.Pages.BigTaskPage} -> Task Response _
+respond : {req : Request, urlSegments : List Str, dbPath : Str, session : Session} -> Task Response _
 respond = \{ req, urlSegments, dbPath, session } ->
 
     # confirm the user is Authenticated, these routes are all protected
@@ -26,8 +23,8 @@ respond = \{ req, urlSegments, dbPath, session } ->
 
             tasks = Sql.BigTask.list! {
                 dbPath,
-                page: Num.toI64 session.page.page,
-                items: Num.toI64 session.page.items,
+                page: Num.toI64 1,
+                items: Num.toI64 25,
             }
 
             total = Sql.BigTask.total! { dbPath }
@@ -36,8 +33,8 @@ respond = \{ req, urlSegments, dbPath, session } ->
                 session,
                 tasks,
                 pagination : {
-                    page: Num.toI64 session.page.page,
-                    items: Num.toI64 session.page.items,
+                    page: Num.toI64 1,
+                    items: Num.toI64 25,
                     total,
                     baseHref: "/bigTask?",
                 },
@@ -146,31 +143,18 @@ respond = \{ req, urlSegments, dbPath, session } ->
 
         (Post, ["dataTable", "itemsPerPage"]) ->
 
-            values = decodeFormValues! req.body
+            #values = decodeFormValues! req.body
 
-            itemsPerPage =
-                values
-                |> Dict.get "itemsPerPage"
-                |> Result.try Str.toU64
-                |> Result.mapErr \_ -> BadRequest (ExpectedFormValue "itemsPerPage" req.body)
-                |> Task.fromResult!
+            #itemsPerPage =
+            #    values
+            #    |> Dict.get "itemsPerPage"
+            #    |> Result.try Str.toU64
+            #    |> Result.mapErr \_ -> BadRequest (ExpectedFormValue "itemsPerPage" req.body)
+            #    |> Task.fromResult!
 
-            newSession = { session & page : {
-                page: 1,
-                items: itemsPerPage,
-                sorted: "NothingYet",
-            }}
+            #newSession = { session }
 
-            Sql.Session.update! {
-                sessionId: session.id,
-                dbPath,
-                newSession,
-                sessionEncoder: Json.utf8,
-            }
-
-            Stdout.line! "updated Session, redirecting"
-
-            respondRedirect "/bigTask"
+            Task.err TodoDataTableItemsPerPage
 
         _ -> Task.err (URLNotFound req.url)
 

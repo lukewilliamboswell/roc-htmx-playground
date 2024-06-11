@@ -2,7 +2,7 @@ app [main] {
     pf: platform "https://github.com/roc-lang/basic-webserver/releases/download/0.5.0/Vq-iXfrRf-aHxhJpAh71uoVUlC-rsWvmjzTYOJKhu4M.tar.br",
     html: "https://github.com/Hasnep/roc-html/releases/download/v0.6.0/IOyNfA4U_bCVBihrs95US9Tf5PGAWh3qvrBN4DRbK5c.tar.br",
     ansi: "https://github.com/lukewilliamboswell/roc-ansi/releases/download/0.1.1/cPHdNPNh8bjOrlOgfSaGBJDz6VleQwsPdW0LJK6dbGQ.tar.br",
-    json: "https://github.com/lukewilliamboswell/roc-json/releases/download/0.10.0/KbIfTNbxShRX1A1FgXei1SpO5Jn8sgP6HP6PXbi-xyA.tar.br",
+    #json: "https://github.com/lukewilliamboswell/roc-json/releases/download/0.10.0/KbIfTNbxShRX1A1FgXei1SpO5Jn8sgP6HP6PXbi-xyA.tar.br",
 }
 
 import pf.Stdout
@@ -12,7 +12,7 @@ import pf.Http exposing [Request, Response]
 import pf.Env
 import pf.Utc
 import pf.Url
-import json.Json
+#import json.Json
 import ansi.Color
 import "site.css" as stylesFile : List U8
 import "site.js" as siteFile : List U8
@@ -25,7 +25,6 @@ import Sql.Session
 import Sql.User
 import Models.Session exposing [Session]
 import Models.Todo exposing [Todo]
-import Models.Pages
 import Views.Home
 import Views.Login
 import Views.Register
@@ -71,7 +70,7 @@ handleReq = \req ->
 
     dbPath = Env.var "DB_PATH" |> Task.mapErr! UnableToReadDbPATH
 
-    session = getSession! req dbPath Json.utf8 {}
+    session = getSession! req dbPath
 
     urlSegments =
         req.url
@@ -190,16 +189,15 @@ handleReq = \req ->
             Views.UserList.page { users, session } |> respondHtml
 
         (_, ["bigTask", ..]) ->
-            bigTaskSession = getSession! req dbPath Json.utf8 Models.Pages.defaultBigTaskPage
-            Controllers.BigTask.respond { req, urlSegments : List.dropFirst urlSegments 1, dbPath, session: bigTaskSession }
+            Controllers.BigTask.respond { req, urlSegments : List.dropFirst urlSegments 1, dbPath, session }
 
         _ -> Task.err (URLNotFound req.url)
 
-getSession : Request, Str, fmt, pageCache -> Task (Session pageCache) _ where pageCache implements Decoding & Encoding, fmt implements DecoderFormatting
-getSession = \req, dbPath, decoder, defaultCache ->
+getSession : Request, Str -> Task Session _
+getSession = \req, dbPath  ->
     Sql.Session.parse req
         |> Task.fromResult
-        |> Task.await \id -> Sql.Session.get id dbPath decoder defaultCache
+        |> Task.await \id -> Sql.Session.get id dbPath
         |> Task.onErr \err ->
             if err == SessionNotFound || err == NoSessionCookie then
                 id = Sql.Session.new! dbPath

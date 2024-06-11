@@ -10,7 +10,7 @@ import Models.Todo exposing [Todo]
 import Views.Layout exposing [layout]
 import Models.NavLinks
 
-page : { todos : List Todo, filterQuery : Str, session : Session {} } -> Html.Node
+page : { todos : List Todo, filterQuery : Str, session : Session } -> Html.Node
 page = \{ todos, filterQuery, session } ->
 
     headerText =

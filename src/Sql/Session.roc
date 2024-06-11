@@ -3,13 +3,11 @@ module [
     new,
     parse,
     get,
-    update,
 ]
 
 import pf.Task exposing [Task]
 import pf.Http exposing [Request]
 import pf.SQLite3
-import pf.Stdout
 import Models.Session exposing [Session]
 
 new : Str -> Task I64 _
@@ -17,7 +15,7 @@ new = \path ->
 
     query =
         """
-        INSERT INTO sessions (session_id, page_cache) VALUES (abs(random()), "");
+        INSERT INTO sessions (session_id) VALUES (abs(random()));
         """
 
     _ <-
@@ -45,8 +43,8 @@ parse = \req ->
             |> Result.mapErr \_ -> InvalidSessionCookie
         _ -> Err NoSessionCookie
 
-get : I64, Str, fmt, pageCache -> Task (Session pageCache) _ where pageCache implements Decoding & Encoding, fmt implements DecoderFormatting
-get = \sessionId, path, pageDecoder, defaultCacheValue ->
+get : I64, Str -> Task Session _
+get = \sessionId, path ->
 
     notFoundStr = "NOT_FOUND"
 
@@ -54,7 +52,6 @@ get = \sessionId, path, pageDecoder, defaultCacheValue ->
         """
         SELECT
             sessions.session_id AS 'notUsed',
-            sessions.page_cache,
             COALESCE(users.name,'$(notFoundStr)') AS 'username'
         FROM sessions
         LEFT OUTER JOIN users
@@ -62,58 +59,16 @@ get = \sessionId, path, pageDecoder, defaultCacheValue ->
         WHERE sessions.session_id = :sessionId;
         """
 
-    decodeModel = \str ->
-        str
-        |> Str.toUtf8
-        |> Decode.fromBytes pageDecoder
-        |> Result.mapErr \err -> crash "Error decoding page cache: $(str)\n$(Inspect.toStr err)"
-        |> Result.withDefault defaultCacheValue
-
     bindings = [{ name: ":sessionId", value: Num.toStr sessionId }]
 
     rows = SQLite3.execute { path, query, bindings } |> Task.mapErr! SqlErrGettingSession
 
     when rows is
         [] -> Task.err SessionNotFound
-        [[Integer id, String pageCacheRaw, String username], ..] ->
-
-            Stdout.line! "GOT PAGE CACHE RAW: $(pageCacheRaw)"
-
+        [[Integer id, String username], ..] ->
             if username == notFoundStr then
-                Task.ok { id, user: Guest, page: decodeModel pageCacheRaw }
+                Task.ok { id, user: Guest }
             else
-                Task.ok { id, user: LoggedIn username, page: decodeModel pageCacheRaw }
+                Task.ok { id, user: LoggedIn username }
 
         _ -> Task.err (UnexpectedValues "unexpected values in get Session, got $(Inspect.toStr rows)")
-
-update : {
-    sessionId : I64,
-    dbPath : Str,
-    newSession: Session pageCache,
-    sessionEncoder: fmt,
-} -> Task {} _ where pageCache implements Decoding & Encoding, fmt implements EncoderFormatting
-update = \{sessionId, dbPath, newSession, sessionEncoder} ->
-
-    encodedPageCache =
-        newSession.page
-        |> Encode.toBytes sessionEncoder
-        |> Str.fromUtf8
-        |> Result.withDefault "UNREACHABLE, INVALID UTF-8 PAGE CACHE"
-
-    query =
-        """
-        UPDATE sessions
-        SET page_cache = :pageCache
-        WHERE sessions.session_id = :sessionId;
-        """
-
-    bindings = [
-        { name: ":sessionId", value: Num.toStr sessionId },
-        { name: ":pageCache", value: encodedPageCache},
-    ]
-
-    Stdout.line! "QUERY: $(query)\nCACHE: $(encodedPageCache)"
-
-    SQLite3.execute { path: dbPath, query, bindings }
-    |> Task.map \_ -> {}
-    |> Task.mapErr SqlErrUpdatingSession

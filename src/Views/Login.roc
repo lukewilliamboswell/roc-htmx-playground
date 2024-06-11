@@ -8,7 +8,7 @@ import Models.NavLinks
 
 page :
     {
-        session : Session {},
+        session : Session,
         user : [Fresh, UserNotProvided, UserNotFound Str],
     }
     -> Html.Node

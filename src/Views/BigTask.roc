@@ -1,7 +1,7 @@
 module [page]
 
-import html.Html exposing [div, text]
-import html.Attribute exposing [class]
+import html.Html exposing [div, a, text]
+import html.Attribute exposing [attribute, class, type, href]
 import Views.Layout
 import Models.Session exposing [Session]
 import Models.BigTask exposing [BigTask]
@@ -31,7 +31,23 @@ page = \{ session, tasks, pagination, sortBy, sortDirection } ->
                     Html.h1 [] [Html.text "Big Task Table"],
                     Html.p [] [text "This table is big and has many tasks, each task is a big task..."],
                 ],
-                div [class "row"] [Views.Bootstrap.renderTable (dataTable { sortBy, sortDirection }) tasks],
+                div [class "row"] [
+                    div [class "inline-block m-2"] [
+                        a [
+                            type "button",
+                            class "btn btn-success",
+                            href "/bigTask/downloadCsv",
+                            (attribute "download") "",
+                            (attribute "hx-disable") "",
+                            (attribute "aria-label") "Download Button",
+                        ] [
+                            text "Download CSV",
+                        ],
+                    ],
+                ],
+                div [class "row"] [
+                    Views.Bootstrap.renderTable (dataTable { sortBy, sortDirection }) tasks
+                ],
                 div [class "row"] [
                     paginationView {
                         page: pagination.page,
@@ -81,7 +97,7 @@ dataTable = \{ sortBy, sortDirection } ->
             {
                 label: "Reference ID",
                 name: "ReferenceID",
-                sorted: sortedArg "ReferenceID",
+                sorted: None,
                 renderValueFn: \task -> Html.text task.referenceId,
                 width: None,
             },

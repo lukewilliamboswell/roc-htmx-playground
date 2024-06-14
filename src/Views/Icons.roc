@@ -1,3 +1,7 @@
+## Adapted from https://github.com/twbs/icons by The Bootstrap Authors - license information can be found in
+## the LEGAL_DETAILS file in the root of this repository.
+##
+## Thank you, Bootstrap contributors!
 module [
     listOL,
     arrowDownUp,

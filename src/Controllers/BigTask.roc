@@ -186,6 +186,27 @@ respond = \{ req, urlSegments, dbPath, session } ->
             |> Views.Bootstrap.renderDataTableForm
             |> respondHtml []
 
+        (Get, ["downloadCsv"]) ->
+
+            data =
+                """
+                ID, CustomerReferenceID, DateCreated, Status
+                1, 12345, 2021-01-01, Raised
+                2, 67890, 2021-01-02, Completed
+                3, 54321, 2021-01-03, Deferred
+                """
+                |> Str.toUtf8
+
+            Task.ok {
+                status: 200,
+                headers: [
+                    { name: "Content-Type", value: Str.toUtf8 "text/plain" },
+                    { name: "Content-Disposition", value: Str.toUtf8 "attachment; filename=table.csv" },
+                    { name: "Content-Length", value: Str.toUtf8 "$(List.len data |> Num.toStr)" },
+                ],
+                body: data,
+            }
+
         _ -> Task.err (URLNotFound req.url)
 
 decodeBigTaskId = \idStr ->

@@ -1,16 +1,17 @@
 module [
-    view,
+    page,
     listTodoView,
 ]
 
 import html.Html exposing [element, table, thead, form, tbody, h1, td, th, tr,  button,  input, div, text, label]
 import html.Attribute exposing [attribute, id,  name, action, method, class, value, role, for]
-import Model exposing [Session, Todo]
-import Layout exposing [layout]
-import NavLinks
+import Models.Session exposing [Session]
+import Models.Todo exposing [Todo]
+import Views.Layout exposing [layout]
+import Models.NavLinks
 
-view : { todos : List Todo, filterQuery : Str, session : Session } -> Html.Node
-view = \{ todos, filterQuery, session } ->
+page : { todos : List Todo, filterQuery : Str, session : Session } -> Html.Node
+page = \{ todos, filterQuery, session } ->
 
     headerText =
         when session.user is
@@ -19,10 +20,10 @@ view = \{ todos, filterQuery, session } ->
 
     layout
         {
-            session,
+            user: session.user,
             description: "TASK PAGE",
             title: "TASK",
-            navLinks: NavLinks.navLinks "Tasks",
+            navLinks: Models.NavLinks.navLinks "Tasks",
         }
         [
             div [class "container-fluid"] [

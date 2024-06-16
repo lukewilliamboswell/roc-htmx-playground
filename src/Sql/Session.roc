@@ -1,3 +1,4 @@
+
 module [
     new,
     parse,
@@ -7,13 +8,18 @@ module [
 import pf.Task exposing [Task]
 import pf.Http exposing [Request]
 import pf.SQLite3
-import Model exposing [Session]
+import Models.Session exposing [Session]
 
 new : Str -> Task I64 _
 new = \path ->
 
+    query =
+        """
+        INSERT INTO sessions (session_id) VALUES (abs(random()));
+        """
+
     _ <-
-        SQLite3.execute { path, query: "INSERT INTO sessions (session_id) VALUES (abs(random()));", bindings: [] }
+        SQLite3.execute { path, query, bindings: [] }
         |> Task.mapErr \err -> SqlError err
         |> Task.await
 
@@ -44,7 +50,9 @@ get = \sessionId, path ->
 
     query =
         """
-        SELECT sessions.session_id AS \"notUsed\", COALESCE(users.name,'$(notFoundStr)') AS \"username\"
+        SELECT
+            sessions.session_id AS 'notUsed',
+            COALESCE(users.name,'$(notFoundStr)') AS 'username'
         FROM sessions
         LEFT OUTER JOIN users
         ON sessions.user_id = users.user_id

@@ -1,24 +1,26 @@
-module [view]
+module [page]
 
 import html.Html
 import html.Attribute exposing [attribute, class]
-import Model exposing [Session, Todo, Tree]
-import Layout exposing [layout]
-import NavLinks
+import Models.Session exposing [Session]
+import Models.NestedSet exposing [Tree]
+import Models.Todo exposing [Todo]
+import Models.NavLinks
+import Views.Layout exposing [layout]
 
-view :
+page :
     {
         session : Session,
         nodes : Tree Todo,
     }
     -> Html.Node
-view = \{ session, nodes } ->
+page = \{ session, nodes } ->
     layout
         {
-            session,
+            user: session.user,
             description: "TREE VIEW PAGE",
             title: "TREE VIEW",
-            navLinks: NavLinks.navLinks "Tree",
+            navLinks: Models.NavLinks.navLinks "Tree",
         }
         [
             Html.div

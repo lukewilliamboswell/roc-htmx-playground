@@ -8,7 +8,8 @@ module [
 
 import pf.Task exposing [Task]
 import pf.SQLite3
-import Model exposing [Todo, Tree, NestedSet]
+import Models.Todo exposing [Todo]
+import Models.NestedSet exposing [Tree, NestedSet]
 
 list : { path : Str, filterQuery : Str } -> Task (List Todo) _
 list = \{ path, filterQuery } ->
@@ -91,7 +92,7 @@ tree = \{ path, userId } ->
 
     query =
         """
-        SELECT 
+        SELECT
             tasks.id,
             tasks.task,
             tasks.status,
@@ -116,7 +117,7 @@ tree = \{ path, userId } ->
 parseTreeRows : List (List SQLite3.Value), List (NestedSet Todo) -> Result (Tree Todo) _
 parseTreeRows = \rows, acc ->
     when rows is
-        [] -> Model.nestedSetToTree acc |> Ok
+        [] -> Models.NestedSet.nestedSetToTree acc |> Ok
         [[Integer id, String task, String status, Integer left, Integer right], .. as rest] ->
             todo : Todo
             todo = { id, task, status }

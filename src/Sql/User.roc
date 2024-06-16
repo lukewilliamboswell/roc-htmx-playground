@@ -7,7 +7,7 @@ module [
 
 import pf.Task exposing [Task]
 import pf.SQLite3
-import Model exposing [User]
+import Models.Session exposing [User]
 
 find : Str, Str -> Task User _
 find = \path, name ->

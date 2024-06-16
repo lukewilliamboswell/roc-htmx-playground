@@ -6,16 +6,19 @@ app [main, Model] {
 
 import webserver.Webserver exposing [Request, Response]
 import html.Html
-import Model exposing [Session, User, Todo]
+import Models.Session exposing [Session, User]
+import Models.Todo exposing [Todo]
 # import json.Json
 import "site.css" as stylesFile : List U8
 import "site.js" as siteFile : List U8
-import Pages.Home
-import Pages.Login
-import Pages.Register
-import Pages.Todo
-import Pages.UserList
-import Pages.TreeView
+import "../vendor/bootsrap.bundle-5-3-2.min.js" as bootstrapJSFile : List U8
+import "../vendor/bootstrap-5-3-2.min.css" as bootsrapCSSFile : List U8
+import "../vendor/htmx-1-9-9.min.js" as htmxJSFile : List U8
+import Views.Home
+import Views.Login
+import Views.Register
+import Views.Todo
+import Views.UserList
 import Url
 
 Model : {
@@ -67,28 +70,31 @@ handleReadRequest = \req, model ->
         |> List.dropFirst 1
 
     when (req.method, urlSegments) is
-        (Get, [""]) -> Pages.Home.view { session } |> htmlResponse
+        (Get, [""]) -> Views.Home.page { session } |> htmlResponse
         (Get, ["robots.txt"]) -> staticReponse robotsTxt
         (Get, ["styles.css"]) -> staticReponse stylesFile
         (Get, ["site.js"]) -> staticReponse siteFile
+        (Get, ["bootsrap.bundle-5-3-2.min.js"]) -> staticReponse bootstrapJSFile
+        (Get, ["bootstrap-5-3-2.min.css"]) -> staticReponse bootsrapCSSFile
+        (Get, ["htmx-1-9-9.min.js"]) -> staticReponse htmxJSFile
         (Get, ["register"]) ->
-            Pages.Register.view { session, user: Fresh, email: Valid } |> htmlResponse
+            Views.Register.page { user: Fresh, email: Valid } |> htmlResponse
 
         (Get, ["login"]) ->
-            Pages.Login.view { session, user: Fresh } |> htmlResponse
+            Views.Login.page { session, user: Fresh } |> htmlResponse
 
         (Get, ["task", "new"]) -> redirect "/task"
         (Get, ["task", "list"]) ->
-            Pages.Todo.listTodoView { todos: model.todos, filterQuery: "" } |> htmlResponse
+            Views.Todo.listTodoView { todos: model.todos, filterQuery: "" } |> htmlResponse
 
         (Get, ["task"]) ->
-            Pages.Todo.view { todos: model.todos, filterQuery: "", session } |> htmlResponse
+            Views.Todo.page { todos: model.todos, filterQuery: "", session } |> htmlResponse
 
         # (Get, ["treeview"]) ->
         #     nodes <- Sql.Todo.tree { path: dbPath, userId: 1 } |> Task.await
-        #     Pages.TreeView.view { session, nodes } |> htmlResponse |> Task.ok
+        #     Views.TreeView.page { session, nodes } |> htmlResponse |> Task.ok
         (Get, ["user"]) ->
-            Pages.UserList.view { users: model.users, session } |> htmlResponse
+            Views.UserList.page { users: model.users, session } |> htmlResponse
 
         _ -> handleErr (URLNotFound req.url)
 
@@ -111,7 +117,7 @@ handleWriteRequest = \req, model ->
             when (usernameResult, emailResult) is
                 (Ok username, Ok email) ->
                     when List.findFirst model.users (\u -> u.name == username) is
-                        Ok _user -> Pages.Register.view { session, user: UserAlreadyExists username, email: Valid } |> htmlResponse |> \resp -> (resp, model)
+                        Ok _user -> Views.Register.page { user: UserAlreadyExists username, email: Valid } |> htmlResponse |> \resp -> (resp, model)
                         Err _ ->
                             newUser = {
                                 id: List.len model.users |> Num.toI64,
@@ -122,13 +128,13 @@ handleWriteRequest = \req, model ->
                             (redirect "/login", newModel)
 
                 _ ->
-                    Pages.Register.view { session, user: UserNotProvided, email: NotProvided } |> htmlResponse |> \resp -> (resp, model)
+                    Views.Register.page { user: UserNotProvided, email: NotProvided } |> htmlResponse |> \resp -> (resp, model)
 
         (Post, ["login"]) ->
             params = parseFormUrlEncoded req.body |> Result.withDefault (Dict.empty {})
 
             when Dict.get params "user" is
-                Err _ -> Pages.Login.view { session, user: UserNotProvided } |> htmlResponse |> \resp -> (resp, model)
+                Err _ -> Views.Login.page { session, user: UserNotProvided } |> htmlResponse |> \resp -> (resp, model)
                 Ok username ->
                     when List.findFirst model.users (\u -> u.name == username) is
                         Ok _user ->
@@ -146,7 +152,7 @@ handleWriteRequest = \req, model ->
                                 newmodel,
                             )
 
-                        Err NotFound -> Pages.Login.view { session, user: UserNotFound username } |> htmlResponse |> \resp -> (resp, model)
+                        Err NotFound -> Views.Login.page { session, user: UserNotFound username } |> htmlResponse |> \resp -> (resp, model)
 
         (Post, ["logout"]) ->
             newmodel = { model & sessions: List.update model.sessions (session.id |> Num.toU64) (\s -> { s & user: Guest }) }
@@ -171,13 +177,13 @@ handleWriteRequest = \req, model ->
 
                     Err _ -> model
 
-            (Pages.Todo.listTodoView { todos: newModel.todos, filterQuery: "" } |> htmlResponse, newModel)
+            (Views.Todo.listTodoView { todos: newModel.todos, filterQuery: "" } |> htmlResponse, newModel)
 
         (Post, ["task", "search"]) ->
             params = parseFormUrlEncoded req.body |> Result.withDefault (Dict.empty {})
             filterQuery = Dict.get params "filterTasks" |> Result.withDefault ""
             todos = model.todos |> List.keepIf \todo -> Str.contains todo.task filterQuery
-            (Pages.Todo.listTodoView { todos, filterQuery } |> htmlResponse, model)
+            (Views.Todo.listTodoView { todos, filterQuery } |> htmlResponse, model)
 
         (Post, ["task", "new"]) ->
             when parseTodo req.body is

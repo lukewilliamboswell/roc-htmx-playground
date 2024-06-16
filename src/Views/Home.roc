@@ -1,19 +1,19 @@
-module [view]
+module [page]
 
 import html.Html exposing [div, h1, h2, h3, a, p, text, ul, li]
 import html.Attribute exposing [href, class]
-import Model exposing [Session]
-import Layout exposing [layout]
-import NavLinks
+import Models.Session exposing [Session]
+import Views.Layout exposing [layout]
+import Models.NavLinks
 
-view : { session : Session } -> Html.Node
-view = \{ session } ->
+page : { session : Session } -> Html.Node
+page = \{ session } ->
     layout
         {
-            session,
+            user: session.user,
             description: "HOME PAGE",
             title: "HOME",
-            navLinks: NavLinks.navLinks "Home",
+            navLinks: Models.NavLinks.navLinks "Home",
         }
         [
             div [class "container mt-5"] [

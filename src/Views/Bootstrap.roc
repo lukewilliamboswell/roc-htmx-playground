@@ -4,9 +4,8 @@ module [
     newDataTableForm,
     renderDataTableForm,
 
-    DataTable,
-    newTable,
-    renderTable,
+    DataTableColumn,
+    renderDataTable,
 
     Pagination,
     newPagination,
@@ -113,7 +112,7 @@ validationMsg = \validation ->
             Valid -> div [] []
             Invalid msg -> div [class "text-danger mt-1"] [text msg]
 
-Heading a : {
+DataTableColumn a : {
     label : Str,
     name : Str,
     sorted : [None, Sortable, Ascending, Descending],
@@ -121,30 +120,24 @@ Heading a : {
     width : [None, Pt U16, Px U16, Rem U16],
 }
 
-DataTable a := {
-    headings : List (Heading a),
-}
-
-newTable = @DataTable
-
-renderTable : DataTable a, List a -> Html.Node
-renderTable = \@DataTable {headings}, rows ->
+renderDataTable : List (DataTableColumn a), List a -> Html.Node
+renderDataTable = \columns, rows ->
     div [class "container-fluid"] [
         div [class "row"] [
             div [class "col-12"] [
                 div [class "table-responsive"] [
                     table [class "table table-striped table-sm table-bordered table-hover"] [
-                        thead [] [tr [] (renderHeadings headings)],
-                        tbody [] (renderRows rows headings),
+                        thead [] [tr [] (renderColumns columns)],
+                        tbody [] (renderRows rows columns),
                     ],
                 ],
             ],
         ],
     ]
 
-renderHeadings : List (Heading a) -> List Html.Node
-renderHeadings = \headings ->
-    List.map headings \{label, name, width, sorted} ->
+renderColumns : List (DataTableColumn a) -> List Html.Node
+renderColumns = \columns ->
+    List.map columns \{label, name, width, sorted} ->
 
         minWidthStyle =
             when width is
@@ -194,12 +187,12 @@ renderHeadings = \headings ->
                 span [style "padding-right: 0.5rem;"] [text label],
             ]
 
-renderRows : List a, List (Heading a) -> List Html.Node
-renderRows = \rows, headings ->
+renderRows : List a, List (DataTableColumn a) -> List Html.Node
+renderRows = \rows, columns ->
 
     renderRow : a -> List Html.Node
     renderRow = \row ->
-        List.map headings \{renderValueFn} -> td [] [renderValueFn row]
+        List.map columns \{renderValueFn} -> td [] [renderValueFn row]
 
     List.map rows \row -> tr [] (renderRow row)
 

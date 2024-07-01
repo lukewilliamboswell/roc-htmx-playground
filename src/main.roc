@@ -16,9 +16,10 @@ import pf.Url
 import ansi.Color
 import "site.css" as stylesFile : List U8
 import "site.js" as siteFile : List U8
-import "../vendor/bootsrap.bundle-5-3-2.min.js" as bootstrapJSFile : List U8
-import "../vendor/bootstrap-5-3-2.min.css" as bootsrapCSSFile : List U8
-import "../vendor/htmx-1-9-9.min.js" as htmxJSFile : List U8
+#TODO uncomment once https://github.com/roc-lang/roc/pull/6832 is merged
+#import "../vendor/bootsrap.bundle-5-3-2.min.js" as bootstrapJSFile : List U8
+#import "../vendor/bootstrap-5-3-2.min.css" as bootsrapCSSFile : List U8
+#import "../vendor/htmx-1-9-9.min.js" as htmxJSFile : List U8
 import Helpers exposing [respondHtml]
 import Sql.Todo
 import Sql.Session
@@ -26,6 +27,7 @@ import Sql.User
 import Models.Session exposing [Session]
 import Models.Todo exposing [Todo]
 import Views.Home
+import Views.Unauthorised
 import Views.Login
 import Views.Register
 import Views.Todo
@@ -46,7 +48,6 @@ main = \req -> Task.onErr (handleReq req) \err ->
                 }
 
             Unauthorized ->
-                import Views.Unauthorised
                 Views.Unauthorised.page {} |> respondHtml []
 
             NewSession sessionId ->
@@ -81,9 +82,6 @@ handleReq = \req ->
 
     when (req.method, urlSegments) is
         (Get, [""]) -> Views.Home.page { session } |> respondHtml []
-        (Get, ["bootsrap.bundle-5-3-2.min.js"]) -> respondStatic bootstrapJSFile
-        (Get, ["bootstrap-5-3-2.min.css"]) -> respondStatic bootsrapCSSFile
-        (Get, ["htmx-1-9-9.min.js"]) -> respondStatic htmxJSFile
         (Get, ["robots.txt"]) -> respondStatic robotsTxt
         (Get, ["styles.css"]) -> respondStatic stylesFile
         (Get, ["site.js"]) -> respondStatic siteFile

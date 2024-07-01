@@ -173,7 +173,7 @@ renderColumns = \columns ->
                 class "text-nowrap w-auto",
                 (Attribute.attribute "hx-get") "",
                 (Attribute.attribute "hx-target") "body",
-                (Attribute.attribute "hx-swap") "outerHTML",
+                (Attribute.attribute "hx-swap") "innerHTML",
                 (Attribute.attribute "hx-vals")
                     """
                     {
@@ -251,7 +251,7 @@ renderPagination = \@Pagination {description, links, rowCount, startRow,totalRow
                     (attribute "hx-get") "", # reload the current URL, including the curent parameters
                     (attribute "hx-trigger") "input delay:500ms",
                     (attribute "hx-target") "body",
-                    (attribute "hx-swap") "outerHTML",
+                    (attribute "hx-swap") "innerHTML",
                     (attribute "id") "formUpdateItemsPerPage",
                 ] [
                     (element "input") [

@@ -93,22 +93,23 @@ page : {description : Str, title : Str}, List Html.Node -> Html.Node
 page = \{description, title}, children ->
     Html.html [(attribute "lang") "en", (attribute "data-bs-theme") "auto"] [
         Html.head [] [
+
             (element "title") [] [text title],
+
             meta [(attribute "charset") "UTF-8"],
             meta [name "description", (attribute "content") description],
             meta [name "viewport", (attribute "content") "width=device-width, initial-scale=1"],
-            link [rel "stylesheet",href "/bootstrap-5-3-2.min.css"],
+
+            link [rel "stylesheet",href "https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css"],
             link [rel "stylesheet",href "/styles.css"],
+
             # The scripts are here instead of at the end of the body
             # to prevent these being loaded each time htmx swaps
             # content of the body
-            (element "script") [src "/bootsrap.bundle-5-3-2.min.js"] [],
-            (element "script") [src "/htmx-1-9-9.min.js"] [],
-            (element "script")
-                [
-                    src "/site.js",
-                ]
-                [],
+            (element "script") [src "https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"] [],
+            (element "script") [src "https://unpkg.com/htmx.org@2.0.0"] [],
+
+            (element "script") [src "/site.js"] [],
         ],
         body [(attribute "hx-boost") "true"] children,
     ]

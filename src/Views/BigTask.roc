@@ -59,7 +59,6 @@ page = \{ session, tasks, pagination, sortBy, sortDirection } ->
                     },
                 ],
             ],
-
         ]
 
 paginationView = \{ page: pageNumber, items, total, baseHref, rowCount, startRow } ->

@@ -34,6 +34,9 @@ import Views.Todo
 import Views.UserList
 import Views.TreeView
 import Controllers.BigTask
+import "../vendor/bootsrap.bundle-5-3-2.min.js" as bootstrapJSFile : List U8
+import "../vendor/htmx-1-9-9.min.js" as htmxJSFile : List U8
+import "../vendor/bootstrap-5-3-2.min.css" as bootsrapCSSFile : List U8
 
 main : Request -> Task Response []
 main = \req -> Task.onErr (handleReq req) \err ->
@@ -84,6 +87,9 @@ handleReq = \req ->
         (Get, [""]) -> Views.Home.page { session } |> respondHtml []
         (Get, ["robots.txt"]) -> respondStatic robotsTxt
         (Get, ["styles.css"]) -> respondStatic stylesFile
+        (Get, ["bootstrap.min.js"]) -> respondStatic bootstrapJSFile
+        (Get, ["htmx.js"]) -> respondStatic htmxJSFile
+        (Get, ["bootstrap.min.css"]) -> respondStatic bootsrapCSSFile
         (Get, ["site.js"]) -> respondStatic siteFile
         (Get, ["register"]) ->
             Views.Register.page { user: Fresh, email: Valid } |> respondHtml []

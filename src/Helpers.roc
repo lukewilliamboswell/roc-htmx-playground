@@ -12,21 +12,21 @@ import pf.Http exposing [Response]
 import html.Html
 
 respondRedirect : Str -> Task Response []_
-respondRedirect = \next ->
+respondRedirect = \value ->
     Task.ok {
         status: 303,
         headers: [
-            { name: "Location", value: Str.toUtf8 next },
+            { name: "Location", value },
         ],
         body: [],
     }
 
-respondHtml : Html.Node, List {name: Str, value : List U8} -> Task Response []_
+respondHtml : Html.Node, List {name: Str, value : Str } -> Task Response []_
 respondHtml = \node, otherHeaders ->
     Task.ok {
         status: 200,
         headers:  [
-            { name: "Content-Type", value: Str.toUtf8 "text/html; charset=utf-8" },
+            { name: "Content-Type", value: "text/html; charset=utf-8" },
         ]
         |> List.concat otherHeaders,
         body: Str.toUtf8 (Html.render node),

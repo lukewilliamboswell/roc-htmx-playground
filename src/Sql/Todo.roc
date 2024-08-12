@@ -23,7 +23,7 @@ list = \{ path, filterQuery } ->
         else
             (
                 "SELECT id, task, status FROM tasks WHERE task LIKE :task;",
-                [{ name: ":task", value: "%$(filterQuery)%" }],
+                [{ name: ":task", value: String "%$(filterQuery)%" }],
             )
 
     SQLite3.execute { path, query, bindings }
@@ -48,8 +48,8 @@ create = \{ path, newTodo } ->
             path,
             query: "INSERT INTO tasks (task, status) VALUES (:task, :status);",
             bindings: [
-                { name: ":task", value: newTodo.task },
-                { name: ":status", value: newTodo.status },
+                { name: ":task", value: String newTodo.task },
+                { name: ":status", value: String newTodo.status },
             ],
         }
         |> Task.mapErr SqlError
@@ -70,8 +70,8 @@ update = \{ path, taskIdStr, action } ->
             path,
             query: "UPDATE tasks SET status = (:status) WHERE id=:task_id;",
             bindings: [
-                { name: ":status", value: statusStr },
-                { name: ":task_id", value: taskIdStr },
+                { name: ":status", value: String statusStr },
+                { name: ":task_id", value: String taskIdStr },
             ],
         }
         |> Task.mapErr SqlError
@@ -82,7 +82,7 @@ delete = \{ path, userId } ->
     SQLite3.execute {
         path,
         query: "DELETE FROM tasks WHERE id = :id;",
-        bindings: [{ name: ":id", value: userId }],
+        bindings: [{ name: ":id", value: String userId }],
     }
     |> Task.mapErr SqlError
     |> Task.map \_ -> {}
@@ -108,7 +108,7 @@ tree = \{ path, userId } ->
             TaskHeirachy.lft;
         """
 
-    bindings = [{ name: ":user_id", value: Num.toStr userId }]
+    bindings = [{ name: ":user_id", value: String (Num.toStr userId) }]
 
     SQLite3.execute { path, query, bindings }
     |> Task.mapErr SqlError

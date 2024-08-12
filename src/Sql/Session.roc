@@ -37,8 +37,7 @@ parse = \req ->
     when req.headers |> List.keepIf \reqHeader -> reqHeader.name == "cookie" is
         [reqHeader] ->
             reqHeader.value
-            |> Str.fromUtf8
-            |> Result.try \str -> str |> Str.split "=" |> List.get 1
+            |> \str -> str |> Str.split "=" |> List.get 1
             |> Result.try Str.toI64
             |> Result.mapErr \_ -> InvalidSessionCookie
         _ -> Err NoSessionCookie
@@ -59,7 +58,7 @@ get = \sessionId, path ->
         WHERE sessions.session_id = :sessionId;
         """
 
-    bindings = [{ name: ":sessionId", value: Num.toStr sessionId }]
+    bindings = [{ name: ":sessionId", value: Integer sessionId }]
 
     rows = SQLite3.execute { path, query, bindings } |> Task.mapErr! SqlErrGettingSession
 

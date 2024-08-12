@@ -1,5 +1,5 @@
 app [main] {
-    pf: platform "https://github.com/roc-lang/basic-webserver/releases/download/0.5.0/Vq-iXfrRf-aHxhJpAh71uoVUlC-rsWvmjzTYOJKhu4M.tar.br",
+    pf: platform "../../basic-webserver/platform/main.roc",
     html: "https://github.com/Hasnep/roc-html/releases/download/v0.6.0/IOyNfA4U_bCVBihrs95US9Tf5PGAWh3qvrBN4DRbK5c.tar.br",
     ansi: "https://github.com/lukewilliamboswell/roc-ansi/releases/download/0.1.1/cPHdNPNh8bjOrlOgfSaGBJDz6VleQwsPdW0LJK6dbGQ.tar.br",
     #json: "https://github.com/lukewilliamboswell/roc-json/releases/download/0.10.0/KbIfTNbxShRX1A1FgXei1SpO5Jn8sgP6HP6PXbi-xyA.tar.br",
@@ -55,8 +55,8 @@ main = \req -> Task.onErr (handleReq req) \err ->
                 Task.ok {
                     status: 303,
                     headers: [
-                        { name: "Set-Cookie", value: Str.toUtf8 "sessionId=$(Num.toStr sessionId)" },
-                        { name: "Location", value: Str.toUtf8 req.url },
+                        { name: "Set-Cookie", value: "sessionId=$(Num.toStr sessionId)" },
+                        { name: "Location", value: req.url },
                     ],
                     body: [],
                 }
@@ -125,8 +125,8 @@ handleReq = \req ->
             Task.ok {
                 status: 303,
                 headers: [
-                    { name: "Set-Cookie", value: Str.toUtf8 "sessionId=$(Num.toStr id)" },
-                    { name: "Location", value: Str.toUtf8 "/" },
+                    { name: "Set-Cookie", value: "sessionId=$(Num.toStr id)" },
+                    { name: "Location", value: "/" },
                 ],
                 body: [],
             }
@@ -217,7 +217,7 @@ respondHxTrigger = \trigger ->
     Task.ok {
         status: 200,
         headers: [
-            { name: "HX-Trigger", value: Str.toUtf8 trigger },
+            { name: "HX-Trigger", value: trigger },
         ],
         body: [],
     }
@@ -227,7 +227,7 @@ respondStatic = \bytes ->
     Task.ok {
         status: 200,
         headers: [
-            { name: "Cache-Control", value: Str.toUtf8 "max-age=120" },
+            { name: "Cache-Control", value: "max-age=120" },
         ],
         body: bytes,
     }

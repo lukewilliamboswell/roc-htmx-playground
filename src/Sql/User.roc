@@ -14,7 +14,7 @@ find = \path, name ->
     SQLite3.execute {
         path,
         query: "SELECT user_id as userId, name, email FROM users WHERE name = :name;",
-        bindings: [{ name: ":name", value: name }],
+        bindings: [{ name: ":name", value: String name }],
     }
     |> Task.onErr \err -> SqlError err |> Task.err
     |> Task.await \rows ->
@@ -36,8 +36,8 @@ login = \path, sessionId, name ->
         """
 
     bindings = [
-        { name: ":A", value: Num.toStr user.id },
-        { name: ":B", value: Num.toStr sessionId },
+        { name: ":A", value: Integer user.id },
+        { name: ":B", value: Integer sessionId },
     ]
 
     SQLite3.execute { path, query, bindings }
@@ -49,7 +49,7 @@ findUserByName = \{ path, name } ->
     SQLite3.execute {
         path,
         query: "SELECT user_id as userId, name, email FROM users WHERE name = :name;",
-        bindings: [{ name: ":name", value: name }],
+        bindings: [{ name: ":name", value: String name }],
     }
     |> Task.mapErr SqlError
     |> Task.await \rows ->
@@ -74,8 +74,8 @@ register = \{ path, name, email } ->
                 """
 
             bindings = [
-                { name: ":name", value: name },
-                { name: ":email", value: email },
+                { name: ":name", value: String name },
+                { name: ":email", value: String email },
             ]
 
             SQLite3.execute { path, query, bindings }

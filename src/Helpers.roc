@@ -7,26 +7,26 @@ module [
     parsePagedParams,
 ]
 
-import pf.Task exposing [Task]
+#import pf.Task exposing [Task]
 import pf.Http exposing [Response]
 import html.Html
 
 respondRedirect : Str -> Task Response []_
 respondRedirect = \next ->
     Task.ok {
-        status: 303,
+        status: 303u16,
         headers: [
-            { name: "Location", value: Str.toUtf8 next },
+            { name: "Location", value: next },
         ],
         body: [],
     }
 
-respondHtml : Html.Node, List {name: Str, value : List U8} -> Task Response []_
+respondHtml : Html.Node, List {name: Str, value : Str} -> Task Response []_
 respondHtml = \node, otherHeaders ->
     Task.ok {
-        status: 200,
+        status: 200u16,
         headers:  [
-            { name: "Content-Type", value: Str.toUtf8 "text/html; charset=utf-8" },
+            { name: "Content-Type", value: "text/html; charset=utf-8" },
         ]
         |> List.concat otherHeaders,
         body: Str.toUtf8 (Html.render node),

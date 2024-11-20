@@ -1,25 +1,24 @@
-app [main] {
-    pf: platform "https://github.com/roc-lang/basic-webserver/releases/download/0.5.0/Vq-iXfrRf-aHxhJpAh71uoVUlC-rsWvmjzTYOJKhu4M.tar.br",
+app [Model, server] {
+    pf: platform "https://github.com/roc-lang/basic-webserver/releases/download/0.9.0/taU2jQuBf-wB8EJb0hAkrYLYOGacUU5Y9reiHG45IY4.tar.br",
     html: "https://github.com/Hasnep/roc-html/releases/download/v0.6.0/IOyNfA4U_bCVBihrs95US9Tf5PGAWh3qvrBN4DRbK5c.tar.br",
-    ansi: "https://github.com/lukewilliamboswell/roc-ansi/releases/download/0.1.1/cPHdNPNh8bjOrlOgfSaGBJDz6VleQwsPdW0LJK6dbGQ.tar.br",
+    #ansi: "https://github.com/lukewilliamboswell/roc-ansi/releases/download/0.1.1/cPHdNPNh8bjOrlOgfSaGBJDz6VleQwsPdW0LJK6dbGQ.tar.br",
     #json: "https://github.com/lukewilliamboswell/roc-json/releases/download/0.10.0/KbIfTNbxShRX1A1FgXei1SpO5Jn8sgP6HP6PXbi-xyA.tar.br",
 }
 
 import pf.Stdout
 import pf.Stderr
-import pf.Task exposing [Task]
+#import pf.Task exposing [Task]
 import pf.Http exposing [Request, Response]
 import pf.Env
 import pf.Utc
 import pf.Url
 #import json.Json
-import ansi.Color
+#import ansi.Color
 import "site.css" as stylesFile : List U8
 import "site.js" as siteFile : List U8
-#TODO uncomment once https://github.com/roc-lang/roc/pull/6832 is merged
-#import "../vendor/bootsrap.bundle-5-3-2.min.js" as bootstrapJSFile : List U8
-#import "../vendor/bootstrap-5-3-2.min.css" as bootsrapCSSFile : List U8
-#import "../vendor/htmx-1-9-9.min.js" as htmxJSFile : List U8
+import "../vendor/bootsrap.bundle-5-3-2.min.js" as bootstrapJSFile : List U8
+import "../vendor/bootstrap-5-3-2.min.css" as bootsrapCSSFile : List U8
+import "../vendor/htmx-1-9-9.min.js" as htmxJSFile : List U8
 import Helpers exposing [respondHtml]
 import Sql.Todo
 import Sql.Session
@@ -35,14 +34,26 @@ import Views.UserList
 import Views.TreeView
 import Controllers.BigTask
 
-main : Request -> Task Response []
-main = \req -> Task.onErr (handleReq req) \err ->
+Model : {}
+
+server = { init: Task.ok {}, respond }
+
+respond : Request, Model -> Task Response [StderrErr [
+        BrokenPipe,
+        Interrupted,
+        Other Str,
+        OutOfMemory,
+        Unsupported,
+        WouldBlock,
+        WriteZero,
+    ]]
+respond = \req, _ -> Task.onErr (handleReq req) \err ->
         when err is
 
             BadRequest inner ->
                 Stderr.line! (Inspect.toStr err)
                 Task.ok {
-                    status: 400,
+                    status: 400u16,
                     headers: [],
                     body: Str.toUtf8 (Inspect.toStr inner),
                 }
@@ -53,16 +64,16 @@ main = \req -> Task.onErr (handleReq req) \err ->
             NewSession sessionId ->
                 # Redirect to the same URL with the new session ID
                 Task.ok {
-                    status: 303,
+                    status: 303u16,
                     headers: [
-                        { name: "Set-Cookie", value: Str.toUtf8 "sessionId=$(Num.toStr sessionId)" },
-                        { name: "Location", value: Str.toUtf8 req.url },
+                        { name: "Set-Cookie", value: "sessionId=$(Num.toStr sessionId)" },
+                        { name: "Location", value: req.url },
                     ],
                     body: [],
                 }
 
-            URLNotFound url -> respondCodeLogError (Str.joinWith ["404 NotFound" |> Color.fg Red, url] " ") 404
-            _ -> respondCodeLogError (Str.joinWith ["SERVER ERROR" |> Color.fg Red, Inspect.toStr err] " ") 500
+            URLNotFound url -> respondCodeLogError (Str.joinWith ["404 NotFound", url] " ") 404
+            _ -> respondCodeLogError (Str.joinWith ["SERVER ERROR", Inspect.toStr err] " ") 500
 
 handleReq : Request -> Task Response _
 handleReq = \req ->
@@ -123,10 +134,10 @@ handleReq = \req ->
             id = Sql.Session.new! dbPath
 
             Task.ok {
-                status: 303,
+                status: 303u16,
                 headers: [
-                    { name: "Set-Cookie", value: Str.toUtf8 "sessionId=$(Num.toStr id)" },
-                    { name: "Location", value: Str.toUtf8 "/" },
+                    { name: "Set-Cookie", value: "sessionId=$(Num.toStr id)" },
+                    { name: "Location", value: "/" },
                 ],
                 body: [],
             }
@@ -215,9 +226,9 @@ parseTodo = \bytes ->
 respondHxTrigger : Str -> Task Response []_
 respondHxTrigger = \trigger ->
     Task.ok {
-        status: 200,
+        status: 200u16,
         headers: [
-            { name: "HX-Trigger", value: Str.toUtf8 trigger },
+            { name: "HX-Trigger", value: trigger },
         ],
         body: [],
     }
@@ -225,9 +236,9 @@ respondHxTrigger = \trigger ->
 respondStatic : List U8 -> Task Response []_
 respondStatic = \bytes ->
     Task.ok {
-        status: 200,
+        status: 200u16,
         headers: [
-            { name: "Cache-Control", value: Str.toUtf8 "max-age=120" },
+            { name: "Cache-Control", value: "max-age=120" },
         ],
         body: bytes,
     }
@@ -240,7 +251,15 @@ respondCodeLogError = \msg, code ->
         body: [],
     }
 
-logRequest : Request -> Task {} *
+logRequest : Request -> Task {} [StdoutErr [
+        BrokenPipe,
+        Interrupted,
+        Other Str,
+        OutOfMemory,
+        Unsupported,
+        WouldBlock,
+        WriteZero,
+    ]]
 logRequest = \req ->
     date = Utc.now |> Task.map! Utc.toIso8601Str
     method = Http.methodToStr req.method

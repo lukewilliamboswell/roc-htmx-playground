@@ -7,7 +7,6 @@ module [
     parsePagedParams,
 ]
 
-#import pf.Task exposing [Task]
 import pf.Http exposing [Response]
 import html.Html
 

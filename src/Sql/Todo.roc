@@ -6,7 +6,6 @@ module [
     tree,
 ]
 
-#import pf.Task exposing [Task]
 import pf.SQLite3
 import Models.Todo exposing [Todo]
 import Models.NestedSet exposing [Tree, NestedSet]

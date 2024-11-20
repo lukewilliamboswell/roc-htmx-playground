@@ -5,7 +5,6 @@ module [
     list,
 ]
 
-#import pf.Task exposing [Task]
 import pf.SQLite3
 import Models.Session exposing [User]
 

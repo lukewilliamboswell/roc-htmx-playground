@@ -6,7 +6,6 @@ module [
     total,
 ]
 
-#import pf.Task exposing [Task]
 import pf.SQLite3
 import Models.BigTask exposing [BigTask]
 

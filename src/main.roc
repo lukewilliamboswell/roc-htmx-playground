@@ -1,19 +1,14 @@
 app [Model, server] {
     pf: platform "https://github.com/roc-lang/basic-webserver/releases/download/0.9.0/taU2jQuBf-wB8EJb0hAkrYLYOGacUU5Y9reiHG45IY4.tar.br",
     html: "https://github.com/Hasnep/roc-html/releases/download/v0.6.0/IOyNfA4U_bCVBihrs95US9Tf5PGAWh3qvrBN4DRbK5c.tar.br",
-    #ansi: "https://github.com/lukewilliamboswell/roc-ansi/releases/download/0.1.1/cPHdNPNh8bjOrlOgfSaGBJDz6VleQwsPdW0LJK6dbGQ.tar.br",
-    #json: "https://github.com/lukewilliamboswell/roc-json/releases/download/0.10.0/KbIfTNbxShRX1A1FgXei1SpO5Jn8sgP6HP6PXbi-xyA.tar.br",
 }
 
 import pf.Stdout
 import pf.Stderr
-#import pf.Task exposing [Task]
 import pf.Http exposing [Request, Response]
 import pf.Env
 import pf.Utc
 import pf.Url
-#import json.Json
-#import ansi.Color
 import "site.css" as stylesFile : List U8
 import "site.js" as siteFile : List U8
 import "../vendor/bootsrap.bundle-5-3-2.min.js" as bootstrapJSFile : List U8
@@ -38,15 +33,7 @@ Model : {}
 
 server = { init: Task.ok {}, respond }
 
-respond : Request, Model -> Task Response [StderrErr [
-        BrokenPipe,
-        Interrupted,
-        Other Str,
-        OutOfMemory,
-        Unsupported,
-        WouldBlock,
-        WriteZero,
-    ]]
+respond : Request, Model -> Task Response [StderrErr _]
 respond = \req, _ -> Task.onErr (handleReq req) \err ->
         when err is
 
@@ -251,15 +238,7 @@ respondCodeLogError = \msg, code ->
         body: [],
     }
 
-logRequest : Request -> Task {} [StdoutErr [
-        BrokenPipe,
-        Interrupted,
-        Other Str,
-        OutOfMemory,
-        Unsupported,
-        WouldBlock,
-        WriteZero,
-    ]]
+logRequest : Request -> Task {} [StdoutErr _]
 logRequest = \req ->
     date = Utc.now |> Task.map! Utc.toIso8601Str
     method = Http.methodToStr req.method

@@ -1,6 +1,5 @@
 module [respond]
 
-#import pf.Task exposing [Task]
 import pf.Http exposing [Request, Response]
 import Sql.BigTask
 import Views.BigTask

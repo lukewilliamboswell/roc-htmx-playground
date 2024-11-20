@@ -5,7 +5,6 @@ module [
     get,
 ]
 
-#import pf.Task exposing [Task]
 import pf.Http exposing [Request]
 import pf.SQLite3
 import Models.Session exposing [Session]

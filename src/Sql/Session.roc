@@ -36,7 +36,6 @@ parse = \req ->
     when req.headers |> List.keepIf \reqHeader -> reqHeader.name == "cookie" is
         [reqHeader] ->
             reqHeader.value
-            |> dbg
             |> Str.split "=" |> List.get 1
             |> Result.try Str.toI64
             |> Result.mapErr \_ -> InvalidSessionCookie

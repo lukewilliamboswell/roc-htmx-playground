@@ -11,9 +11,9 @@ import pf.Utc
 import pf.Url
 import "site.css" as stylesFile : List U8
 import "site.js" as siteFile : List U8
-import "../vendor/bootsrap.bundle-5-3-2.min.js" as bootstrapJSFile : List U8
+import "../vendor/bootstrap.bundle-5-3-2.min.js" as bootstrapJSFile : List U8
 import "../vendor/bootstrap-5-3-2.min.css" as bootsrapCSSFile : List U8
-import "../vendor/htmx-1-9-9.min.js" as htmxJSFile : List U8
+import "../vendor/htmx-2-0-3.min.js" as htmxJSFile : List U8
 import Helpers exposing [respondHtml]
 import Sql.Todo
 import Sql.Session
@@ -83,6 +83,9 @@ handleReq = \req ->
         (Get, ["robots.txt"]) -> respondStatic robotsTxt
         (Get, ["styles.css"]) -> respondStatic stylesFile
         (Get, ["site.js"]) -> respondStatic siteFile
+        (Get, ["bootstrap.bundle.min.js"]) -> respondStatic bootstrapJSFile
+        (Get, ["bootstrap.min.css"]) -> respondStatic bootsrapCSSFile
+        (Get, ["htmx.min.js"]) -> respondStatic htmxJSFile
         (Get, ["register"]) ->
             Views.Register.page { user: Fresh, email: Valid } |> respondHtml []
 

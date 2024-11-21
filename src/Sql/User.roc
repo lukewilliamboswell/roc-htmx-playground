@@ -25,7 +25,7 @@ find = \path, name ->
 login : Str, I64, Str -> Task {} _
 login = \path, sessionId, name ->
 
-    user <- find path name |> Task.await
+    user = find! path name
 
     query =
         """
@@ -61,28 +61,27 @@ register : { path : Str, name : Str, email : Str } -> Task {} _
 register = \{ path, name, email } ->
 
     ## Check if name exists
-    userExists <- findUserByName { path, name } |> Task.attempt
+    Task.attempt (findUserByName { path, name }) \userExists ->
+        when userExists is
+            Err UserNotFound ->
+                ## Insert new user
+                query =
+                    """
+                    INSERT INTO users (name, email)
+                    VALUES (:name, :email);
+                    """
 
-    when userExists is
-        Err UserNotFound ->
-            ## Insert new user
-            query =
-                """
-                INSERT INTO users (name, email)
-                VALUES (:name, :email);
-                """
+                bindings = [
+                    { name: ":name", value: String name },
+                    { name: ":email", value: String email },
+                ]
 
-            bindings = [
-                { name: ":name", value: String name },
-                { name: ":email", value: String email },
-            ]
+                SQLite3.execute { path, query, bindings }
+                |> Task.mapErr SqlError
+                |> Task.map \_ -> {}
 
-            SQLite3.execute { path, query, bindings }
-            |> Task.mapErr SqlError
-            |> Task.map \_ -> {}
-
-        Ok _user -> UserAlreadyExists |> Task.err
-        Err err -> Task.err err
+            Ok _user -> UserAlreadyExists |> Task.err
+            Err err -> Task.err err
 
 list : Str -> Task (List User) _
 list = \path ->

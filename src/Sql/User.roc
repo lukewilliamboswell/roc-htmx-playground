@@ -61,8 +61,8 @@ register : { path : Str, name : Str, email : Str } -> Task {} _
 register = \{ path, name, email } ->
 
     ## Check if name exists
-    Task.attempt (findUserByName { path, name }) \userExists ->
-        when userExists is
+    findUserByName { path, name }
+        |> Task.attempt \userExists -> when userExists is
             Err UserNotFound ->
                 ## Insert new user
                 query =

@@ -1,5 +1,5 @@
 app [Model, server] {
-    pf: platform "https://github.com/roc-lang/basic-webserver/releases/download/0.9.0/taU2jQuBf-wB8EJb0hAkrYLYOGacUU5Y9reiHG45IY4.tar.br",
+    pf: platform "https://github.com/roc-lang/basic-webserver/releases/download/0.10.0/BgDDIykwcg51W8HA58FE_BjdzgXVk--ucv6pVb_Adik.tar.br",
     html: "https://github.com/Hasnep/roc-html/releases/download/v0.6.0/IOyNfA4U_bCVBihrs95US9Tf5PGAWh3qvrBN4DRbK5c.tar.br",
 }
 
@@ -75,7 +75,7 @@ handleReq = \req ->
         req.url
         |> Url.fromStr
         |> Url.path
-        |> Str.split "/"
+        |> Str.splitOn "/"
         |> List.dropFirst 1
 
     when (req.method, urlSegments) is

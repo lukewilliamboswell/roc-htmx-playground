@@ -66,7 +66,7 @@ handleReadRequest = \req, model ->
         req.url
         |> Url.fromStr
         |> Url.path
-        |> Str.split "/"
+        |> Str.splitOn "/"
         |> List.dropFirst 1
 
     when (req.method, urlSegments) is
@@ -106,7 +106,7 @@ handleWriteRequest = \req, model ->
         req.url
         |> Url.fromStr
         |> Url.path
-        |> Str.split "/"
+        |> Str.splitOn "/"
         |> List.dropFirst 1
 
     when (req.method, urlSegments) is
@@ -309,12 +309,12 @@ parseSession = \req, sessions ->
             |> Str.fromUtf8
             |> Result.try \str ->
                 str
-                |> Str.split ";"
+                |> Str.splitOn ";"
                 |> List.findFirst \v -> v |> Str.trim |> Str.startsWith "$(cookieName)="
                 |> Result.mapErr \_ -> CookieNameNotFound cookieName str
                 |> Result.try \w ->
                     w
-                    |> Str.split "="
+                    |> Str.splitOn "="
                     |> List.get 1
                     |> Result.mapErr \_ -> NoEqualFound
                     |> Result.try \v ->

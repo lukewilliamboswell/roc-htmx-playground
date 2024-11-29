@@ -39,7 +39,7 @@ decodeFormValues = \body ->
 
 parseQueryParams : Str -> Result (Dict Str Str) _
 parseQueryParams = \url ->
-    when Str.split url "?" is
+    when Str.splitOn url "?" is
         [_, queryPart] -> queryPart |> Str.toUtf8 |> Http.parseFormUrlEncoded
         parts -> Err (InvalidQuery (Inspect.toStr parts))
 

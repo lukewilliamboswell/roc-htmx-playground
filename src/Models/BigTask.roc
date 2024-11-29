@@ -41,7 +41,7 @@ parseDate = \date ->
     isTwoChars = \str -> List.len (Str.toUtf8 str) == 2
 
     # Format: yyyy-mm-dd
-    when Str.split date "-" is
+    when Str.splitOn date "-" is
         [""] -> Ok NotSet
         [yyyy, mm, dd] if isFourChars yyyy && isTwoChars mm && isTwoChars dd ->
             when (Str.toI64 yyyy, Str.toI64 mm, Str.toI64 dd) is

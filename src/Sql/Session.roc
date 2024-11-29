@@ -1,11 +1,9 @@
-
 module [
     new,
     parse,
     get,
 ]
 
-import pf.Task exposing [Task]
 import pf.Http exposing [Request]
 import pf.SQLite3
 import Models.Session exposing [Session]
@@ -14,14 +12,11 @@ new : Str -> Task I64 _
 new = \path ->
 
     query =
-        """
-        INSERT INTO sessions (session_id) VALUES (abs(random()));
-        """
+        "INSERT INTO sessions (session_id) VALUES (abs(random()));"
 
-    _ <-
+    _ =
         SQLite3.execute { path, query, bindings: [] }
-        |> Task.mapErr \err -> SqlError err
-        |> Task.await
+        |> Task.mapErr! \err -> SqlError err
 
     rows =
         SQLite3.execute { path, query: "SELECT last_insert_rowid();", bindings: [] }
@@ -37,10 +32,11 @@ parse = \req ->
     when req.headers |> List.keepIf \reqHeader -> reqHeader.name == "cookie" is
         [reqHeader] ->
             reqHeader.value
-            |> Str.fromUtf8
-            |> Result.try \str -> str |> Str.split "=" |> List.get 1
+            |> Str.splitOn "="
+            |> List.get 1
             |> Result.try Str.toI64
             |> Result.mapErr \_ -> InvalidSessionCookie
+
         _ -> Err NoSessionCookie
 
 get : I64, Str -> Task Session _
@@ -59,7 +55,7 @@ get = \sessionId, path ->
         WHERE sessions.session_id = :sessionId;
         """
 
-    bindings = [{ name: ":sessionId", value: Num.toStr sessionId }]
+    bindings = [{ name: ":sessionId", value: String (Num.toStr sessionId) }]
 
     rows = SQLite3.execute { path, query, bindings } |> Task.mapErr! SqlErrGettingSession
 

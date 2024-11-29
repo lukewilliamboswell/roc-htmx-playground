@@ -1,6 +1,5 @@
 module [respond]
 
-import pf.Task exposing [Task]
 import pf.Http exposing [Request, Response]
 import Sql.BigTask
 import Views.BigTask
@@ -84,7 +83,7 @@ respond = \{ req, urlSegments, dbPath, session } ->
                     baseHref: "/bigTask?",
                 },
             }
-            |> respondHtml [{name : "HX-Push-Url", value : Str.toUtf8 updateURL}]
+            |> respondHtml [{name : "HX-Push-Url", value : updateURL}]
 
         (Put, ["customerId", idStr]) ->
 
@@ -198,11 +197,11 @@ respond = \{ req, urlSegments, dbPath, session } ->
                 |> Str.toUtf8
 
             Task.ok {
-                status: 200,
+                status: 200u16,
                 headers: [
-                    { name: "Content-Type", value: Str.toUtf8 "text/plain" },
-                    { name: "Content-Disposition", value: Str.toUtf8 "attachment; filename=table.csv" },
-                    { name: "Content-Length", value: Str.toUtf8 "$(List.len data |> Num.toStr)" },
+                    { name: "Content-Type", value: "text/plain" },
+                    { name: "Content-Disposition", value: "attachment; filename=table.csv" },
+                    { name: "Content-Length", value: "$(List.len data |> Num.toStr)" },
                 ],
                 body: data,
             }

@@ -1,7 +1,7 @@
 module [page]
 
-import html.Html exposing [form, h5, button, input, div, text,  label]
-import html.Attribute exposing [attribute, id, name, action, method, class,  for]
+import html.Html exposing [form, h5, button, input, div, text, label]
+import html.Attribute exposing [attribute, id, name, action, method, class, for]
 import Views.Layout exposing [layout]
 import Models.NavLinks
 

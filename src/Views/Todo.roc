@@ -3,8 +3,8 @@ module [
     listTodoView,
 ]
 
-import html.Html exposing [element, table, thead, form, tbody, h1, td, th, tr,  button,  input, div, text, label]
-import html.Attribute exposing [attribute, id,  name, action, method, class, value, role, for]
+import html.Html exposing [element, table, thead, form, tbody, h1, td, th, tr, button, input, div, text, label]
+import html.Attribute exposing [attribute, id, name, action, method, class, value, role, for]
 import Models.Session exposing [Session]
 import Models.Todo exposing [Todo]
 import Views.Layout exposing [layout]

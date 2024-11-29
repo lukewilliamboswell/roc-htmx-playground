@@ -5,7 +5,6 @@ module [
     list,
 ]
 
-import pf.Task exposing [Task]
 import pf.SQLite3
 import Models.Session exposing [User]
 
@@ -14,7 +13,7 @@ find = \path, name ->
     SQLite3.execute {
         path,
         query: "SELECT user_id as userId, name, email FROM users WHERE name = :name;",
-        bindings: [{ name: ":name", value: name }],
+        bindings: [{ name: ":name", value: String name }],
     }
     |> Task.onErr \err -> SqlError err |> Task.err
     |> Task.await \rows ->
@@ -26,7 +25,7 @@ find = \path, name ->
 login : Str, I64, Str -> Task {} _
 login = \path, sessionId, name ->
 
-    user <- find path name |> Task.await
+    user = find! path name
 
     query =
         """
@@ -36,8 +35,8 @@ login = \path, sessionId, name ->
         """
 
     bindings = [
-        { name: ":A", value: Num.toStr user.id },
-        { name: ":B", value: Num.toStr sessionId },
+        { name: ":A", value: String (Num.toStr user.id) },
+        { name: ":B", value: String (Num.toStr sessionId) },
     ]
 
     SQLite3.execute { path, query, bindings }
@@ -49,7 +48,7 @@ findUserByName = \{ path, name } ->
     SQLite3.execute {
         path,
         query: "SELECT user_id as userId, name, email FROM users WHERE name = :name;",
-        bindings: [{ name: ":name", value: name }],
+        bindings: [{ name: ":name", value: String name }],
     }
     |> Task.mapErr SqlError
     |> Task.await \rows ->
@@ -62,28 +61,28 @@ register : { path : Str, name : Str, email : Str } -> Task {} _
 register = \{ path, name, email } ->
 
     ## Check if name exists
-    userExists <- findUserByName { path, name } |> Task.attempt
+    findUserByName { path, name }
+    |> Task.attempt \userExists ->
+        when userExists is
+            Err UserNotFound ->
+                ## Insert new user
+                query =
+                    """
+                    INSERT INTO users (name, email)
+                    VALUES (:name, :email);
+                    """
 
-    when userExists is
-        Err UserNotFound ->
-            ## Insert new user
-            query =
-                """
-                INSERT INTO users (name, email)
-                VALUES (:name, :email);
-                """
+                bindings = [
+                    { name: ":name", value: String name },
+                    { name: ":email", value: String email },
+                ]
 
-            bindings = [
-                { name: ":name", value: name },
-                { name: ":email", value: email },
-            ]
+                SQLite3.execute { path, query, bindings }
+                |> Task.mapErr SqlError
+                |> Task.map \_ -> {}
 
-            SQLite3.execute { path, query, bindings }
-            |> Task.mapErr SqlError
-            |> Task.map \_ -> {}
-
-        Ok _user -> UserAlreadyExists |> Task.err
-        Err err -> Task.err err
+            Ok _user -> UserAlreadyExists |> Task.err
+            Err err -> Task.err err
 
 list : Str -> Task (List User) _
 list = \path ->

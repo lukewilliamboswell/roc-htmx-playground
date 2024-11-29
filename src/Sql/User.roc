@@ -62,7 +62,8 @@ register = \{ path, name, email } ->
 
     ## Check if name exists
     findUserByName { path, name }
-        |> Task.attempt \userExists -> when userExists is
+    |> Task.attempt \userExists ->
+        when userExists is
             Err UserNotFound ->
                 ## Insert new user
                 query =

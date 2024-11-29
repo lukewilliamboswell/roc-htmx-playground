@@ -33,20 +33,22 @@ page = \{ session, tasks, pagination, sortBy, sortDirection } ->
                 ],
                 div [class "row"] [
                     div [class "inline-block m-2"] [
-                        a [
-                            type "button",
-                            class "btn btn-success",
-                            href "/bigTask/downloadCsv",
-                            (attribute "download") "",
-                            (attribute "hx-disable") "",
-                            (attribute "aria-label") "Download Button",
-                        ] [
-                            text "Download CSV",
-                        ],
+                        a
+                            [
+                                type "button",
+                                class "btn btn-success",
+                                href "/bigTask/downloadCsv",
+                                (attribute "download") "",
+                                (attribute "hx-disable") "",
+                                (attribute "aria-label") "Download Button",
+                            ]
+                            [
+                                text "Download CSV",
+                            ],
                     ],
                 ],
                 div [class "row"] [
-                    Views.Bootstrap.renderDataTable (columns { sortBy, sortDirection }) tasks
+                    Views.Bootstrap.renderDataTable (columns { sortBy, sortDirection }) tasks,
                 ],
                 div [class "row"] [
                     paginationView {

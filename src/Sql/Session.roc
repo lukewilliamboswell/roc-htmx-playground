@@ -1,4 +1,3 @@
-
 module [
     new,
     parse,
@@ -13,9 +12,7 @@ new : Str -> Task I64 _
 new = \path ->
 
     query =
-        """
-        INSERT INTO sessions (session_id) VALUES (abs(random()));
-        """
+        "INSERT INTO sessions (session_id) VALUES (abs(random()));"
 
     _ =
         SQLite3.execute { path, query, bindings: [] }
@@ -35,9 +32,11 @@ parse = \req ->
     when req.headers |> List.keepIf \reqHeader -> reqHeader.name == "cookie" is
         [reqHeader] ->
             reqHeader.value
-            |> Str.splitOn "=" |> List.get 1
+            |> Str.splitOn "="
+            |> List.get 1
             |> Result.try Str.toI64
             |> Result.mapErr \_ -> InvalidSessionCookie
+
         _ -> Err NoSessionCookie
 
 get : I64, Str -> Task Session _

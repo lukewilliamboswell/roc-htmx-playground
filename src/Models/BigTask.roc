@@ -21,9 +21,9 @@ dateToStr = \date ->
     # we need to ensure we add the leading zero for yyyy-mm-dd
     numToStr = \i64 ->
         if i64 < 10 then
-            "0$(Num.toStr i64)"
+            "0$(Num.to_str i64)"
         else
-            Num.toStr i64
+            Num.to_str i64
 
     when date is
         NotSet -> "Not Set"
@@ -37,14 +37,14 @@ parseDate = \date ->
     validMonth = \m -> m > 0 && m < 13
     validDay = \d -> d > 0 && d < 32
 
-    isFourChars = \str -> List.len (Str.toUtf8 str) == 4
-    isTwoChars = \str -> List.len (Str.toUtf8 str) == 2
+    isFourChars = \str -> List.len (Str.to_utf8 str) == 4
+    isTwoChars = \str -> List.len (Str.to_utf8 str) == 2
 
     # Format: yyyy-mm-dd
-    when Str.splitOn date "-" is
+    when Str.split_on date "-" is
         [""] -> Ok NotSet
         [yyyy, mm, dd] if isFourChars yyyy && isTwoChars mm && isTwoChars dd ->
-            when (Str.toI64 yyyy, Str.toI64 mm, Str.toI64 dd) is
+            when (Str.to_i64 yyyy, Str.to_i64 mm, Str.to_i64 dd) is
                 (Ok year, Ok month, Ok day) if validYear year && validMonth month && validDay day -> Ok (Simple { year, month, day })
                 _ -> Err (InvalidDate date)
 

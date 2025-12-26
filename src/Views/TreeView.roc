@@ -51,9 +51,9 @@ nodesView = \node ->
         Node todo children ->
             checkbox =
                 if todo.status == "Completed" then
-                    checkboxElem todo.task (Num.toStr todo.id) Checked
+                    checkboxElem todo.task (Num.to_str todo.id) Checked
                 else
-                    checkboxElem todo.task (Num.toStr todo.id) NotChecked
+                    checkboxElem todo.task (Num.to_str todo.id) NotChecked
 
             Html.li [] [
                 Html.span [] [checkbox],

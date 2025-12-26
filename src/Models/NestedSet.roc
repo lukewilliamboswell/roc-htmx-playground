@@ -20,10 +20,10 @@ mapTree = \tree, fn ->
 
 nestedSetToTree : List (NestedSet a) -> Tree a where a implements Eq
 nestedSetToTree = \nodes ->
-    if List.isEmpty nodes then
+    if List.is_empty nodes then
         Empty
     else
-        sortedNodes = List.sortWith nodes \first, second -> if first.left < second.left then LT else GT
+        sortedNodes = List.sort_with nodes \first, second -> if first.left < second.left then LT else GT
 
         buildTree sortedNodes Empty
         |> mapTree .value
@@ -71,7 +71,7 @@ addChild = \tree, current ->
 
 findNestedChildren : List (NestedSet a), NestedSet a -> List (NestedSet a)
 findNestedChildren = \values, parent ->
-    values |> List.keepIf \{ left } -> left > parent.left && left < parent.right
+    values |> List.keep_if \{ left } -> left > parent.left && left < parent.right
 
 testValues = [
     { value: "Drinks", left: 1, right: 27 },

@@ -1,94 +1,89 @@
 module [
-    list,
-    create,
-    delete,
-    update,
-    tree,
+    list!,
+    create!,
+    delete!,
+    update!,
+    tree!,
 ]
 
-import pf.SQLite3
+import pf.Sqlite
 import Models.Todo exposing [Todo]
-import Models.NestedSet exposing [Tree, NestedSet]
+import Models.NestedSet exposing [Tree]
 
-list : { path : Str, filterQuery : Str } -> Task (List Todo) _
-list = \{ path, filterQuery } ->
-
-    (query, bindings) =
-        if Str.isEmpty filterQuery then
-            (
-                "SELECT id, task, status FROM tasks;",
-                [],
-            )
-        else
-            (
-                "SELECT id, task, status FROM tasks WHERE task LIKE :task;",
-                [{ name: ":task", value: String "%$(filterQuery)%" }],
-            )
-
-    SQLite3.execute { path, query, bindings }
-    |> Task.mapErr SqlError
-    |> Task.await \rows -> parseListRows rows [] |> Task.fromResult
-
-parseListRows : List (List SQLite3.Value), List Todo -> Result (List Todo) _
-parseListRows = \rows, acc ->
-    when rows is
-        [] -> acc |> Ok
-        [[Integer id, String task, String status], .. as rest] ->
-            parseListRows rest (List.append acc { id, task, status })
-
-        _ -> Inspect.toStr rows |> UnexpectedSQLValues |> Err
-
-create : { path : Str, newTodo : Todo } -> Task {} [TodoWasEmpty, SqlError _]_
-create = \{ path, newTodo } ->
-    if Str.isEmpty newTodo.task then
-        Task.err TodoWasEmpty
+list! : { path : Str, filter_query : Str } => Result (List Todo) _
+list! = \{ path, filter_query } ->
+    if Str.is_empty filter_query then
+        Sqlite.query_many! {
+            path,
+            query: "SELECT id, task, status FROM tasks;",
+            bindings: [],
+            rows: { Sqlite.decode_record <-
+                id: Sqlite.i64 "id",
+                task: Sqlite.str "task",
+                status: Sqlite.str "status",
+            },
+        }
     else
-        SQLite3.execute {
+        Sqlite.query_many! {
+            path,
+            query: "SELECT id, task, status FROM tasks WHERE task LIKE :task;",
+            bindings: [{ name: ":task", value: String "%$(filter_query)%" }],
+            rows: { Sqlite.decode_record <-
+                id: Sqlite.i64 "id",
+                task: Sqlite.str "task",
+                status: Sqlite.str "status",
+            },
+        }
+
+create! : { path : Str, new_todo : Todo } => Result {} _
+create! = \{ path, new_todo } ->
+    if Str.is_empty new_todo.task then
+        Err TaskWasEmpty
+    else
+        try Sqlite.execute! {
             path,
             query: "INSERT INTO tasks (task, status) VALUES (:task, :status);",
             bindings: [
-                { name: ":task", value: String (newTodo.task) },
-                { name: ":status", value: String (newTodo.status) },
+                { name: ":task", value: String new_todo.task },
+                { name: ":status", value: String new_todo.status },
             ],
         }
-        |> Task.mapErr SqlError
-        |> Task.map \_ -> {}
 
-update : { path : Str, taskIdStr : Str, action : [Completed, InProgress] } -> Task {} _
-update = \{ path, taskIdStr, action } ->
+        Ok {}
 
-    statusStr =
+update! : { path : Str, task_id_str : Str, action : [Completed, InProgress] } => Result {} _
+update! = \{ path, task_id_str, action } ->
+    status_str =
         when action is
             Completed -> "Completed"
             InProgress -> "In-Progress"
 
-    if Str.toU64 taskIdStr |> Result.isErr then
-        Task.err (InvalidTodoID taskIdStr)
+    if Str.to_u64 task_id_str |> Result.is_err then
+        Err (InvalidTodoID task_id_str)
     else
-        SQLite3.execute {
+        try Sqlite.execute! {
             path,
             query: "UPDATE tasks SET status = (:status) WHERE id=:task_id;",
             bindings: [
-                { name: ":status", value: String statusStr },
-                { name: ":task_id", value: String taskIdStr },
+                { name: ":status", value: String status_str },
+                { name: ":task_id", value: String task_id_str },
             ],
         }
-        |> Task.mapErr SqlError
-        |> Task.map \_ -> {}
 
-delete : { path : Str, userId : Str } -> Task {} _
-delete = \{ path, userId } ->
-    SQLite3.execute {
+        Ok {}
+
+delete! : { path : Str, user_id : Str } => Result {} _
+delete! = \{ path, user_id } ->
+    try Sqlite.execute! {
         path,
         query: "DELETE FROM tasks WHERE id = :id;",
-        bindings: [{ name: ":id", value: String userId }],
+        bindings: [{ name: ":id", value: String user_id }],
     }
-    |> Task.mapErr SqlError
-    |> Task.map \_ -> {}
 
-tree : { path : Str, userId : U64 } -> Task (Tree Todo) _
-tree = \{ path, userId } ->
+    Ok {}
 
+tree! : { path : Str, user_id : U64 } => Result (Tree Todo) _
+tree! = \{ path, user_id } ->
     query =
         """
         SELECT
@@ -107,20 +102,27 @@ tree = \{ path, userId } ->
             TaskHeirachy.lft;
         """
 
-    bindings = [{ name: ":user_id", value: String (Num.toStr userId) }]
+    bindings = [{ name: ":user_id", value: String (Num.to_str user_id) }]
 
-    SQLite3.execute { path, query, bindings }
-    |> Task.mapErr SqlError
-    |> Task.await \rows -> parseTreeRows rows [] |> Task.fromResult
+    rows = try Sqlite.query_many! {
+        path,
+        query,
+        bindings,
+        rows: { Sqlite.decode_record <-
+            id: Sqlite.i64 "id",
+            task: Sqlite.str "task",
+            status: Sqlite.str "status",
+            left: Sqlite.i64 "lft",
+            right: Sqlite.i64 "rgt",
+        },
+    }
 
-parseTreeRows : List (List SQLite3.Value), List (NestedSet Todo) -> Result (Tree Todo) _
-parseTreeRows = \rows, acc ->
-    when rows is
-        [] -> Models.NestedSet.nestedSetToTree acc |> Ok
-        [[Integer id, String task, String status, Integer left, Integer right], .. as rest] ->
-            todo : Todo
-            todo = { id, task, status }
+    nested_set =
+        rows
+        |> List.map \row -> {
+            value: { id: row.id, task: row.task, status: row.status },
+            left: row.left,
+            right: row.right,
+        }
 
-            parseTreeRows rest (List.append acc { value: todo, left, right })
-
-        _ -> Inspect.toStr rows |> UnexpectedSQLValues |> Err
+    Ok (Models.NestedSet.nestedSetToTree nested_set)

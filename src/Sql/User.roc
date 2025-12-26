@@ -1,31 +1,33 @@
 module [
-    find,
-    login,
-    register,
-    list,
+    find!,
+    login!,
+    register!,
+    list!,
 ]
 
-import pf.SQLite3
+import pf.Sqlite
 import Models.Session exposing [User]
 
-find : Str, Str -> Task User _
-find = \path, name ->
-    SQLite3.execute {
+find! : Str, Str => Result User _
+find! = \path, name ->
+    rows = try Sqlite.query_many! {
         path,
-        query: "SELECT user_id as userId, name, email FROM users WHERE name = :name;",
+        query: "SELECT user_id, name, email FROM users WHERE name = :name;",
         bindings: [{ name: ":name", value: String name }],
+        rows: { Sqlite.decode_record <-
+            id: Sqlite.i64 "user_id",
+            name: Sqlite.str "name",
+            email: Sqlite.str "email",
+        },
     }
-    |> Task.onErr \err -> SqlError err |> Task.err
-    |> Task.await \rows ->
-        when rows is
-            [] -> Task.err (UserNotFound name)
-            [[Integer id, String _, String email], ..] -> Task.ok { id, name, email }
-            _ -> Task.err (UnexpectedValues "got $(Inspect.toStr rows)")
 
-login : Str, I64, Str -> Task {} _
-login = \path, sessionId, name ->
+    when rows is
+        [] -> Err (UserNotFound name)
+        [user, ..] -> Ok user
 
-    user = find! path name
+login! : Str, I64, Str => Result {} _
+login! = \path, session_id, name ->
+    user = try find! path name
 
     query =
         """
@@ -35,70 +37,60 @@ login = \path, sessionId, name ->
         """
 
     bindings = [
-        { name: ":A", value: String (Num.toStr user.id) },
-        { name: ":B", value: String (Num.toStr sessionId) },
+        { name: ":A", value: String (Num.to_str user.id) },
+        { name: ":B", value: String (Num.to_str session_id) },
     ]
 
-    SQLite3.execute { path, query, bindings }
-    |> Task.mapErr SqlError
-    |> Task.map \_ -> {}
+    try Sqlite.execute! { path, query, bindings }
+    Ok {}
 
-findUserByName : { path : Str, name : Str } -> Task User _
-findUserByName = \{ path, name } ->
-    SQLite3.execute {
+find_user_by_name! : { path : Str, name : Str } => Result User _
+find_user_by_name! = \{ path, name } ->
+    rows = try Sqlite.query_many! {
         path,
-        query: "SELECT user_id as userId, name, email FROM users WHERE name = :name;",
+        query: "SELECT user_id, name, email FROM users WHERE name = :name;",
         bindings: [{ name: ":name", value: String name }],
+        rows: { Sqlite.decode_record <-
+            id: Sqlite.i64 "user_id",
+            name: Sqlite.str "name",
+            email: Sqlite.str "email",
+        },
     }
-    |> Task.mapErr SqlError
-    |> Task.await \rows ->
-        when rows is
-            [] -> Task.err UserNotFound
-            [[Integer id, String _, String email], ..] -> Task.ok { id, name: name, email }
-            _ -> Task.err (UnexpectedValues "got $(Inspect.toStr rows)")
 
-register : { path : Str, name : Str, email : Str } -> Task {} _
-register = \{ path, name, email } ->
-
-    ## Check if name exists
-    findUserByName { path, name }
-    |> Task.attempt \userExists ->
-        when userExists is
-            Err UserNotFound ->
-                ## Insert new user
-                query =
-                    """
-                    INSERT INTO users (name, email)
-                    VALUES (:name, :email);
-                    """
-
-                bindings = [
-                    { name: ":name", value: String name },
-                    { name: ":email", value: String email },
-                ]
-
-                SQLite3.execute { path, query, bindings }
-                |> Task.mapErr SqlError
-                |> Task.map \_ -> {}
-
-            Ok _user -> UserAlreadyExists |> Task.err
-            Err err -> Task.err err
-
-list : Str -> Task (List User) _
-list = \path ->
-    SQLite3.execute {
-        path,
-        query: "SELECT user_id as userId, name, email FROM users;",
-        bindings: [],
-    }
-    |> Task.mapErr SqlError
-    |> Task.await \rows -> parseListRows rows [] |> Task.fromResult
-
-parseListRows : List (List SQLite3.Value), List User -> Result (List User) _
-parseListRows = \rows, acc ->
     when rows is
-        [] -> acc |> Ok
-        [[Integer id, String name, String email], .. as rest] ->
-            parseListRows rest (List.append acc { id, name, email })
+        [] -> Err UserNotFound
+        [user, ..] -> Ok user
 
-        _ -> Inspect.toStr rows |> UnexpectedSQLValues |> Err
+register! : { path : Str, name : Str, email : Str } => Result {} _
+register! = \{ path, name, email } ->
+    when find_user_by_name! { path, name } is
+        Err UserNotFound ->
+            query =
+                """
+                INSERT INTO users (name, email)
+                VALUES (:name, :email);
+                """
+
+            bindings = [
+                { name: ":name", value: String name },
+                { name: ":email", value: String email },
+            ]
+
+            try Sqlite.execute! { path, query, bindings }
+            Ok {}
+
+        Ok _user -> Err UserAlreadyExists
+        Err err -> Err err
+
+list! : Str => Result (List User) _
+list! = \path ->
+    Sqlite.query_many! {
+        path,
+        query: "SELECT user_id, name, email FROM users;",
+        bindings: [],
+        rows: { Sqlite.decode_record <-
+            id: Sqlite.i64 "user_id",
+            name: Sqlite.str "name",
+            email: Sqlite.str "email",
+        },
+    }

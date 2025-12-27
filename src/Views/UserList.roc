@@ -46,7 +46,7 @@ page = \{ users, session } ->
                                         users
                                         |> List.map \user ->
                                             tr [] [
-                                                td [] [text (Num.toStr user.id)],
+                                                td [] [text (Num.to_str user.id)],
                                                 td [] [text user.name],
                                                 td [] [text user.email],
                                             ]

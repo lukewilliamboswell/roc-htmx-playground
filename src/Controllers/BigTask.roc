@@ -1,4 +1,4 @@
-module [respond]
+module [respond!]
 
 import pf.Http exposing [Request, Response]
 import Sql.BigTask
@@ -6,187 +6,180 @@ import Views.BigTask
 import Views.Bootstrap
 import Models.Session exposing [Session]
 import Models.BigTask
-import Helpers exposing [respondHtml, decodeFormValues, parseQueryParams]
+import Helpers exposing [respond_html, decode_form_values, parse_query_params]
 
-respond : {req : Request, urlSegments : List Str, dbPath : Str, session : Session} -> Task Response _
-respond = \{ req, urlSegments, dbPath, session } ->
-
+respond! : { req : Request, url_segments : List Str, db_path : Str, session : Session } => Result Response _
+respond! = \{ req, url_segments, db_path, session } ->
     # confirm the user is Authenticated, these routes are all protected
-    Models.Session.isAuthenticated session.user |> Task.fromResult!
+    try Models.Session.isAuthenticated session.user
 
-    when (req.method, urlSegments) is
-        (Get, []) ->
-
-            queryParams =
-                    req.url
-                    |> parseQueryParams
-                    |> Result.withDefault (Dict.empty {})
+    when (req.method, url_segments) is
+        (GET, []) ->
+            query_params =
+                req.uri
+                |> parse_query_params
+                |> Result.with_default (Dict.empty {})
 
             # First check for the updateItemsPerPage form value,
             # if not present then check for the items URL parameter,
             # if not provided default to 25
             items =
-                queryParams
+                query_params
                 |> Dict.get "updateItemsPerPage"
-                |> Result.try Str.toI64
-                |> Result.onErr \_ ->
-                    queryParams
+                |> Result.try Str.to_i64
+                |> Result.on_err \_ ->
+                    query_params
                     |> Dict.get "items"
-                    |> Result.try Str.toI64
-                |> Result.withDefault 25
+                    |> Result.try Str.to_i64
+                |> Result.with_default 25
 
             page =
-                queryParams
+                query_params
                 |> Dict.get "page"
-                |> Result.try Str.toI64
-                |> Result.withDefault 1
+                |> Result.try Str.to_i64
+                |> Result.with_default 1
 
-            sortBy =
-                queryParams
+            sort_by =
+                query_params
                 |> Dict.get "sortBy"
-                |> Result.withDefault "ID"
+                |> Result.with_default "ID"
 
-            sortDirection =
-                when Dict.get queryParams "sortDirection" is
+            sort_direction =
+                when Dict.get query_params "sortDirection" is
                     Ok "asc" -> ASCENDING
                     Ok "ASC" -> ASCENDING
                     Ok "desc" -> DESCENDING
                     Ok "DESC" -> DESCENDING
                     _ -> ASCENDING
 
-            tasks = Sql.BigTask.list! {
-                dbPath,
+            tasks = try Sql.BigTask.list! {
+                dbPath: db_path,
                 page,
                 items,
-                sortBy,
-                sortDirection,
+                sortBy: sort_by,
+                sortDirection: sort_direction,
             }
 
-            total = Sql.BigTask.total! { dbPath }
+            total = try Sql.BigTask.total! { dbPath: db_path }
 
-            sortDirectionStr =
-                when sortDirection is
+            sort_direction_str =
+                when sort_direction is
                     ASCENDING -> "asc"
                     DESCENDING -> "desc"
 
-            updateURL = "/bigTask?page=$(Num.toStr page)&items=$(Num.toStr items)&sortBy=$(sortBy)&sortDirection=$(sortDirectionStr)"
+            update_url = "/bigTask?page=$(Num.to_str page)&items=$(Num.to_str items)&sortBy=$(sort_by)&sortDirection=$(sort_direction_str)"
 
             Views.BigTask.page {
                 session,
                 tasks,
-                sortBy,
-                sortDirection,
-                pagination : {
+                sortBy: sort_by,
+                sortDirection: sort_direction,
+                pagination: {
                     page,
                     items,
                     total,
                     baseHref: "/bigTask?",
                 },
             }
-            |> respondHtml [{name : "HX-Push-Url", value : updateURL}]
+            |> respond_html [{ name: "HX-Push-Url", value: update_url }]
 
-        (Put, ["customerId", idStr]) ->
+        (PUT, ["customerId", id_str]) ->
+            values = try decode_form_values req.body
 
-            values = decodeFormValues! req.body
+            id = try decode_big_task_id id_str
 
-            id = decodeBigTaskId! idStr
-
+            validation : [None, Valid, Invalid Str]
             validation =
-                Dict.get values "CustomerReferenceID"
-                |> Result.mapErr \_ -> BadRequest (MissingField "CustomerReferenceID")
-                |> Result.try \cridstr ->
-                    when Str.toI64 cridstr is
-                        # just an example... just check it's in range 0-100,000
-                        Ok i64 if i64 > 0 && i64 < 100000 -> Ok Valid
-                        _ -> Ok (Invalid "must be a number between 0 and 100,000")
-                |> Task.fromResult!
+                when Dict.get values "CustomerReferenceID" is
+                    Err _ -> None
+                    Ok cridstr ->
+                        when Str.to_i64 cridstr is
+                            Ok i64 if i64 > 0 && i64 < 100000 -> Valid
+                            _ -> Invalid "must be a number between 0 and 100,000"
 
-            updateBigTaskOnlyIfValid! validation {dbPath, id, values}
+            try update_big_task_only_if_valid! validation { db_path, id, values }
 
             {
-                updateUrl : "/bigTask/customerId/$(idStr)",
-                inputs : [{
-                    name : "CustomerReferenceID",
-                    id : "customer-id-$(idStr)",
-                    # use the provided value here so we keep the user's input
-                    value : Text (Dict.get values "CustomerReferenceID" |> Result.withDefault ""),
+                updateUrl: "/bigTask/customerId/$(id_str)",
+                inputs: [{
+                    name: "CustomerReferenceID",
+                    id: "customer-id-$(id_str)",
+                    value: Text (Dict.get values "CustomerReferenceID" |> Result.with_default ""),
                     validation,
                 }],
             }
             |> Views.Bootstrap.newDataTableForm
             |> Views.Bootstrap.renderDataTableForm
-            |> respondHtml []
+            |> respond_html []
 
-        (Put, ["dateCreated", idStr]) ->
+        (PUT, ["dateCreated", id_str]) ->
+            values = try decode_form_values req.body
 
-            values = decodeFormValues! req.body
+            id = try decode_big_task_id id_str
 
-            id = decodeBigTaskId! idStr
-
+            validation : [None, Valid, Invalid Str]
             validation =
-                Dict.get values "DateCreated"
-                |> Result.mapErr \_ -> BadRequest (MissingField "DateCreated")
-                |> Result.try Models.BigTask.parseDate
-                |> Result.map \_ -> Valid
-                |> Result.mapErr \_ -> Invalid "must be date format yyyy-mm-dd"
-                |> Task.fromResult!
+                when Dict.get values "DateCreated" is
+                    Err _ -> None
+                    Ok date_str ->
+                        when Models.BigTask.parseDate date_str is
+                            Ok _ -> Valid
+                            Err _ -> Invalid "must be date format yyyy-mm-dd"
 
-            updateBigTaskOnlyIfValid! validation {dbPath, id, values}
+            try update_big_task_only_if_valid! validation { db_path, id, values }
 
             {
-                updateUrl : "/bigTask/dateCreated/$(idStr)",
-                inputs : [{
-                    name : "DateCreated",
-                    id : "date-created-$(idStr)",
-                    # use the provided value here so we keep the user's input
-                    value : Date (Dict.get values "DateCreated" |> Result.withDefault ""),
+                updateUrl: "/bigTask/dateCreated/$(id_str)",
+                inputs: [{
+                    name: "DateCreated",
+                    id: "date-created-$(id_str)",
+                    value: Date (Dict.get values "DateCreated" |> Result.with_default ""),
                     validation,
                 }],
             }
             |> Views.Bootstrap.newDataTableForm
             |> Views.Bootstrap.renderDataTableForm
-            |> respondHtml []
+            |> respond_html []
 
-        (Put, ["status", idStr]) ->
+        (PUT, ["status", id_str]) ->
+            values = try decode_form_values req.body
 
-            values = decodeFormValues! req.body
+            id = try decode_big_task_id id_str
 
-            id = decodeBigTaskId! idStr
-
+            validation : [None, Valid, Invalid Str]
             validation =
-                Dict.get values "Status"
-                |> Result.mapErr \_ -> BadRequest (MissingField "Status")
-                |> Result.try Models.BigTask.parseStatus
-                |> Result.map \_ -> Valid
-                |> Result.mapErr \_ -> Invalid "must be 'Raised|Completed|Deferred|Approved|In-Progress'"
-                |> Task.fromResult!
+                when Dict.get values "Status" is
+                    Err _ -> None
+                    Ok status_str ->
+                        when Models.BigTask.parseStatus status_str is
+                            Ok _ -> Valid
+                            Err _ -> Invalid "must be 'Raised|Completed|Deferred|Approved|In-Progress'"
 
-            updateBigTaskOnlyIfValid! validation {dbPath, id, values}
+            try update_big_task_only_if_valid! validation { db_path, id, values }
 
-            selectedIndex =
-                Dict.get values "Status"
-                |> Result.try \selected -> Models.BigTask.statusOptionIndex selected
-                |> Task.fromResult!
+            selected_index =
+                try (
+                    Dict.get values "Status"
+                    |> Result.try \selected -> Models.BigTask.statusOptionIndex selected
+                )
 
             {
-                updateUrl : "/bigTask/status/$(idStr)",
-                inputs : [{
-                    name : "Status",
-                    id : "status-$(idStr)",
-                    # use the provided value here so we keep the user's input
-                    value : Choice {
-                        selected: selectedIndex,
-                        options: Models.BigTask.statusOptions
+                updateUrl: "/bigTask/status/$(id_str)",
+                inputs: [{
+                    name: "Status",
+                    id: "status-$(id_str)",
+                    value: Choice {
+                        selected: selected_index,
+                        options: Models.BigTask.statusOptions,
                     },
                     validation,
                 }],
             }
             |> Views.Bootstrap.newDataTableForm
             |> Views.Bootstrap.renderDataTableForm
-            |> respondHtml []
+            |> respond_html []
 
-        (Get, ["downloadCsv"]) ->
-
+        (GET, ["downloadCsv"]) ->
             data =
                 """
                 ID, CustomerReferenceID, DateCreated, Status
@@ -194,27 +187,29 @@ respond = \{ req, urlSegments, dbPath, session } ->
                 2, 67890, 2021-01-02, Completed
                 3, 54321, 2021-01-03, Deferred
                 """
-                |> Str.toUtf8
+                |> Str.to_utf8
 
-            Task.ok {
-                status: 200u16,
+            Ok {
+                status: 200,
                 headers: [
                     { name: "Content-Type", value: "text/plain" },
                     { name: "Content-Disposition", value: "attachment; filename=table.csv" },
-                    { name: "Content-Length", value: "$(List.len data |> Num.toStr)" },
+                    { name: "Content-Length", value: "$(List.len data |> Num.to_str)" },
                 ],
                 body: data,
             }
 
-        _ -> Task.err (URLNotFound req.url)
+        _ -> Err (URLNotFound req.uri)
 
-decodeBigTaskId = \idStr ->
-    Str.toI64 idStr
-    |> Result.mapErr \_ -> BadRequest (InvalidBigTaskID idStr "expected a valid 64-bit integer")
-    |> Task.fromResult
+decode_big_task_id : Str -> Result I64 _
+decode_big_task_id = \id_str ->
+    Str.to_i64 id_str
+    |> Result.map_err \_ -> BadRequest (InvalidBigTaskID id_str "expected a valid 64-bit integer")
 
-updateBigTaskOnlyIfValid = \validation, {dbPath, id, values} ->
-    if validation == Valid then
-        Sql.BigTask.update {dbPath, id, values}
-    else
-        Task.ok {}
+update_big_task_only_if_valid! : [None, Valid, Invalid Str], { db_path : Str, id : I64, values : Dict Str Str } => Result {} _
+update_big_task_only_if_valid! = \validation, { db_path, id, values } ->
+    when validation is
+        Valid ->
+            Sql.BigTask.update! { dbPath: db_path, id, values }
+        _ ->
+            Ok {}

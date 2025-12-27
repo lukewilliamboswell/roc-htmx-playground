@@ -1,5 +1,6 @@
 main
 kingfisher
+roc_nightly-*/
 sql_snippets.sql
 
 *.db

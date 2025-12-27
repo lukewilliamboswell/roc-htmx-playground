@@ -51,7 +51,7 @@ decodeModel = \_fromPlatform ->
 #         decoded : Decode.DecodeResult Model
 #         decoded = Decode.fromBytesPartial encoded decoder
 #         decoded.result
-#         |> Result.mapErr \_ -> "Error: Can not decode database."
+#         |> Result.map_err \_ -> "Error: Can not decode database."
 
 encodeModel : Model -> List U8
 encodeModel = \_model ->
@@ -66,8 +66,8 @@ handleReadRequest = \req, model ->
         req.url
         |> Url.fromStr
         |> Url.path
-        |> Str.splitOn "/"
-        |> List.dropFirst 1
+        |> Str.split_on "/"
+        |> List.drop_first 1
 
     when (req.method, urlSegments) is
         (Get, [""]) -> Views.Home.page { session } |> htmlResponse
@@ -106,21 +106,21 @@ handleWriteRequest = \req, model ->
         req.url
         |> Url.fromStr
         |> Url.path
-        |> Str.splitOn "/"
-        |> List.dropFirst 1
+        |> Str.split_on "/"
+        |> List.drop_first 1
 
     when (req.method, urlSegments) is
         (Post, ["register"]) ->
-            params = parseFormUrlEncoded req.body |> Result.withDefault (Dict.empty {})
+            params = parseFormUrlEncoded req.body |> Result.with_default (Dict.empty {})
             usernameResult = Dict.get params "user"
             emailResult = Dict.get params "email"
             when (usernameResult, emailResult) is
                 (Ok username, Ok email) ->
-                    when List.findFirst model.users (\u -> u.name == username) is
+                    when List.find_first model.users (\u -> u.name == username) is
                         Ok _user -> Views.Register.page { user: UserAlreadyExists username, email: Valid } |> htmlResponse |> \resp -> (resp, model)
                         Err _ ->
                             newUser = {
-                                id: List.len model.users |> Num.toI64,
+                                id: List.len model.users |> Num.to_i64,
                                 email: email,
                                 name: username,
                             }
@@ -131,21 +131,21 @@ handleWriteRequest = \req, model ->
                     Views.Register.page { user: UserNotProvided, email: NotProvided } |> htmlResponse |> \resp -> (resp, model)
 
         (Post, ["login"]) ->
-            params = parseFormUrlEncoded req.body |> Result.withDefault (Dict.empty {})
+            params = parseFormUrlEncoded req.body |> Result.with_default (Dict.empty {})
 
             when Dict.get params "user" is
                 Err _ -> Views.Login.page { session, user: UserNotProvided } |> htmlResponse |> \resp -> (resp, model)
                 Ok username ->
-                    when List.findFirst model.users (\u -> u.name == username) is
+                    when List.find_first model.users (\u -> u.name == username) is
                         Ok _user ->
-                            sessionID = List.len model.sessions |> Num.toI64
+                            sessionID = List.len model.sessions |> Num.to_i64
                             newmodel = { model & sessions: List.append model.sessions { id: sessionID, user: LoggedIn username } }
                             (
                                 {
                                     status: 303,
                                     headers: [
-                                        { name: "Set-Cookie", value: Str.toUtf8 "$(cookieName)=$(Num.toStr sessionID)" },
-                                        { name: "Location", value: Str.toUtf8 "/" },
+                                        { name: "Set-Cookie", value: Str.to_utf8 "$(cookieName)=$(Num.to_str sessionID)" },
+                                        { name: "Location", value: Str.to_utf8 "/" },
                                     ],
                                     body: [],
                                 },
@@ -155,14 +155,14 @@ handleWriteRequest = \req, model ->
                         Err NotFound -> Views.Login.page { session, user: UserNotFound username } |> htmlResponse |> \resp -> (resp, model)
 
         (Post, ["logout"]) ->
-            newmodel = { model & sessions: List.update model.sessions (session.id |> Num.toU64) (\s -> { s & user: Guest }) }
+            newmodel = { model & sessions: List.update model.sessions (session.id |> Num.to_u64) (\s -> { s & user: Guest }) }
 
             (
                 {
                     status: 303,
                     headers: [
-                        { name: "Set-Cookie", value: Str.toUtf8 "$(cookieName)=deleted;  path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT" },
-                        { name: "Location", value: Str.toUtf8 "/" },
+                        { name: "Set-Cookie", value: Str.to_utf8 "$(cookieName)=deleted;  path=/; expires=Thu, 01 Jan 1970 00:00:00 GMT" },
+                        { name: "Location", value: Str.to_utf8 "/" },
                     ],
                     body: [],
                 },
@@ -171,24 +171,24 @@ handleWriteRequest = \req, model ->
 
         (Post, ["task", taskIdStr, "delete"]) ->
             newModel =
-                when Str.toI64 taskIdStr |> Result.try \id -> findIndex model.todos id is
+                when Str.to_i64 taskIdStr |> Result.try \id -> findIndex model.todos id is
                     Ok index ->
-                        { model & todos: List.dropAt model.todos index }
+                        { model & todos: List.drop_at model.todos index }
 
                     Err _ -> model
 
             (Views.Todo.listTodoView { todos: newModel.todos, filterQuery: "" } |> htmlResponse, newModel)
 
         (Post, ["task", "search"]) ->
-            params = parseFormUrlEncoded req.body |> Result.withDefault (Dict.empty {})
-            filterQuery = Dict.get params "filterTasks" |> Result.withDefault ""
-            todos = model.todos |> List.keepIf \todo -> Str.contains todo.task filterQuery
+            params = parseFormUrlEncoded req.body |> Result.with_default (Dict.empty {})
+            filterQuery = Dict.get params "filterTasks" |> Result.with_default ""
+            todos = model.todos |> List.keep_if \todo -> Str.contains todo.task filterQuery
             (Views.Todo.listTodoView { todos, filterQuery } |> htmlResponse, model)
 
         (Post, ["task", "new"]) ->
             when parseTodo req.body is
                 Ok newTodo ->
-                    nextID = (List.map model.todos \todo -> todo.id) |> List.max |> Result.withDefault 0 |> Num.add 1
+                    nextID = (List.map model.todos \todo -> todo.id) |> List.max |> Result.with_default 0 |> Num.add 1
                     newModel = { model & todos: List.append model.todos { newTodo & id: nextID } }
                     (redirect "/task", newModel)
 
@@ -196,7 +196,7 @@ handleWriteRequest = \req, model ->
 
         (Put, ["task", taskIdStr, "complete"]) ->
             newModel =
-                when Str.toI64 taskIdStr |> Result.try \id -> findIndex model.todos id is
+                when Str.to_i64 taskIdStr |> Result.try \id -> findIndex model.todos id is
                     Ok id ->
                         { model & todos: List.update model.todos id \old -> { old & status: "Completed" } }
 
@@ -205,7 +205,7 @@ handleWriteRequest = \req, model ->
 
         (Put, ["task", taskIdStr, "in-progress"]) ->
             newModel =
-                when Str.toI64 taskIdStr |> Result.try \id -> findIndex model.todos id is
+                when Str.to_i64 taskIdStr |> Result.try \id -> findIndex model.todos id is
                     Ok id ->
                         { model & todos: List.update model.todos id \old -> { old & status: "In-Progress" } }
 
@@ -215,20 +215,20 @@ handleWriteRequest = \req, model ->
         _ -> (handleErr (URLNotFound req.url), model)
 
 findIndex = \list, id ->
-    List.findFirstIndex list (\e -> e.id == id)
+    List.find_firstIndex list (\e -> e.id == id)
 
 parseTodo : List U8 -> Result Todo [UnableToParseBodyTask _]_
 parseTodo = \bytes ->
-    dict = parseFormUrlEncoded bytes |> Result.withDefault (Dict.empty {})
+    dict = parseFormUrlEncoded bytes |> Result.with_default (Dict.empty {})
 
     task <-
         Dict.get dict "task"
-        |> Result.mapErr \_ -> UnableToParseBodyTask bytes
+        |> Result.map_err \_ -> UnableToParseBodyTask bytes
         |> Result.try
 
     status <-
         Dict.get dict "status"
-        |> Result.mapErr \_ -> UnableToParseBodyTask bytes
+        |> Result.map_err \_ -> UnableToParseBodyTask bytes
         |> Result.try
 
     Ok { id: 0, task, status }
@@ -237,7 +237,7 @@ triggerResponse : Str -> Response
 triggerResponse = \trigger -> {
     status: 200,
     headers: [
-        { name: "HX-Trigger", value: Str.toUtf8 trigger },
+        { name: "HX-Trigger", value: Str.to_utf8 trigger },
     ],
     body: [],
 }
@@ -246,7 +246,7 @@ staticReponse : List U8 -> Response
 staticReponse = \bytes -> {
     status: 200,
     headers: [
-        { name: "Cache-Control", value: Str.toUtf8 "max-age=120" },
+        { name: "Cache-Control", value: Str.to_utf8 "max-age=120" },
     ],
     body: bytes,
 }
@@ -255,16 +255,16 @@ htmlResponse : Html.Node -> Response
 htmlResponse = \node -> {
     status: 200,
     headers: [
-        { name: "Content-Type", value: Str.toUtf8 "text/html; charset=utf-8" },
+        { name: "Content-Type", value: Str.to_utf8 "text/html; charset=utf-8" },
     ],
-    body: Str.toUtf8 (Html.render node),
+    body: Str.to_utf8 (Html.render node),
 }
 
 redirect : Str -> Response
 redirect = \next -> {
     status: 303,
     headers: [
-        { name: "Location", value: Str.toUtf8 next },
+        { name: "Location", value: Str.to_utf8 next },
     ],
     body: [],
 }
@@ -289,10 +289,10 @@ robotsTxt =
     User-agent: *
     Disallow: /
     """
-    |> Str.toUtf8
+    |> Str.to_utf8
 
 anonymousSession = {
-    id: 0 |> Num.toI64,
+    id: 0 |> Num.to_i64,
     user: Guest,
 }
 
@@ -302,44 +302,44 @@ parseSession : Request, List Session -> Session
 parseSession = \req, sessions ->
     mayID =
         req.headers
-        |> List.findFirst \reqHeader -> reqHeader.name == "Cookie"
-        |> Result.mapErr \_ -> CookieHeaderNotFound
+        |> List.find_first \reqHeader -> reqHeader.name == "Cookie"
+        |> Result.map_err \_ -> CookieHeaderNotFound
         |> Result.try \reqHeader ->
             reqHeader.value
-            |> Str.fromUtf8
+            |> Str.from_utf8
             |> Result.try \str ->
                 str
-                |> Str.splitOn ";"
-                |> List.findFirst \v -> v |> Str.trim |> Str.startsWith "$(cookieName)="
-                |> Result.mapErr \_ -> CookieNameNotFound cookieName str
+                |> Str.split_on ";"
+                |> List.find_first \v -> v |> Str.trim |> Str.starts_with "$(cookieName)="
+                |> Result.map_err \_ -> CookieNameNotFound cookieName str
                 |> Result.try \w ->
                     w
-                    |> Str.splitOn "="
+                    |> Str.split_on "="
                     |> List.get 1
-                    |> Result.mapErr \_ -> NoEqualFound
+                    |> Result.map_err \_ -> NoEqualFound
                     |> Result.try \v ->
                         v
-                        |> Str.toU64
-                        |> Result.mapErr \_ -> ValueNoInt v
+                        |> Str.to_u64
+                        |> Result.map_err \_ -> ValueNoInt v
 
     when mayID is
-        Ok id -> List.get sessions id |> Result.withDefault anonymousSession
+        Ok id -> List.get sessions id |> Result.with_default anonymousSession
         Err _ -> anonymousSession
 
 # From basic-webserver
 parseFormUrlEncoded : List U8 -> Result (Dict Str Str) [BadUtf8]
 parseFormUrlEncoded = \bytes ->
 
-    chainUtf8 = \bytesList, tryFun -> Str.fromUtf8 bytesList |> mapUtf8Err |> Result.try tryFun
+    chainUtf8 = \bytesList, tryFun -> Str.from_utf8 bytesList |> mapUtf8Err |> Result.try tryFun
 
     # simplify `BadUtf8 Utf8ByteProblem ...` error
-    mapUtf8Err = \err -> err |> Result.mapErr \_ -> BadUtf8
+    mapUtf8Err = \err -> err |> Result.map_err \_ -> BadUtf8
 
     parse = \bytesRemaining, state, key, chomped, dict ->
-        tail = List.dropFirst bytesRemaining 1
+        tail = List.drop_first bytesRemaining 1
 
         when bytesRemaining is
-            [] if List.isEmpty chomped -> dict |> Ok
+            [] if List.is_empty chomped -> dict |> Ok
             [] ->
                 # chomped last value
                 keyStr <- key |> chainUtf8
@@ -355,9 +355,9 @@ parseFormUrlEncoded = \bytes ->
                 parse tail ParsingKey [] [] (Dict.insert dict keyStr valueStr)
 
             ['%', secondByte, thirdByte, ..] ->
-                hex = Num.toU8 (hexBytesToU32 [secondByte, thirdByte])
+                hex = Num.to_u8 (hexBytesToU32 [secondByte, thirdByte])
 
-                parse (List.dropFirst tail 2) state key (List.append chomped hex) dict
+                parse (List.drop_first tail 2) state key (List.append chomped hex) dict
 
             [firstByte, ..] -> parse tail state key (List.append chomped firstByte) dict
 
@@ -367,7 +367,7 @@ hexBytesToU32 : List U8 -> U32
 hexBytesToU32 = \bytes ->
     bytes
     |> List.reverse
-    |> List.walkWithIndex 0 \accum, byte, i -> accum + (Num.powInt 16 (Num.toU32 i)) * (hexToDec byte)
+    |> List.walkWithIndex 0 \accum, byte, i -> accum + (Num.pow_int 16 (Num.toU32 i)) * (hexToDec byte)
     |> Num.toU32
 
 hexToDec : U8 -> U32

@@ -1,20 +1,23 @@
-app [Model, server] {
-    pf: platform "https://github.com/roc-lang/basic-webserver/releases/download/0.10.0/BgDDIykwcg51W8HA58FE_BjdzgXVk--ucv6pVb_Adik.tar.br",
-    html: "https://github.com/Hasnep/roc-html/releases/download/v0.6.0/IOyNfA4U_bCVBihrs95US9Tf5PGAWh3qvrBN4DRbK5c.tar.br",
+app [Model, init!, respond!] {
+    pf: platform "https://github.com/roc-lang/basic-webserver/releases/download/0.13.0/fSNqJj3-twTrb0jJKHreMimVWD7mebDOj0mnslMm2GM.tar.br",
+    html: "https://github.com/Hasnep/roc-html/releases/download/v0.8.0/GCTX3ckGRXs29XkLh0rhp0a6l0IrUe5RgAFj83hwN3Q.tar.br",
 }
+
+import html.Html
 
 import pf.Stdout
 import pf.Stderr
 import pf.Http exposing [Request, Response]
+import pf.MultipartFormData
 import pf.Env
 import pf.Utc
 import pf.Url
-import "site.css" as stylesFile : List U8
-import "site.js" as siteFile : List U8
-import "../vendor/bootstrap.bundle-5-3-2.min.js" as bootstrapJSFile : List U8
-import "../vendor/bootstrap-5-3-2.min.css" as bootsrapCSSFile : List U8
-import "../vendor/htmx-2-0-3.min.js" as htmxJSFile : List U8
-import Helpers exposing [respondHtml]
+import "site.css" as styles_file : List U8
+import "site.js" as site_file : List U8
+import "../vendor/bootstrap.bundle-5-3-2.min.js" as bootstrap_js_file : List U8
+import "../vendor/bootstrap-5-3-2.min.css" as bootstrap_css_file : List U8
+import "../vendor/htmx-2-0-3.min.js" as htmx_js_file : List U8
+import Helpers
 import Sql.Todo
 import Sql.Session
 import Sql.User
@@ -31,228 +34,242 @@ import Controllers.BigTask
 
 Model : {}
 
-server = { init: Task.ok {}, respond }
+init! : {} => Result Model []
+init! = \{} -> Ok {}
 
-respond : Request, Model -> Task Response [StderrErr _]
-respond = \req, _ -> Task.onErr (handleReq req) \err ->
-        when err is
+respond! : Request, Model => Result Response [ServerErr Str]
+respond! = \req, _ ->
+    when handle_req! req is
+        Ok response -> Ok response
+        Err err ->
+            when err is
+                BadRequest inner ->
+                    _ = Stderr.line! (Inspect.to_str err)
+                    Ok {
+                        status: 400,
+                        headers: [],
+                        body: Str.to_utf8 (Inspect.to_str inner),
+                    }
 
-            BadRequest inner ->
-                Stderr.line! (Inspect.toStr err)
-                Task.ok {
-                    status: 400u16,
-                    headers: [],
-                    body: Str.toUtf8 (Inspect.toStr inner),
-                }
+                Unauthorized ->
+                    Ok (Views.Unauthorised.page {} |> to_html_response [])
 
-            Unauthorized ->
-                Views.Unauthorised.page {} |> respondHtml []
+                NewSession session_id ->
+                    Ok {
+                        status: 303,
+                        headers: [
+                            { name: "Set-Cookie", value: "sessionId=$(Num.to_str session_id)" },
+                            { name: "Location", value: req.uri },
+                        ],
+                        body: [],
+                    }
 
-            NewSession sessionId ->
-                # Redirect to the same URL with the new session ID
-                Task.ok {
-                    status: 303u16,
-                    headers: [
-                        { name: "Set-Cookie", value: "sessionId=$(Num.toStr sessionId)" },
-                        { name: "Location", value: req.url },
-                    ],
-                    body: [],
-                }
+                URLNotFound url ->
+                    _ = Stderr.line! (Str.join_with ["404 NotFound", url] " ")
+                    Ok {
+                        status: 404,
+                        headers: [],
+                        body: [],
+                    }
 
-            URLNotFound url -> respondCodeLogError (Str.joinWith ["404 NotFound", url] " ") 404
-            _ -> respondCodeLogError (Str.joinWith ["SERVER ERROR", Inspect.toStr err] " ") 500
+                _ ->
+                    _ = Stderr.line! (Str.join_with ["SERVER ERROR", Inspect.to_str err] " ")
+                    Ok {
+                        status: 500,
+                        headers: [],
+                        body: [],
+                    }
 
-handleReq : Request -> Task Response _
-handleReq = \req ->
+handle_req! : Request => Result Response _
+handle_req! = \req ->
+    log_request! req
 
-    logRequest! req # Log the date, time, method, and url to stdout
+    db_path = try (Env.var! "DB_PATH" |> Result.map_err UnableToReadDbPATH)
 
-    dbPath = Env.var "DB_PATH" |> Task.mapErr! UnableToReadDbPATH
+    session = try get_session! req db_path
 
-    session = getSession! req dbPath
-
-    urlSegments =
-        req.url
-        |> Url.fromStr
+    url_segments =
+        req.uri
+        |> Url.from_str
         |> Url.path
-        |> Str.splitOn "/"
-        |> List.dropFirst 1
+        |> Str.split_on "/"
+        |> List.drop_first 1
 
-    when (req.method, urlSegments) is
-        (Get, [""]) -> Views.Home.page { session } |> respondHtml []
-        (Get, ["robots.txt"]) -> respondStatic robotsTxt
-        (Get, ["styles.css"]) -> respondStatic stylesFile
-        (Get, ["site.js"]) -> respondStatic siteFile
-        (Get, ["bootstrap.bundle.min.js"]) -> respondStatic bootstrapJSFile
-        (Get, ["bootstrap.min.css"]) -> respondStatic bootsrapCSSFile
-        (Get, ["htmx.min.js"]) -> respondStatic htmxJSFile
-        (Get, ["register"]) ->
-            Views.Register.page { user: Fresh, email: Valid } |> respondHtml []
+    when (req.method, url_segments) is
+        (GET, [""]) -> Ok (Views.Home.page { session } |> to_html_response [])
+        (GET, ["robots.txt"]) -> Ok (respond_static robots_txt)
+        (GET, ["styles.css"]) -> Ok (respond_static styles_file)
+        (GET, ["site.js"]) -> Ok (respond_static site_file)
+        (GET, ["bootstrap.bundle.min.js"]) -> Ok (respond_static bootstrap_js_file)
+        (GET, ["bootstrap.min.css"]) -> Ok (respond_static bootstrap_css_file)
+        (GET, ["htmx.min.js"]) -> Ok (respond_static htmx_js_file)
+        (GET, ["register"]) ->
+            Ok (Views.Register.page { user: Fresh, email: Valid } |> to_html_response [])
 
-        (Post, ["register"]) ->
-            params = Http.parseFormUrlEncoded req.body |> Result.withDefault (Dict.empty {})
+        (POST, ["register"]) ->
+            params = MultipartFormData.parse_form_url_encoded req.body |> Result.with_default (Dict.empty {})
 
             when (Dict.get params "user", Dict.get params "email") is
                 (Ok username, Ok email) ->
-                    Sql.User.register { path: dbPath, name: username, email }
-                    |> Task.attempt \result ->
-                        when result is
-                            Ok {} -> Helpers.respondRedirect "/login" ## Redirect to login page after successful registration
-                            Err UserAlreadyExists -> Views.Register.page { user: UserAlreadyExists username, email: Valid } |> respondHtml []
-                            Err err -> Task.err (ErrRegisteringUser (Inspect.toStr err))
+                    when Sql.User.register! { path: db_path, name: username, email } is
+                        Ok {} -> Helpers.respond_redirect "/login"
+                        Err UserAlreadyExists -> Ok (Views.Register.page { user: UserAlreadyExists username, email: Valid } |> to_html_response [])
+                        Err err -> Err (ErrRegisteringUser (Inspect.to_str err))
 
                 _ ->
-                    Views.Register.page { user: UserNotProvided, email: NotProvided } |> respondHtml []
+                    Ok (Views.Register.page { user: UserNotProvided, email: NotProvided } |> to_html_response [])
 
-        (Get, ["login"]) ->
-            Views.Login.page { session, user: Fresh } |> respondHtml []
+        (GET, ["login"]) ->
+            Ok (Views.Login.page { session, user: Fresh } |> to_html_response [])
 
-        (Post, ["login"]) ->
-            params = Http.parseFormUrlEncoded req.body |> Result.withDefault (Dict.empty {})
+        (POST, ["login"]) ->
+            params = MultipartFormData.parse_form_url_encoded req.body |> Result.with_default (Dict.empty {})
 
             when Dict.get params "user" is
-                Err _ -> Views.Login.page { session, user: UserNotProvided } |> respondHtml []
+                Err _ -> Ok (Views.Login.page { session, user: UserNotProvided } |> to_html_response [])
                 Ok username ->
-                    Sql.User.login dbPath session.id username
-                    |> Task.attempt \result ->
-                        when result is
-                            Ok {} -> Helpers.respondRedirect "/"
-                            Err (UserNotFound _) -> Views.Login.page { session, user: UserNotFound username } |> respondHtml []
-                            Err err -> Task.err (ErrUserLogin (Inspect.toStr err))
+                    when Sql.User.login! db_path session.id username is
+                        Ok {} -> Helpers.respond_redirect "/"
+                        Err (UserNotFound _) -> Ok (Views.Login.page { session, user: UserNotFound username } |> to_html_response [])
+                        Err err -> Err (ErrUserLogin (Inspect.to_str err))
 
-        (Post, ["logout"]) ->
-            id = Sql.Session.new! dbPath
+        (POST, ["logout"]) ->
+            id = try Sql.Session.new! db_path
 
-            Task.ok {
-                status: 303u16,
+            Ok {
+                status: 303,
                 headers: [
-                    { name: "Set-Cookie", value: "sessionId=$(Num.toStr id)" },
+                    { name: "Set-Cookie", value: "sessionId=$(Num.to_str id)" },
                     { name: "Location", value: "/" },
                 ],
                 body: [],
             }
 
-        (Get, ["task", "new"]) -> Helpers.respondRedirect "/task"
-        (Post, ["task", idStr, "delete"]) ->
-            Sql.Todo.delete! { path: dbPath, userId: idStr }
+        (GET, ["task", "new"]) -> Helpers.respond_redirect "/task"
+        (POST, ["task", id_str, "delete"]) ->
+            try Sql.Todo.delete! { path: db_path, user_id: id_str }
 
-            tasks = Sql.Todo.list! { path: dbPath, filterQuery: "" }
+            tasks = try Sql.Todo.list! { path: db_path, filter_query: "" }
 
-            Views.Todo.listTodoView { todos: tasks, filterQuery: "" } |> respondHtml []
+            Ok (Views.Todo.list_todo_view { todos: tasks, filter_query: "" } |> to_html_response [])
 
-        (Post, ["task", "search"]) ->
-            params = Http.parseFormUrlEncoded req.body |> Result.withDefault (Dict.empty {})
+        (POST, ["task", "search"]) ->
+            params = MultipartFormData.parse_form_url_encoded req.body |> Result.with_default (Dict.empty {})
 
-            filterQuery = Dict.get params "filterTasks" |> Result.withDefault ""
+            filter_query = Dict.get params "filterTasks" |> Result.with_default ""
 
-            tasks = Sql.Todo.list! { path: dbPath, filterQuery }
+            tasks = try Sql.Todo.list! { path: db_path, filter_query }
 
-            Views.Todo.listTodoView { todos: tasks, filterQuery } |> respondHtml []
+            Ok (Views.Todo.list_todo_view { todos: tasks, filter_query } |> to_html_response [])
 
-        (Post, ["task", "new"]) ->
-            newTodo = parseTodo req.body |> Task.fromResult!
+        (POST, ["task", "new"]) ->
+            new_todo = try parse_todo req.body
 
-            when Sql.Todo.create { path: dbPath, newTodo } |> Task.result! is
-                Ok {} -> Helpers.respondRedirect "/task"
-                Err TaskWasEmpty -> Helpers.respondRedirect "/task"
-                Err err -> Task.err (ErrTodoCreate (Inspect.toStr err))
+            when Sql.Todo.create! { path: db_path, new_todo } is
+                Ok {} -> Helpers.respond_redirect "/task"
+                Err TaskWasEmpty -> Helpers.respond_redirect "/task"
+                Err err -> Err (ErrTodoCreate (Inspect.to_str err))
 
-        (Put, ["task", taskIdStr, "complete"]) ->
-            Sql.Todo.update! { path: dbPath, taskIdStr, action: Completed }
+        (PUT, ["task", task_id_str, "complete"]) ->
+            try Sql.Todo.update! { path: db_path, task_id_str, action: Completed }
 
-            respondHxTrigger "todosUpdated"
+            Ok (respond_hx_trigger "todosUpdated")
 
-        (Put, ["task", taskIdStr, "in-progress"]) ->
-            Sql.Todo.update! { path: dbPath, taskIdStr, action: InProgress }
+        (PUT, ["task", task_id_str, "in-progress"]) ->
+            try Sql.Todo.update! { path: db_path, task_id_str, action: InProgress }
 
-            respondHxTrigger "todosUpdated"
+            Ok (respond_hx_trigger "todosUpdated")
 
-        (Get, ["task", "list"]) ->
-            tasks = Sql.Todo.list! { path: dbPath, filterQuery: "" }
+        (GET, ["task", "list"]) ->
+            tasks = try Sql.Todo.list! { path: db_path, filter_query: "" }
 
-            Views.Todo.listTodoView { todos: tasks, filterQuery: "" } |> respondHtml []
+            Ok (Views.Todo.list_todo_view { todos: tasks, filter_query: "" } |> to_html_response [])
 
-        (Get, ["task"]) ->
-            tasks = Sql.Todo.list! { path: dbPath, filterQuery: "" }
+        (GET, ["task"]) ->
+            tasks = try Sql.Todo.list! { path: db_path, filter_query: "" }
 
-            Views.Todo.page { todos: tasks, filterQuery: "", session } |> respondHtml []
+            Ok (Views.Todo.page { todos: tasks, filter_query: "", session } |> to_html_response [])
 
-        (Get, ["treeview"]) ->
-            nodes = Sql.Todo.tree! { path: dbPath, userId: 1 }
+        (GET, ["treeview"]) ->
+            nodes = try Sql.Todo.tree! { path: db_path, user_id: 1 }
 
-            Views.TreeView.page { session, nodes } |> respondHtml []
+            Ok (Views.TreeView.page { session, nodes } |> to_html_response [])
 
-        (Get, ["user"]) ->
-            users = Sql.User.list! dbPath
+        (GET, ["user"]) ->
+            users = try Sql.User.list! db_path
 
-            Views.UserList.page { users, session } |> respondHtml []
+            Ok (Views.UserList.page { users, session } |> to_html_response [])
 
         (_, ["bigTask", ..]) ->
-            Controllers.BigTask.respond { req, urlSegments : List.dropFirst urlSegments 1, dbPath, session }
+            Controllers.BigTask.respond! { req, url_segments: List.drop_first url_segments 1, db_path, session }
 
-        _ -> Task.err (URLNotFound req.url)
+        _ -> Err (URLNotFound req.uri)
 
-getSession : Request, Str -> Task Session _
-getSession = \req, dbPath  ->
-    Sql.Session.parse req
-        |> Task.fromResult
-        |> Task.await \id -> Sql.Session.get id dbPath
-        |> Task.onErr \err ->
-            if err == SessionNotFound || err == NoSessionCookie then
-                id = Sql.Session.new! dbPath
+get_session! : Request, Str => Result Session _
+get_session! = \req, db_path ->
+    when Sql.Session.parse req is
+        Ok id ->
+            when Sql.Session.get! id db_path is
+                Ok session -> Ok session
+                Err SessionNotFound ->
+                    id2 = try Sql.Session.new! db_path
+                    Err (NewSession id2)
+                Err err -> Err err
+        Err NoSessionCookie ->
+            id = try Sql.Session.new! db_path
+            Err (NewSession id)
+        Err err -> Err err
 
-                Task.err (NewSession id)
-            else
-                Task.err err
-
-parseTodo : List U8 -> Result Todo _
-parseTodo = \bytes ->
-    dict = Http.parseFormUrlEncoded bytes |> Result.withDefault (Dict.empty {})
+parse_todo : List U8 -> Result Todo _
+parse_todo = \bytes ->
+    dict = MultipartFormData.parse_form_url_encoded bytes |> Result.with_default (Dict.empty {})
 
     when (Dict.get dict "task", Dict.get dict "status") is
         (Ok task, Ok status) -> Ok { id: 0, task, status }
         _ -> Err (UnableToParseBodyTask bytes)
 
-respondHxTrigger : Str -> Task Response []_
-respondHxTrigger = \trigger ->
-    Task.ok {
-        status: 200u16,
+respond_hx_trigger : Str -> Response
+respond_hx_trigger = \trigger ->
+    {
+        status: 200,
         headers: [
             { name: "HX-Trigger", value: trigger },
         ],
         body: [],
     }
 
-respondStatic : List U8 -> Task Response []_
-respondStatic = \bytes ->
-    Task.ok {
-        status: 200u16,
+respond_static : List U8 -> Response
+respond_static = \bytes ->
+    {
+        status: 200,
         headers: [
             { name: "Cache-Control", value: "max-age=120" },
         ],
         body: bytes,
     }
 
-respondCodeLogError = \msg, code ->
-    Stderr.line! msg
-    Task.ok! {
-        status: code,
-        headers: [],
-        body: [],
+to_html_response : Html.Node, List { name : Str, value : Str } -> Response
+to_html_response = \node, other_headers ->
+    {
+        status: 200,
+        headers: [{ name: "Content-Type", value: "text/html; charset=utf-8" }]
+            |> List.concat other_headers,
+        body: Str.to_utf8 (Html.render node),
     }
 
-logRequest : Request -> Task {} [StdoutErr _]
-logRequest = \req ->
-    date = Utc.now |> Task.map! Utc.toIso8601Str
-    method = Http.methodToStr req.method
-    url = req.url
-    body = req.body |> Str.fromUtf8 |> Result.withDefault "<invalid utf8 body>"
-    Stdout.line! "$(date) $(method) $(url) $(body)"
+log_request! : Request => {}
+log_request! = \req ->
+    date = Utc.now! {} |> Utc.to_iso_8601
+    method = Inspect.to_str req.method
+    url = req.uri
+    body = req.body |> Str.from_utf8 |> Result.with_default "<invalid utf8 body>"
+    _ = Stdout.line! "$(date) $(method) $(url) $(body)"
+    {}
 
-robotsTxt : List U8
-robotsTxt =
+robots_txt : List U8
+robots_txt =
     """
     User-agent: *
     Disallow: /
     """
-    |> Str.toUtf8
+    |> Str.to_utf8

@@ -56,8 +56,8 @@ page = \{ session, tasks, pagination, sortBy, sortDirection } ->
                         items: pagination.items,
                         total: pagination.total,
                         baseHref: pagination.baseHref,
-                        rowCount: Num.toU64 (tasks |> List.map (\_ -> 1) |> List.sum),
-                        startRow: Num.toU64 (((pagination.page - 1) * pagination.items) + 1),
+                        rowCount: Num.to_u64 (tasks |> List.map (\_ -> 1) |> List.sum),
+                        startRow: Num.to_u64 (((pagination.page - 1) * pagination.items) + 1),
                     },
                 ],
             ],
@@ -69,8 +69,8 @@ paginationView = \{ page: pageNumber, items, total, baseHref, rowCount, startRow
         links: paginationLinks { page: pageNumber, items, total, baseHref },
         rowCount,
         startRow,
-        totalRowCount: Num.toU64 total,
-        currItemsPerPage: Num.toU64 items,
+        totalRowCount: Num.to_u64 total,
+        currItemsPerPage: Num.to_u64 items,
         minItemsPerPage: 1,
         maxItemsPerPage: 10000,
     }
@@ -106,7 +106,7 @@ columns = \{ sortBy, sortDirection } ->
             name: "CustomerReferenceID",
             sorted: sortedArg "CustomerReferenceID",
             renderValueFn: \task ->
-                idStr = Num.toStr task.id
+                idStr = Num.to_str task.id
                 {
                     updateUrl: "/bigTask/customerId/$(idStr)",
                     inputs: [
@@ -128,7 +128,7 @@ columns = \{ sortBy, sortDirection } ->
             name: "DateCreated",
             sorted: sortedArg "DateCreated",
             renderValueFn: \task ->
-                idStr = Num.toStr task.id
+                idStr = Num.to_str task.id
                 {
                     updateUrl: "/bigTask/dateCreated/$(idStr)",
                     inputs: [
@@ -170,7 +170,7 @@ columns = \{ sortBy, sortDirection } ->
             name: "Status",
             sorted: sortedArg "Status",
             renderValueFn: \task ->
-                idStr = Num.toStr task.id
+                idStr = Num.to_str task.id
                 {
                     updateUrl: "/bigTask/status/$(idStr)",
                     inputs: [
@@ -181,7 +181,7 @@ columns = \{ sortBy, sortDirection } ->
                                 selected: task.status
                                 |> Models.BigTask.statusToStr
                                 |> Models.BigTask.statusOptionIndex
-                                |> Result.withDefault 0,
+                                |> Result.with_default 0,
                                 options: Models.BigTask.statusOptions,
                             },
                             validation: None,
@@ -269,13 +269,13 @@ paginationLinks : { page : I64, items : I64, total : I64, baseHref : Str }
     }
 paginationLinks = \{ page: pageNumber, items, total, baseHref } ->
 
-    totalPages = Num.ceiling ((Num.toFrac total) / (Num.toFrac items)) |> Num.toI64
+    totalPages = Num.ceiling ((Num.to_frac total) / (Num.to_frac items)) |> Num.to_i64
 
     # Previous
     prev = {
         disabled: pageNumber == 1,
         active: Bool.false,
-        href: if pageNumber == 1 then "#" else "$(baseHref)page=$(Num.toStr (pageNumber - 1))&items=$(Num.toStr items)",
+        href: if pageNumber == 1 then "#" else "$(baseHref)page=$(Num.to_str (pageNumber - 1))&items=$(Num.to_str items)",
         label: "Previous",
     }
 
@@ -288,8 +288,8 @@ paginationLinks = \{ page: pageNumber, items, total, baseHref } ->
         |> List.map \n -> {
             disabled: Bool.false,
             active: n == pageNumber,
-            href: if n == pageNumber then "#" else "$(baseHref)page=$(Num.toStr n)&items=$(Num.toStr items)",
-            label: Num.toStr n,
+            href: if n == pageNumber then "#" else "$(baseHref)page=$(Num.to_str n)&items=$(Num.to_str items)",
+            label: Num.to_str n,
         }
 
     # Current
@@ -297,14 +297,14 @@ paginationLinks = \{ page: pageNumber, items, total, baseHref } ->
         disabled: Bool.false,
         active: Bool.true,
         href: "#",
-        label: Num.toStr pageNumber,
+        label: Num.to_str pageNumber,
     }
 
     # Next
     next = {
         disabled: pageNumber == totalPages,
         active: Bool.false,
-        href: if pageNumber == totalPages then "#" else "$(baseHref)page=$(Num.toStr (pageNumber + 1))&items=$(Num.toStr items)",
+        href: if pageNumber == totalPages then "#" else "$(baseHref)page=$(Num.to_str (pageNumber + 1))&items=$(Num.to_str items)",
         label: "Next",
     }
 

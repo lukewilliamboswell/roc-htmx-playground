@@ -15,7 +15,7 @@ import html.Attribute exposing [Attribute, attribute, class, style, href]
 import Views.Icons
 
 styles : List Str -> Attribute
-styles = \s -> s |> Str.joinWith " " |> Attribute.style
+styles = \s -> s |> Str.join_with " " |> Attribute.style
 
 DataTableInputValidation : [None, Valid, Invalid Str]
 
@@ -83,7 +83,7 @@ renderDateSection = \{ name, id, str, validation } -> [
 renderChoiceSection = \{ name, id, selected, options, validation } ->
 
     renderedOptions =
-        List.mapWithIndex options \value, idx ->
+        List.map_with_index options \value, idx ->
             if idx == selected then
                 (Html.element "option") [(attribute "selected") ""] [Html.text value]
             else
@@ -145,9 +145,9 @@ renderColumns = \columns ->
         minWidthStyle =
             when width is
                 None -> ""
-                Pt size -> "min-width:$(Num.toStr size)pt;"
-                Px size -> "min-width:$(Num.toStr size)px;"
-                Rem size -> "min-width:$(Num.toStr size)rem;"
+                Pt size -> "min-width:$(Num.to_str size)pt;"
+                Px size -> "min-width:$(Num.to_str size)px;"
+                Rem size -> "min-width:$(Num.to_str size)rem;"
 
         sortedIcon =
             when sorted is
@@ -275,9 +275,9 @@ renderPagination = \@Pagination { description, links, rowCount, startRow, totalR
                                     Attribute.name "updateItemsPerPage",
                                     class "form-control",
                                     (attribute "id") "updateItemsPerPage",
-                                    Attribute.value "$(Num.toStr currItemsPerPage)",
-                                    Attribute.min "$(Num.toStr minItemsPerPage)",
-                                    Attribute.max "$(Num.toStr maxItemsPerPage)",
+                                    Attribute.value "$(Num.to_str currItemsPerPage)",
+                                    Attribute.min "$(Num.to_str minItemsPerPage)",
+                                    Attribute.max "$(Num.to_str maxItemsPerPage)",
                                     styles [
                                         "border-top-right-radius: 5px;",
                                         "border-bottom-right-radius: 5px;",
@@ -291,6 +291,6 @@ renderPagination = \@Pagination { description, links, rowCount, startRow, totalR
             ul [class "pagination"] (List.map links renderPaginationLink),
         ],
         div [class "d-inline-block"] [
-            text "Showing rows $(Num.toStr startRow) to $(Num.toStr (startRow + rowCount - 1)) of $(Num.toStr totalRowCount) total rows",
+            text "Showing rows $(Num.to_str startRow) to $(Num.to_str (startRow + rowCount - 1)) of $(Num.to_str totalRowCount) total rows",
         ],
     ]

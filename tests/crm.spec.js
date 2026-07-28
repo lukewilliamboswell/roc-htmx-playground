@@ -161,6 +161,22 @@ test.describe("CRM journeys", () => {
     });
 
     await page.route(completionPattern, async (route) => {
+      await route.abort("failed");
+    });
+    await complete.click();
+
+    await expect(
+      page
+        .getByRole("alert")
+        .getByText(
+          "The request could not reach the server. Check your connection and try again.",
+        ),
+    ).toBeVisible();
+    await expect(task).toBeVisible();
+    await expect(page).toHaveURL(relationshipUrl);
+    await page.unroute(completionPattern);
+
+    await page.route(completionPattern, async (route) => {
       await route.fulfill({
         status: 500,
         contentType: "text/html",

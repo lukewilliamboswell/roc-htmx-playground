@@ -165,6 +165,7 @@ complete_form_attributes = |action, enhanced|
 			Web.hx_select(WorkTaskTarget.RelatedTasks),
 			Web.hx_swap(Web.Swap.OuterHtml),
 			Web.hx_sync_first,
+			Web.network_errors_to(WorkTaskTarget.Feedback),
 		].concat(Web.hx_errors_to(WorkTaskTarget.Feedback))
 	} else {
 		[Design.taskActions]

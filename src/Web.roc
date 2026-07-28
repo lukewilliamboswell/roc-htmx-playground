@@ -156,6 +156,15 @@ Web := [].{
 		]
 	}
 
+	## Opt one interaction into persistent local feedback for failures that
+	## have no HTTP response, such as a lost connection or timeout.
+	network_errors_to : target -> Attribute.Attribute
+		where [
+			target.to_id : target -> Str,
+		]
+	network_errors_to = |target|
+		Attribute.attribute("data-network-error-target", target.to_id())
+
 	redirect : location -> Response
 		where [
 			location.to_href : location -> Str,

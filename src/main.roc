@@ -416,6 +416,7 @@ asset_response = |asset|
 		## this match exhaustive if the asset vocabulary grows.
 		Route.Asset.Stylesheet => Response.from_status(404)
 		Route.Asset.Htmx => Response.from_status(404)
+		Route.Asset.Interactions => Response.from_status(404)
 		Route.Asset.PlanningDesk => Response.from_status(404)
 		Route.Asset.PlanningDesk480 => Response.from_status(404)
 		Route.Asset.PlanningDesk640 => Response.from_status(404)

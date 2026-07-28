@@ -275,6 +275,7 @@ Route := [
 		Robots,
 		Stylesheet,
 		Htmx,
+		Interactions,
 		PlanningDesk,
 		PlanningDesk480,
 		PlanningDesk640,
@@ -291,6 +292,7 @@ Route := [
 				Robots => "/robots.txt"
 				Stylesheet => "/assets/styles.css?v=20260728"
 				Htmx => "/assets/htmx.min.js?v=4.0.0-beta6"
+				Interactions => "/assets/interactions.js?v=20260728"
 				PlanningDesk => "/assets/planning-desk.webp"
 				PlanningDesk480 => "/assets/planning-desk-480.webp"
 				PlanningDesk640 => "/assets/planning-desk-640.webp"

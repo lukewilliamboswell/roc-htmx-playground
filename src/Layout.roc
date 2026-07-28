@@ -59,8 +59,8 @@ Layout := [].{
 		scripts = match page_identity {
 			Route.Page.Todos => [Route.Asset.Htmx]
 			Route.Page.BigTasks => [Route.Asset.Htmx]
-			Route.Page.Companies => [Route.Asset.Htmx]
-			Route.Page.People => [Route.Asset.Htmx]
+			Route.Page.Companies => [Route.Asset.Htmx, Route.Asset.Interactions]
+			Route.Page.People => [Route.Asset.Htmx, Route.Asset.Interactions]
 			_ => []
 		}
 

@@ -638,9 +638,43 @@ and preservation of context.
 This seam validates contextual delivery and duplicate-action behavior; it does
 not claim that CRM-020 and CRM-021 are complete. The current task model still
 needs a completion result and the option to schedule the next action. Network
-loss and timeout feedback also remain a separate browser-event seam because
-they have no HTTP error representation to select. Those gaps should be solved
-on the CRM task workflow, not by expanding the legacy playground features.
+loss and timeout feedback have no HTTP error representation to select, so they
+are owned by the deliberately small browser-event boundary below. The product
+gaps should be solved on the CRM task workflow, not by expanding the legacy
+playground features.
+
+### Browser code closes only browser-owned gaps
+
+Use a JavaScript event boundary only when neither semantic HTML nor an HTTP
+response can represent the outcome. Connection loss and client-side timeout
+meet that test. An enhanced form opts in with
+`Web.network_errors_to(target)`; `interactions.js` listens for HTMX 4's
+`htmx:error` event and writes a persistent alert into that form's existing
+local feedback region. A later retry clears the transport alert before issuing
+the request. Server-rendered success, validation, and operational error markup
+remain authoritative.
+
+The browser journey aborts a real completion request, verifies that the task
+and relationship context remain intact, observes the local alert, and then
+retries through the server-error and success paths. Removing the interaction
+asset from the person page makes that journey fail. The event asset is loaded
+only on the CRM page identities that currently opt into this behavior; legacy
+Todo and BigTask pages do not pay for it.
+
+Do not generalize this boundary into a client state layer. In particular, we
+reject global spinners and transient success/error toasts as the default:
+
+- a global spinner cannot accurately communicate which of several concurrent
+  requests is pending;
+- fast local interactions should not make the whole application appear busy;
+- disappearing toasts are poor primary evidence for consequential CRM actions;
+  and
+- server-rendered inline state survives long enough to inspect, associate with
+  the initiating control, and test without JavaScript.
+
+An optional toast may be reconsidered for a genuinely cross-page,
+non-consequential notification, but it must not replace persistent inline
+feedback.
 
 ## Suggested module dependency direction
 

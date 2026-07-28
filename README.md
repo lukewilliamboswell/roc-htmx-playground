@@ -6,6 +6,9 @@
 
 > **Note:** This project uses modern Roc syntax and
 > [basic-webserver 0.14.0](https://github.com/roc-lang/basic-webserver/releases/tag/0.14.0).
+> It vendors the
+> [HTMX 4.0.0-beta6 browser build](https://github.com/bigskysoftware/htmx/releases/tag/v4.0.0-beta6)
+> while HTMX 4 is in beta.
 
 Any PR's or ideas welcome.
 

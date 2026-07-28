@@ -15,7 +15,7 @@ import pf.Url
 import pf.Utc
 import http.Response
 import "site.css" as styles_file : List(U8)
-import "../vendor/htmx-2-0-3.min.js" as htmx_js_file : List(U8)
+import "../vendor/htmx-4-0-0-beta6.min.js" as htmx_js_file : List(U8)
 
 import Db
 import Models
@@ -277,10 +277,7 @@ updateTodo! : Sqlite.Db, Str, Str => Try(Response, AppError)
 updateTodo! = |db, idText, status| {
 	id = parseId(idText)?
 	Db.updateTodo!(db, id, status) ? appError
-	Ok(
-		Response.from_status(200)
-			.with_headers([{ name: "HX-Trigger", value: "todosUpdated" }]),
-	)
+	todoList!(db, "")
 }
 
 treePage! : Server.Request, Sqlite.Db => Try(Response, AppError)

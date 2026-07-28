@@ -97,6 +97,7 @@ Pages :: [].{
 						attribute("hx-post", "/task/search"),
 						attribute("hx-trigger", "input delay:250ms"),
 						attribute("hx-target", "#todo-list"),
+						attribute("hx-swap", "outerHTML"),
 					],
 					[
 						Html.input([
@@ -336,6 +337,7 @@ todoRow = |todo| {
 									Design.button(Danger, Small),
 									attribute("hx-post", "/task/${id}/delete"),
 									attribute("hx-target", "#todo-list"),
+									attribute("hx-swap", "outerHTML"),
 								],
 								[Html.text("Delete")],
 							),
@@ -353,6 +355,8 @@ actionButton = |label, url, hxMethod, tone|
 		[
 			Design.button(tone, Small),
 			attribute(hxMethod, url),
+			attribute("hx-target", "#todo-list"),
+			attribute("hx-swap", "outerHTML"),
 		],
 		[Html.text(label)],
 	)

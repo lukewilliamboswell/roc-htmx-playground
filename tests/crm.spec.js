@@ -214,6 +214,7 @@ test.describe("CRM journeys", () => {
 
     await expect(task).not.toBeVisible();
     await expect(page).toHaveURL(relationshipUrl);
+    await expect(page.locator("#related-open-tasks-heading")).toBeFocused();
     expect(completionRequests).toBe(1);
   });
 

@@ -676,6 +676,23 @@ An optional toast may be reconsidered for a genuinely cross-page,
 non-consequential notification, but it must not replace persistent inline
 feedback.
 
+### Removed controls need an explicit focus destination
+
+When a successful local mutation removes the control that held keyboard focus,
+the interaction must restore orientation deliberately. Task completion makes
+the open-tasks heading programmatically focusable and opts into
+`Web.focus_after_swap`; after a successful HTMX swap, the browser boundary
+focuses that stable heading without scrolling the page. The browser journey
+verifies focus after the completed task and its button disappear. Removing the
+opt-in focus target makes the journey fail.
+
+This is not a global "focus every target" rule. Live-search input and inline
+validation preserve focus through stable element IDs, while normal navigation
+uses the browser's document behavior. Programmatic post-swap focus is reserved
+for interactions that remove the active element and can name a nearby semantic
+anchor. Error responses keep focus in place and announce their local alert
+instead.
+
 ## Suggested module dependency direction
 
 Roc intentionally disallows cyclic imports. We therefore design dependencies

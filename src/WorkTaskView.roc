@@ -8,11 +8,12 @@ import Route
 import Web
 import WorkTask
 
-WorkTaskTarget := [RelatedTasks, Feedback].{
+WorkTaskTarget := [RelatedTasks, Heading, Feedback].{
 	to_selector : WorkTaskTarget -> Str
 	to_selector = |target|
 		match target {
 			RelatedTasks => "#related-open-tasks"
+			Heading => "#related-open-tasks-heading"
 			Feedback => "#related-task-feedback"
 		}
 
@@ -20,6 +21,7 @@ WorkTaskTarget := [RelatedTasks, Feedback].{
 	to_id = |target|
 		match target {
 			RelatedTasks => "related-open-tasks"
+			Heading => "related-open-tasks-heading"
 			Feedback => "related-task-feedback"
 		}
 }
@@ -60,7 +62,14 @@ WorkTaskView := [].{
 				Design.contentSection,
 			],
 			[
-				Html.h2([Design.sectionHeading], [Html.text("Open tasks")]),
+				Html.h2(
+					[
+						Attribute.id(WorkTaskTarget.to_id(WorkTaskTarget.Heading)),
+						attribute("tabindex", "-1"),
+						Design.sectionHeading,
+					],
+					[Html.text("Open tasks")],
+				),
 				Html.div(
 					[
 						Attribute.id(WorkTaskTarget.to_id(WorkTaskTarget.Feedback)),
@@ -166,6 +175,7 @@ complete_form_attributes = |action, enhanced|
 			Web.hx_swap(Web.Swap.OuterHtml),
 			Web.hx_sync_first,
 			Web.network_errors_to(WorkTaskTarget.Feedback),
+			Web.focus_after_swap(WorkTaskTarget.Heading),
 		].concat(Web.hx_errors_to(WorkTaskTarget.Feedback))
 	} else {
 		[Design.taskActions]

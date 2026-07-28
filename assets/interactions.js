@@ -33,4 +33,21 @@
             "The request could not reach the server. Check your connection and try again.";
         feedback.replaceChildren(message);
     });
+
+    document.addEventListener("htmx:after:swap", function (event) {
+        var detail = event.detail;
+        var context = detail && detail.ctx;
+        var source = context && context.sourceElement;
+        var response = context && context.response;
+        var targetId = source && source.getAttribute("data-focus-after-swap");
+
+        if (!targetId || (response && response.status >= 400)) {
+            return;
+        }
+
+        var target = document.getElementById(targetId);
+        if (target) {
+            target.focus({ preventScroll: true });
+        }
+    });
 })();

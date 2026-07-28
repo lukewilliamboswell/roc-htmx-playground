@@ -10,7 +10,8 @@ import pf.Sqlite
 import pf.Stderr
 import pf.Stdout
 import http.Response
-import "../test.sql" as test_schema : Str
+import "../db/init.sql" as init_schema : Str
+import "../db/test-fixtures.sql" as test_fixtures : Str
 
 import BigTask
 import BigTaskStore
@@ -47,9 +48,16 @@ init! = || {
 		}
 		Ok(value) => value
 	}
-	match load_schema!(db, test_schema.split_on(";")) {
+	match load_schema!(db, init_schema.split_on(";")) {
 		Err(error) => {
 			Stderr.line!("schema failed: ${Str.inspect(error)}") ? |_| Exit(2)
+			return Err(Exit(2))
+		}
+		Ok({}) => {}
+	}
+	match load_schema!(db, test_fixtures.split_on(";")) {
+		Err(error) => {
+			Stderr.line!("fixtures failed: ${Str.inspect(error)}") ? |_| Exit(2)
 			return Err(Exit(2))
 		}
 		Ok({}) => {}

@@ -40,9 +40,10 @@ edit-and-run cycle, use:
 roc scripts/tasks.roc dev
 ```
 
-Delete `dist/playground.db` before building if you want a fresh copy of the
-sample data. Set `ASSET_PATH` to override the default `dist/assets` static root
-when embedding the server in another deployment layout.
+Run `roc scripts/tasks.roc reset-db` after a schema change or whenever you want
+a fresh copy of the disposable development data. Set `ASSET_PATH` to override
+the default `dist/assets` static root when embedding the server in another
+deployment layout.
 
 ## Development
 
@@ -62,6 +63,9 @@ roc scripts/tasks.roc check
 # Rebuild CSS once, or continuously while editing the design system
 roc scripts/tasks.roc css
 roc scripts/tasks.roc css-watch
+
+# Recreate the disposable development database from the checked-in SQL
+roc scripts/tasks.roc reset-db
 ```
 
 The task runner downloads and verifies the pinned standalone Tailwind CSS CLI

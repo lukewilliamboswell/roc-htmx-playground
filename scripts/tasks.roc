@@ -35,6 +35,7 @@ main! = |args|
 				"build" => buildDistribution!("speed")
 				"check" => check!()
 				"dev" => dev!()
+				"reset-db" => resetDevDatabase!()
 				"release" => release!()
 				"tailwind-install" => {
 					_ = ensureTailwind!()?
@@ -62,6 +63,7 @@ usage! = || {
 		\\  build             Build a local runtime bundle in dist/
 		\\  check             Build CSS, format-check, type-check, and test
 		\\  dev               Format, validate, build dist/, and serve it
+		\\  reset-db          Recreate the disposable development database
 		\\  release           Build release binaries for Linux and macOS
 		\\  tailwind-install  Install the pinned standalone Tailwind CLI
 		,
@@ -92,11 +94,26 @@ ensureDevDatabase! = || {
 	database = Path.utf8(db_path)
 
 	if !database.is_file!()? {
-		Stdout.line!("Creating ${db_path} from the sample data in test.sql...")?
-		run!("sqlite3", [db_path, ".read test.sql"])?
+		Stdout.line!("Creating ${db_path} from db/init.sql and db/test-fixtures.sql...")?
+		run!("sqlite3", [db_path, ".read db/init.sql"])?
+		run!("sqlite3", [db_path, ".read db/test-fixtures.sql"])?
 	}
 
 	Ok(db_path)
+}
+
+resetDevDatabase! : () => Try({}, _)
+resetDevDatabase! = || {
+	db_path = "dist/playground.db"
+	database = Path.utf8(db_path)
+
+	if database.is_file!()? {
+		Stdout.line!("Deleting disposable development database ${db_path}...")?
+		database.delete!()?
+	}
+
+	_ = ensureDevDatabase!()?
+	Ok({})
 }
 
 check! : () => Try({}, _)

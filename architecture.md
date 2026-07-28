@@ -693,6 +693,84 @@ for interactions that remove the active element and can name a nearby semantic
 anchor. Error responses keep focus in place and announce their local alert
 instead.
 
+### Technique admission matrix
+
+HTMX offers more mechanisms than this application currently needs. The
+following matrix is the decision record for future work; availability in the
+library is not sufficient reason to adopt a technique.
+
+| Technique | Current decision | Admission rule |
+| --- | --- | --- |
+| Semantic links and forms | Adopted | Every interaction starts with the native control and canonical typed URL that expresses its meaning. |
+| Bounded swaps | Adopted | The target is the smallest stable region that owns the complete changed state. |
+| Selecting from a canonical full page | Adopted with a cost | Prefer one representation and `hx-select` until measured response size or rendering cost justifies a dedicated fragment response. |
+| History updates | Adopted selectively | Push discrete navigation; replace rapidly changing but meaningful filter state; do neither for ephemeral presentation state. |
+| Request synchronization | Adopted as named policies | Use latest-wins only for derived state and first-wins only for a guarded mutation. Every new strategy needs an adversarial concurrency journey. |
+| Local indicators and errors | Adopted | Feedback belongs beside the initiating interaction and must survive long enough to inspect. HTTP and transport failures have separate owners. |
+| Focus management | Adopted selectively | Preserve stable focused controls; explicitly name a semantic destination only when a successful swap removes the active element. |
+| Out-of-band swaps or multi-target partials | Deferred | Admit only when one server transition changes two tightly coupled representations already visible on the same page, and a browser journey proves both update atomically. Prefer enlarging one coherent target first. |
+| Polling, SSE, or WebSockets | Not admitted | There is no current CRM state that must change in an open page without member action. Reconsider only for a concrete asynchronous workflow with a defined freshness target, stop condition, visibility behavior, and failure state. |
+| Optimistic mutation | Not admitted | Consequential CRM state remains server-authoritative. Reconsider only for a reversible, high-frequency action with measured latency pain and a tested rollback experience. |
+| Global request spinner | Rejected as a default | Concurrent local requests make one global busy state ambiguous. Use a local indicator where delay is perceptible. |
+| Transient toasts | Rejected as primary feedback | Consequential outcomes and errors require persistent inline evidence. A toast may supplement a genuinely cross-page, non-consequential notice. |
+| Client event bus or broad `HX-Trigger` use | Deferred | Prefer response HTML. Admit an event only for browser-owned behavior or a truly decoupled consumer that cannot be represented by the response target. |
+| Global boosting or a shared navigation macro | Not admitted | Enhance individual typed controls only after their target, selection, history, and fallback behavior are explicit. |
+| Infinite scrolling | Not admitted for operational lists | CRM lists need knowable filters, counts, position, reload, and back behavior. Use typed, URL-addressable pagination unless observed usage proves otherwise. |
+| Preserving arbitrary DOM islands | Deferred | Choose a smaller target first. Use preservation only for a named rich widget whose state cannot be server-rendered, with lifecycle tests across swaps and history. |
+
+Polling is especially inappropriate as a substitute for the work-list
+requirements. Due and overdue work is visible when a member opens or refreshes
+the CRM; timed external reminders are outside the minimal product. Likewise,
+an eventual long-running import would need explicit progress and cancellation
+requirements before any polling interval is chosen.
+
+### Consequential actions use preview and confirmation states
+
+Deletion, merge, import, export, bulk reassignment, stage retirement, and
+archiving with open work are workflows, not button decorations. Each uses a
+typed, navigable server-rendered preview that:
+
+- states whether the action is reversible;
+- names the records and exact dependent counts affected;
+- presents any required choices before commitment;
+- keeps the confirm action visually distinct from cancel; and
+- remains usable without JavaScript.
+
+Do not use `hx-confirm` or a native confirm dialog as the only barrier. A short
+prompt cannot present the dependent records, reassignment decisions, merge
+field choices, or privacy warning required by the CRM. HTMX may enhance the
+preview form after the server-rendered flow exists, but cancelling, refreshing,
+reloading, and submitting the canonical route must remain coherent.
+
+### Empty states stay inside their owned representation
+
+Every full page and selected region renders its own empty state. The state
+keeps the section heading, explains the active scope or filter, and exposes the
+nearest useful action or broadening control. It must not rely on a client hook
+that runs only after a swap; direct requests, history restoration, and
+JavaScript-disabled submissions need the same explanation.
+
+### Completion audit
+
+The admitted interaction principles above have executable browser evidence:
+uneven request latency, browser history and direct reload, JavaScript-disabled
+fallbacks, validation focus and association, HTTP and transport failures,
+duplicate activation, bounded DOM ownership, and focus after removal. Practical
+mutation checks were performed for the policies whose absence could otherwise
+leave a happy-path test passing.
+
+The deferred techniques are intentionally not represented by unused helpers or
+demonstration code. They become candidates only when a CRM workflow satisfies
+their admission rule, at which point they must go through the same
+one-seam/one-commit evaluation. This audit validates the interaction
+architecture, not completion of every CRM product requirement: task outcomes,
+next-action scheduling, full search/filter coverage, archive, merge, import,
+export, and permanent deletion still require their own vertical slices.
+
+Legacy Todo and BigTask screens remain evidence fixtures only. New principles
+are applied to CRM slices; legacy code is changed only when needed to preserve
+an existing experiment until those screens are removed.
+
 ## Suggested module dependency direction
 
 Roc intentionally disallows cyclic imports. We therefore design dependencies

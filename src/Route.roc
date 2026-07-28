@@ -71,6 +71,7 @@ Route := [
 		BigTaskCsv,
 		CompanySearch(Company.Filter),
 		CompanyDetail(Company.Id),
+		CompanyEdit(Company.Id),
 	].{
 		to_href : Location -> Str
 		to_href = |location|
@@ -83,6 +84,7 @@ Route := [
 				CompanySearch(filter) =>
 					"/companies?q=${form_encode(filter.to_str())}"
 				CompanyDetail(id) => "/companies/${id.to_str()}"
+				CompanyEdit(id) => "/companies/${id.to_str()}/edit"
 			}
 	}
 
@@ -95,6 +97,7 @@ Route := [
 		DeleteTodo(Todo.Id),
 		PreviewCompany,
 		CreateCompany,
+		UpdateCompany(Company.Id),
 	].{
 		to_post_url : PostAction -> Str
 		to_post_url = |action|
@@ -107,6 +110,7 @@ Route := [
 				DeleteTodo(id) => "/task/${Todo.Id.to_str(id)}/delete"
 				PreviewCompany => "/companies/preview"
 				CreateCompany => "/companies"
+				UpdateCompany(id) => "/companies/${id.to_str()}"
 			}
 	}
 
@@ -147,7 +151,7 @@ Route := [
 			}
 	}
 
-	CompanyInput := [Name, Lifecycle, Website, Phone, Source, Context, ConfirmDistinct].{
+	CompanyInput := [Name, Lifecycle, Website, Phone, Source, Context, ConfirmDistinct, Version].{
 		to_name : CompanyInput -> Str
 		to_name = |input|
 			match input {
@@ -158,6 +162,7 @@ Route := [
 				Source => "source"
 				Context => "context"
 				ConfirmDistinct => "confirmDistinct"
+				Version => "version"
 			}
 	}
 
@@ -259,6 +264,10 @@ Route := [
 			(Get, ["", "companies", "new"]) => Ok(Visit(AtPage(CompanyNew)))
 			(Post, ["", "companies", "preview"]) => Ok(Post(PreviewCompany))
 			(Post, ["", "companies"]) => Ok(Post(CreateCompany))
+			(Get, ["", "companies", id, "edit"]) =>
+				Ok(Visit(CompanyEdit(Company.Id.from_storage(id))))
+			(Post, ["", "companies", id]) =>
+				Ok(Post(UpdateCompany(Company.Id.from_storage(id))))
 			(Get, ["", "companies", id]) =>
 				Ok(Visit(CompanyDetail(Company.Id.from_storage(id))))
 

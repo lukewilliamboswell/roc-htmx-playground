@@ -16,6 +16,12 @@ Design :: [].{
 	pageTitle : Attribute.Attribute
 	pageTitle = class("mb-6 text-3xl font-bold tracking-tight text-slate-950")
 
+	backLinkedPageTitle : Attribute.Attribute
+	backLinkedPageTitle = class("mt-4")
+
+	pageHeader : Attribute.Attribute
+	pageHeader = class("flex flex-wrap items-center justify-between gap-4")
+
 	lead : Attribute.Attribute
 	lead = class("-mt-4 max-w-2xl text-lg leading-8 text-slate-600")
 
@@ -116,6 +122,15 @@ Design :: [].{
 	form : Attribute.Attribute
 	form = class("max-w-md")
 
+	recordForm : Attribute.Attribute
+	recordForm = class("max-w-2xl rounded-xl border border-slate-200 bg-white p-6 shadow-sm")
+
+	newRecordForm : Attribute.Attribute
+	newRecordForm = class("mt-6 max-w-2xl rounded-xl border border-slate-200 bg-white p-6 shadow-sm")
+
+	searchForm : Attribute.Attribute
+	searchForm = class("mt-6")
+
 	field : Attribute.Attribute
 	field = class("mb-4 space-y-2")
 
@@ -175,6 +190,60 @@ Design :: [].{
 
 	emptyState : Attribute.Attribute
 	emptyState = class("px-4 py-10 text-center text-sm text-slate-500")
+
+	detailGrid : Attribute.Attribute
+	detailGrid = class("grid gap-6 lg:grid-cols-3")
+
+	detailPrimaryCard : Attribute.Attribute
+	detailPrimaryCard = class("rounded-xl border border-slate-200 bg-white p-5 shadow-sm lg:col-span-2")
+
+	detailCard : Attribute.Attribute
+	detailCard = class("rounded-xl border border-slate-200 bg-white p-5 shadow-sm")
+
+	sectionHeading : Attribute.Attribute
+	sectionHeading = class("text-lg font-semibold")
+
+	contentSection : Attribute.Attribute
+	contentSection = class("mt-6 rounded-xl border border-slate-200 bg-white p-5 shadow-sm")
+
+	contentSectionText : Attribute.Attribute
+	contentSectionText = class("mt-2 text-sm text-slate-600")
+
+	recordLink : Attribute.Attribute
+	recordLink = class("font-semibold text-blue-700 hover:underline")
+
+	secondaryText : Attribute.Attribute
+	secondaryText = class("text-sm text-slate-600")
+
+	detailList : Attribute.Attribute
+	detailList = class("mt-4 grid gap-4 sm:grid-cols-2")
+
+	detailTerm : Attribute.Attribute
+	detailTerm = class("text-sm font-medium text-slate-500")
+
+	detailValue : Attribute.Attribute
+	detailValue = class("mt-1 text-sm text-slate-900")
+
+	warningPanel : Attribute.Attribute
+	warningPanel = class("mb-6 rounded-xl border border-amber-300 bg-amber-50 p-5")
+
+	warningPanelSpaced : Attribute.Attribute
+	warningPanelSpaced = class("mt-6 rounded-xl border border-amber-300 bg-amber-50 p-5")
+
+	warningHeading : Attribute.Attribute
+	warningHeading = class("font-semibold text-amber-950")
+
+	warningSectionHeading : Attribute.Attribute
+	warningSectionHeading = class("text-lg font-semibold text-amber-950")
+
+	warningText : Attribute.Attribute
+	warningText = class("mt-1 text-sm text-amber-900")
+
+	matchList : Attribute.Attribute
+	matchList = class("mt-4 space-y-3")
+
+	matchItem : Attribute.Attribute
+	matchItem = class("rounded-lg bg-white p-3")
 
 	todoForm : Attribute.Attribute
 	todoForm = class("mt-6 grid gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm md:grid-cols-12")

@@ -131,6 +131,32 @@ CompanyStore :: { db : Sqlite.Db }.{
 			}
 		}
 	}
+
+	update! : CompanyStore, Workspace.Id, Member.Id, Company.Id, Company.New, Company.Version, Str => Try(Company.Version, Company.UpdateError(Sqlite.QueryError))
+	update! = |store, workspace_id, actor_id, id, input, expected_version, now| {
+		transaction = Sqlite.begin!(store.db, Immediate)
+			? Company.UpdateError.StoreFailure
+
+		match update_in_transaction!(
+			transaction,
+			workspace_id,
+			actor_id,
+			id,
+			input,
+			expected_version,
+			now,
+		) {
+			Err(error) => {
+				Sqlite.Transaction.rollback!(transaction) ?? {}
+				Err(error)
+			}
+			Ok(version) => {
+				Sqlite.Transaction.commit!(transaction)
+					? Company.UpdateError.StoreFailure
+				Ok(version)
+			}
+		}
+	}
 }
 
 create_in_transaction! : Sqlite.Transaction, Workspace.Id, Member.Id, Company.New, Str, Bool => Try(Company.Id, Company.CreateError(Sqlite.QueryError))
@@ -223,6 +249,187 @@ create_in_transaction! = |transaction, workspace_id, actor_id, input, now, confi
 	) ? Company.CreateError.StoreFailure
 
 	Ok(Company.Id.from_storage(created.id))
+}
+
+update_in_transaction! : Sqlite.Transaction, Workspace.Id, Member.Id, Company.Id, Company.New, Company.Version, Str => Try(Company.Version, Company.UpdateError(Sqlite.QueryError))
+update_in_transaction! = |transaction, workspace_id, actor_id, id, input, expected_version, now| {
+	rows : List(RawCompany)
+	rows = Sqlite.Transaction.query_many!(
+		transaction,
+		{
+			query: (
+				\\SELECT
+				\\    c.company_id AS id, c.name, c.owner_id AS ownerId,
+				\\    owner.name AS ownerName, c.lifecycle_status AS lifecycle,
+				\\    c.website, c.phone, c.source_id AS sourceId,
+				\\    IFNULL(source.name, '') AS sourceName, c.context,
+				\\    creator.name AS createdByName, updater.name AS updatedByName,
+				\\    c.created_at AS createdAt, c.updated_at AS updatedAt, c.version
+				\\FROM companies c
+				\\JOIN members owner ON owner.member_id = c.owner_id
+				\\JOIN members creator ON creator.member_id = c.created_by_id
+				\\JOIN members updater ON updater.member_id = c.updated_by_id
+				\\LEFT JOIN sources source
+				\\  ON source.workspace_id = c.workspace_id AND source.source_id = c.source_id
+				\\WHERE c.company_id = :id
+				\\  AND c.workspace_id = :workspaceId
+				\\  AND c.archived_at = '';
+				,
+			),
+			params: {
+				id: id.to_str(),
+				workspaceId: workspace_id.to_str(),
+			},
+			limits: Sqlite.default_query_limits,
+		},
+	) ? Company.UpdateError.StoreFailure
+
+	current = match rows {
+		[] => return Err(Company.UpdateError.NotFound)
+		[row, ..] => Company.from_storage(row)
+	}
+
+	if current.version != expected_version {
+		return Err(Company.UpdateError.Conflict(current))
+	}
+
+	next_version = Company.Version.from_i64(expected_version.to_i64() + 1)
+	Sqlite.Transaction.execute!(
+		transaction,
+		{
+			query: (
+				\\UPDATE companies SET
+				\\    name = :name,
+				\\    normalized_name = :normalizedName,
+				\\    owner_id = :ownerId,
+				\\    lifecycle_status = :lifecycle,
+				\\    website = :website,
+				\\    website_domain = :websiteDomain,
+				\\    phone = :phone,
+				\\    normalized_phone = :normalizedPhone,
+				\\    source_id = :sourceId,
+				\\    context = :context,
+				\\    updated_by_id = :actorId,
+				\\    updated_at = :now,
+				\\    version = :nextVersion
+				\\WHERE company_id = :id AND version = :expectedVersion;
+				,
+			),
+			params: {
+				id: id.to_str(),
+				name: input.name.to_str(),
+				normalizedName: input.name.normalized(),
+				ownerId: input.ownerId.to_str(),
+				lifecycle: input.lifecycle.to_str(),
+				website: input.website,
+				websiteDomain: Company.website_domain(input.website),
+				phone: input.phone,
+				normalizedPhone: Company.normalized_phone(input.phone),
+				sourceId: input.sourceId,
+				context: input.context,
+				actorId: actor_id.to_str(),
+				now,
+				expectedVersion: expected_version.to_i64(),
+				nextVersion: next_version.to_i64(),
+			},
+		},
+	) ? Company.UpdateError.StoreFailure
+
+	Sqlite.Transaction.execute!(
+		transaction,
+		{
+			query: (
+				\\INSERT INTO company_revisions (
+				\\    company_id, version, name, owner_id, lifecycle_status,
+				\\    website, phone, source_id, context, changed_by_id, changed_at
+				\\) VALUES (
+				\\    :id, :version, :name, :ownerId, :lifecycle,
+				\\    :website, :phone, :sourceId, :context, :actorId, :now
+				\\);
+				,
+			),
+			params: {
+				id: id.to_str(),
+				version: next_version.to_i64(),
+				name: input.name.to_str(),
+				ownerId: input.ownerId.to_str(),
+				lifecycle: input.lifecycle.to_str(),
+				website: input.website,
+				phone: input.phone,
+				sourceId: input.sourceId,
+				context: input.context,
+				actorId: actor_id.to_str(),
+				now,
+			},
+		},
+	) ? Company.UpdateError.StoreFailure
+
+	if current.ownerId != input.ownerId {
+		log_change!(
+			transaction,
+			workspace_id,
+			actor_id,
+			id,
+			"owner",
+			current.ownerId.to_str(),
+			input.ownerId.to_str(),
+			now,
+		) ? Company.UpdateError.StoreFailure
+	}
+	if current.lifecycle != input.lifecycle {
+		log_change!(
+			transaction,
+			workspace_id,
+			actor_id,
+			id,
+			"lifecycle",
+			current.lifecycle.to_label(),
+			input.lifecycle.to_label(),
+			now,
+		) ? Company.UpdateError.StoreFailure
+	}
+
+	Ok(next_version)
+}
+
+log_change! : Sqlite.Transaction, Workspace.Id, Member.Id, Company.Id, Str, Str, Str, Str => Try({}, Sqlite.QueryError)
+log_change! = |transaction, workspace_id, actor_id, company_id, field, from, to, now| {
+	activity : { id : Str }
+	activity = Sqlite.Transaction.query!(
+		transaction,
+		{
+			query: (
+				\\INSERT INTO activities (
+				\\    activity_id, workspace_id, activity_type, occurred_at,
+				\\    created_by_id, subject, details, outcome, change_field,
+				\\    change_from, change_to, created_at
+				\\) VALUES (
+				\\    'activity-' || lower(hex(randomblob(16))), :workspaceId,
+				\\    'record_change', :now, :actorId, 'Company updated',
+				\\    '', '', :field, :fromValue, :toValue, :now
+				\\)
+				\\RETURNING activity_id AS id;
+				,
+			),
+			params: {
+				workspaceId: workspace_id.to_str(),
+				actorId: actor_id.to_str(),
+				field,
+				fromValue: from,
+				toValue: to,
+				now,
+			},
+			limits: Sqlite.default_query_limits,
+		},
+	)?
+	Sqlite.Transaction.execute!(
+		transaction,
+		{
+			query: "INSERT INTO activity_companies (activity_id, company_id) VALUES (:activityId, :companyId);",
+			params: { activityId: activity.id, companyId: company_id.to_str() },
+		},
+	)?
+	Ok({})
 }
 
 duplicate_query = (

@@ -39,6 +39,21 @@ CompanyHandler := [].{
 	new_page = |actor|
 		Http.html(200, CompanyView.new_page(actor, empty_form(), ""), [])
 
+	edit_page! : CompanyStore, Actor, Company.Id => Try(Response, AppError)
+	edit_page! = |store, actor, id|
+		match CompanyStore.find!(store, id) {
+			Ok(company) =>
+				Ok(
+					Http.html(
+						200,
+						CompanyView.edit_page(actor, company, form_from_company(company), ""),
+						[],
+					),
+				)
+			Err(Company.FindError.NotFound) => Err(AppError.NotFound("company ${id.to_str()}"))
+			Err(Company.FindError.StoreFailure(error)) => Err(AppError.from(error))
+		}
+
 	preview! : Server.Request, CompanyStore, Actor => Try(Response, AppError)
 	preview! = |request, store, actor| {
 		form = Http.read_form!(request)?
@@ -76,6 +91,42 @@ CompanyHandler := [].{
 				Ok(Http.html(422, CompanyView.new_page(actor, form, message), []))
 			Ok(input) => create_input!(store, actor, form, input, True)
 		}
+	}
+
+	update! : Server.Request, CompanyStore, Actor, Company.Id => Try(Response, AppError)
+	update! = |request, store, actor, id| {
+		fields = Http.read_form!(request)?
+		form = form_values(fields)
+		expected_version = Company.Version.from_str(
+			field(fields, Route.CompanyInput.Version),
+		) ? |_| AppError.BadRequest("Expected a valid company version")
+
+		match company_input(form, actor) {
+			Err(message) =>
+				match CompanyStore.find!(store, id) {
+					Ok(company) =>
+						Ok(Http.html(422, CompanyView.edit_page(actor, company, form, message), []))
+					Err(Company.FindError.NotFound) => Err(AppError.NotFound("company ${id.to_str()}"))
+					Err(Company.FindError.StoreFailure(error)) => Err(AppError.from(error))
+				}
+			Ok(input) =>
+				match CompanyStore.update!(
+					store,
+					actor.workspace.id,
+					actor.member.id,
+					id,
+					input,
+					expected_version,
+					Utc.to_iso_8601(Utc.now!()),
+				) {
+					Ok(_) => Ok(Web.redirect(Route.Location.CompanyDetail(id)))
+					Err(Company.UpdateError.NotFound) =>
+						Err(AppError.NotFound("company ${id.to_str()}"))
+					Err(Company.UpdateError.Conflict(current)) =>
+						Ok(Http.html(409, CompanyView.conflict_page(actor, current, form), []))
+					Err(Company.UpdateError.StoreFailure(error)) => Err(AppError.from(error))
+				}
+			}
 	}
 }
 
@@ -134,4 +185,15 @@ empty_form = ||
 		phone: "",
 		source: "",
 		context: "",
+	}
+
+form_from_company : Company -> CompanyView.Form
+form_from_company = |company|
+	CompanyView.Form.{
+		name: company.name.to_str(),
+		lifecycle: company.lifecycle.to_str(),
+		website: company.website,
+		phone: company.phone,
+		source: company.sourceId,
+		context: company.context,
 	}

@@ -122,6 +122,7 @@ test_companies! = |db| {
 	duplicate_input = valid_company_input(
 		"Acme Studio Australia",
 		member.id,
+		"lead",
 		"https://www.acme.example/contact",
 		"",
 	)
@@ -147,6 +148,7 @@ test_companies! = |db| {
 	new_input = valid_company_input(
 		"Northwind Workshop",
 		member.id,
+		"lead",
 		"https://northwind.example",
 		"+61 3 8111 2222",
 	)
@@ -168,11 +170,61 @@ test_companies! = |db| {
 				and company.version.to_i64() == 1
 		Err(_) => False
 	}
+
+	created_id = match created {
+		Ok(id) => id
+		Err(_) => Company.Id.from_storage("company-missing")
+	}
+	updated_input = valid_company_input(
+		"Northwind Workshop",
+		member.id,
+		"customer",
+		"https://northwind.example",
+		"+61 3 8111 2222",
+	)
+	updated = CompanyStore.update!(
+		store,
+		workspace.id,
+		member.id,
+		created_id,
+		updated_input,
+		Company.Version.initial,
+		"2026-07-28T10:10:00Z",
+	)
+	expect match updated {
+		Ok(version) => version.to_i64() == 2
+		Err(_) => False
+	}
+
+	stale = CompanyStore.update!(
+		store,
+		workspace.id,
+		member.id,
+		created_id,
+		new_input,
+		Company.Version.initial,
+		"2026-07-28T10:15:00Z",
+	)
+	expect match stale {
+		Err(Company.UpdateError.Conflict(current)) =>
+			current.version.to_i64() == 2
+				and current.lifecycle == Company.Lifecycle.Customer
+		_ => False
+	}
+
+	activity_count : { count : I64 }
+	activity_count = Sqlite.query!({
+		db,
+		query: "SELECT COUNT(*) AS count FROM activities WHERE change_field = 'lifecycle';",
+		params: {},
+		limits: Sqlite.default_query_limits,
+	}) ?? { count: 0 }
+	expect activity_count.count == 1
 }
 
-valid_company_input : Str, Member.Id, Str, Str -> Company.New
-valid_company_input = |name, owner_id, website, phone|
-	match Company.new(name, owner_id, "lead", website, phone, "event", "Test context") {
+valid_company_input : Str, Member.Id, Str, Str, Str -> Company.New
+valid_company_input = |name, owner_id, lifecycle, website, phone|
+	match Company.new(name, owner_id, lifecycle, website, phone, "event", "Test context") {
 		Ok(input) => input
 		Err(_) => {
 			crash "Company test input should be valid."

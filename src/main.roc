@@ -211,6 +211,12 @@ visit! = |context, session, location|
 				actor_from_session(session, context.workspace)?,
 				id,
 			)
+		Route.Location.CompanyEdit(id) =>
+			CompanyHandler.edit_page!(
+				context.companyStore,
+				actor_from_session(session, context.workspace)?,
+				id,
+			)
 		}
 
 actor_from_session : Session, Workspace -> Try(Actor, AppError)
@@ -245,6 +251,13 @@ post! = |request, context, session, action|
 				request,
 				context.companyStore,
 				actor_from_session(session, context.workspace)?,
+			)
+		Route.PostAction.UpdateCompany(id) =>
+			CompanyHandler.update!(
+				request,
+				context.companyStore,
+				actor_from_session(session, context.workspace)?,
+				id,
 			)
 		}
 

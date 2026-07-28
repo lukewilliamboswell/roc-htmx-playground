@@ -31,7 +31,7 @@ CompanyView :: [].{
 			Route.Page.Companies,
 			[
 				Html.div(
-					[attribute("class", "flex flex-wrap items-center justify-between gap-4")],
+					[Design.pageHeader],
 					[
 						Html.div(
 							[],
@@ -63,6 +63,14 @@ CompanyView :: [].{
 	duplicate_page = |actor, form, matches|
 		company_form_page(actor, form, "", matches)
 
+	edit_page : Actor, Company, Form, Str -> Html.Node
+	edit_page = |actor, company, form, validation|
+		edit_form_page(actor, company, form, validation, False)
+
+	conflict_page : Actor, Company, Form -> Html.Node
+	conflict_page = |actor, current, attempted|
+		edit_form_page(actor, current, attempted, "", True)
+
 	detail : Actor, Company -> Html.Node
 	detail = |actor, company|
 		Layout.page(
@@ -75,17 +83,22 @@ CompanyView :: [].{
 					[Html.text("← Companies")],
 				),
 				Html.h1(
-					[Design.pageTitle, attribute("class", "mt-4")],
+					[Design.pageTitle, Design.backLinkedPageTitle],
 					[Html.text(company.name.to_str())],
 				),
+				Web.link(
+					Route.Location.CompanyEdit(company.id),
+					[Design.button(Design.ButtonTone.Outline, Design.ButtonSize.Regular)],
+					[Html.text("Edit company")],
+				),
 				Html.div(
-					[attribute("class", "grid gap-6 lg:grid-cols-3")],
+					[Design.detailGrid],
 					[
 						Html.element(
 							"section",
-							[attribute("class", "rounded-xl border border-slate-200 bg-white p-5 shadow-sm lg:col-span-2")],
+							[Design.detailPrimaryCard],
 							[
-								Html.h2([attribute("class", "text-lg font-semibold")], [Html.text("Relationship")]),
+								Html.h2([Design.sectionHeading], [Html.text("Relationship")]),
 								detail_list([
 									("Lifecycle", company.lifecycle.to_label()),
 									("Owner", company.ownerName),
@@ -98,9 +111,9 @@ CompanyView :: [].{
 						),
 						Html.element(
 							"aside",
-							[attribute("class", "rounded-xl border border-slate-200 bg-white p-5 shadow-sm")],
+							[Design.detailCard],
 							[
-								Html.h2([attribute("class", "text-lg font-semibold")], [Html.text("Record")]),
+								Html.h2([Design.sectionHeading], [Html.text("Record")]),
 								detail_list([
 									("Created by", company.createdByName),
 									("Created", company.createdAt),
@@ -127,6 +140,107 @@ CompanyView :: [].{
 		)
 }
 
+edit_form_page : Actor, Company, CompanyView.Form, Str, Bool -> Html.Node
+edit_form_page = |actor, company, form, validation, conflict|
+	Layout.page(
+		actor.session,
+		Route.Page.Companies,
+		[
+			Web.link(
+				Route.Location.CompanyDetail(company.id),
+				[Design.navLink],
+				[Html.text("← ${company.name.to_str()}")],
+			),
+			Html.h1([Design.pageTitle, Design.backLinkedPageTitle], [Html.text("Edit company")]),
+			if conflict {
+				Html.element(
+					"section",
+					[Design.warningPanel],
+					[
+						Html.h2(
+							[Design.warningHeading],
+							[Html.text("This company changed while you were editing")],
+						),
+						Html.p(
+							[Design.warningText],
+							[
+								Html.text(
+									"The form below contains your attempted values. The current saved lifecycle is ${company.lifecycle.to_label()} and the current owner is ${company.ownerName}. Review and submit again to apply your values.",
+								),
+							],
+						),
+					],
+				)
+			} else {
+				Html.text("")
+			},
+			if validation.is_empty() {
+				Html.text("")
+			} else {
+				Html.p([Design.validation], [Html.text(validation)])
+			},
+			Web.post_form(
+				Route.PostAction.UpdateCompany(company.id),
+				[Design.recordForm],
+				[
+					Html.input([
+						Attribute.type("hidden"),
+						Attribute.name(Route.CompanyInput.to_name(Route.CompanyInput.Version)),
+						Attribute.value(company.version.to_str()),
+					]),
+					text_field("Company name", Route.CompanyInput.Name, form.name, "Acme Studio"),
+					text_field("Website", Route.CompanyInput.Website, form.website, "https://acme.example"),
+					text_field("Phone", Route.CompanyInput.Phone, form.phone, "+61 3 9000 0000"),
+					select_field(
+						"Lifecycle",
+						Route.CompanyInput.Lifecycle,
+						form.lifecycle,
+						[
+							("lead", "Lead"),
+							("prospect", "Prospect"),
+							("customer", "Customer"),
+							("inactive", "Inactive"),
+						],
+					),
+					select_field(
+						"Source",
+						Route.CompanyInput.Source,
+						form.source,
+						[("", "Not recorded")].concat(
+							actor.workspace.sources.map(|source| (source.id.to_str(), source.name)),
+						),
+					),
+					Html.div(
+						[Design.field],
+						[
+							Html.label(
+								[Attribute.for_(Route.CompanyInput.to_name(Route.CompanyInput.Context)), Design.label],
+								[Html.text("Relationship context")],
+							),
+							Html.element(
+								"textarea",
+								[
+									Attribute.id(Route.CompanyInput.to_name(Route.CompanyInput.Context)),
+									Attribute.name(Route.CompanyInput.to_name(Route.CompanyInput.Context)),
+									Design.input,
+									attribute("rows", "4"),
+								],
+								[Html.text(form.context)],
+							),
+						],
+					),
+					Html.button(
+						[
+							Attribute.type("submit"),
+							Design.button(Design.ButtonTone.Primary, Design.ButtonSize.Regular),
+						],
+						[Html.text("Save company")],
+					),
+				],
+			),
+		],
+	)
+
 company_form_page : Actor, CompanyView.Form, Str, List(Company.Match) -> Html.Node
 company_form_page = |actor, form, validation, matches|
 	Layout.page(
@@ -134,7 +248,7 @@ company_form_page = |actor, form, validation, matches|
 		Route.Page.CompanyNew,
 		[
 			Web.link(Route.Page.Companies, [Design.navLink], [Html.text("← Companies")]),
-			Html.h1([Design.pageTitle, attribute("class", "mt-4")], [Html.text("New company")]),
+			Html.h1([Design.pageTitle, Design.backLinkedPageTitle], [Html.text("New company")]),
 			Html.p(
 				[Design.lead],
 				[Html.text("Capture the relationship now; only the company name is required.")],
@@ -155,7 +269,7 @@ company_form_page = |actor, form, validation, matches|
 				} else {
 					Route.PostAction.CreateCompany
 				},
-				[attribute("class", "mt-6 max-w-2xl rounded-xl border border-slate-200 bg-white p-6 shadow-sm")],
+				[Design.newRecordForm],
 				[
 					text_field("Company name", Route.CompanyInput.Name, form.name, "Acme Studio"),
 					text_field("Website", Route.CompanyInput.Website, form.website, "https://acme.example"),
@@ -231,27 +345,27 @@ duplicate_panel : List(Company.Match) -> Html.Node
 duplicate_panel = |matches|
 	Html.element(
 		"section",
-		[attribute("class", "mt-6 rounded-xl border border-amber-300 bg-amber-50 p-5")],
+		[Design.warningPanelSpaced],
 		[
-			Html.h2([attribute("class", "text-lg font-semibold text-amber-950")], [Html.text("Check possible duplicates")]),
+			Html.h2([Design.warningSectionHeading], [Html.text("Check possible duplicates")]),
 			Html.p(
-				[attribute("class", "mt-1 text-sm text-amber-900")],
+				[Design.warningText],
 				[Html.text("Review these existing companies before creating another record.")],
 			),
 			Html.ul(
-				[attribute("class", "mt-4 space-y-3")],
+				[Design.matchList],
 				matches.map(
 					|candidate|
 						Html.li(
-							[attribute("class", "rounded-lg bg-white p-3")],
+							[Design.matchItem],
 							[
 								Web.link(
 									Route.Location.CompanyDetail(candidate.company.id),
-									[attribute("class", "font-semibold text-blue-700 hover:underline")],
+									[Design.recordLink],
 									[Html.text(candidate.company.name.to_str())],
 								),
 								Html.p(
-									[attribute("class", "text-sm text-slate-600")],
+									[Design.secondaryText],
 									[Html.text("${candidate.strength.to_label()}: ${candidate.reason}")],
 								),
 							],
@@ -306,7 +420,7 @@ search_form = |filter|
 		[
 			Attribute.action(Route.Page.to_href(Route.Page.Companies)),
 			Attribute.method("get"),
-			attribute("class", "mt-6"),
+			Design.searchForm,
 		],
 		[
 			Html.label(
@@ -372,7 +486,7 @@ company_row = |company|
 				[
 					Web.link(
 						Route.Location.CompanyDetail(company.id),
-						[attribute("class", "font-semibold text-blue-700 hover:underline")],
+						[Design.recordLink],
 						[Html.text(company.name.to_str())],
 					),
 				],
@@ -399,14 +513,14 @@ detail_list : List((Str, Str)) -> Html.Node
 detail_list = |items|
 	Html.element(
 		"dl",
-		[attribute("class", "mt-4 grid gap-4 sm:grid-cols-2")],
+		[Design.detailList],
 		items.map(
 			|(label, value)|
 				Html.div(
 					[],
 					[
-						Html.element("dt", [attribute("class", "text-sm font-medium text-slate-500")], [Html.text(label)]),
-						Html.element("dd", [attribute("class", "mt-1 text-sm text-slate-900")], [Html.text(value)]),
+						Html.element("dt", [Design.detailTerm], [Html.text(label)]),
+						Html.element("dd", [Design.detailValue], [Html.text(value)]),
 					],
 				),
 		),
@@ -416,10 +530,10 @@ placeholder_section : Str, Str -> Html.Node
 placeholder_section = |title, message|
 	Html.element(
 		"section",
-		[attribute("class", "mt-6 rounded-xl border border-slate-200 bg-white p-5 shadow-sm")],
+		[Design.contentSection],
 		[
-			Html.h2([attribute("class", "text-lg font-semibold")], [Html.text(title)]),
-			Html.p([attribute("class", "mt-2 text-sm text-slate-600")], [Html.text(message)]),
+			Html.h2([Design.sectionHeading], [Html.text(title)]),
+			Html.p([Design.contentSectionText], [Html.text(message)]),
 		],
 	)
 

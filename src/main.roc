@@ -23,7 +23,7 @@ import Pages
 
 Context := { db : Sqlite.Db }
 
-AppError := [NewSession(I64), Unauthorized, BadRequest(Str), NotFound(Str), AppErr(Str)]
+AppError := [Unauthorized, BadRequest(Str), NotFound(Str), AppErr(Str)]
 
 Header : { name : Str, value : Str }
 
@@ -73,6 +73,7 @@ BigTaskField := [CustomerReferenceField, CreatedDateField, StatusField].{
 				Pages.bigTaskInput({
 					updateUrl: "/bigTask/customerId/${idText}",
 					name: "CustomerReferenceID",
+					label: "Customer reference",
 					kind: "text",
 					value,
 					validation,
@@ -81,6 +82,7 @@ BigTaskField := [CustomerReferenceField, CreatedDateField, StatusField].{
 				Pages.bigTaskInput({
 					updateUrl: "/bigTask/dateCreated/${idText}",
 					name: "DateCreated",
+					label: "Date created",
 					kind: "date",
 					value,
 					validation,
@@ -88,6 +90,7 @@ BigTaskField := [CustomerReferenceField, CreatedDateField, StatusField].{
 			StatusField =>
 				Pages.bigTaskStatus({
 					updateUrl: "/bigTask/status/${idText}",
+					label: "Status",
 					value,
 					validation,
 				})
@@ -103,9 +106,20 @@ init! = || {
 		Err(_) => return Err(Exit(2))
 	}
 	db = Sqlite.open!(Sqlite.default_config(db_path)) ? |_| Exit(2)
-
+	asset_files = Server.file_root({ id: "assets", path: Path.utf8("assets") })
+	config_with_files = Server.with_file_roots(Server.default_config, [asset_files])
+	config = Server.with_native_routes(
+		config_with_files,
+		[
+			Server.static_mount_with_cache({
+				at: "/assets",
+				files: asset_files,
+				cache: Server.public_for(31_536_000),
+			}),
+		],
+	)
 	Ok({
-		config: Server.default_config,
+		config,
 		context: Context.{ db: db },
 	})
 }
@@ -114,58 +128,92 @@ respond! : Server.Request, Context => Try(Server.Outcome, [ServerErr(Str), ..])
 respond! = |request, { db }| {
 	logRequest!(request) ? |err| ServerErr(Str.inspect(err))
 
-	response = match handleRequest!(request, db) {
-		Ok(value) => value
-		Err(NewSession(id)) =>
-			redirectWithHeaders(
-				request.target(),
-				[{ name: "Set-Cookie", value: "sessionId=${id.to_str()}; Path=/; HttpOnly; SameSite=Lax" }],
-			)
-		Err(Unauthorized) => htmlResponse(401, Pages.unauthorized, [])
-		Err(BadRequest(message)) => textResponse(400, message)
-		Err(NotFound(target)) => {
-			Stderr.line!("404 Not Found ${target}") ?? {}
-			textResponse(404, "Not Found")
-		}
-		Err(err) => {
-			Stderr.line!("SERVER ERROR ${Str.inspect(err)}") ?? {}
-			textResponse(500, "Internal Server Error")
-		}
+	response = match Url.resolve(appOrigin, request.target()) {
+		Ok(url) => routeRequest!(request, db, url)
+		Err(_) => errorResponse!(request, Models.anonymousSession, BadRequest("Invalid request target"))
 	}
 
 	Ok(Server.respond(response))
 }
 
+## The /assets mount is handled natively by the platform before respond! is
+## called. The remaining app-owned static routes never touch the session store.
+## Every other route resolves the session once, here, so that handlers and
+## error pages share the same one and render the same navigation.
+routeRequest! : Server.Request, Sqlite.Db, Url => Response
+routeRequest! = |request, db, url| {
+	segments = Url.path(url).split_on("/")
+
+	match assetResponse(request, segments) {
+		Ok(asset) => asset
+		Err(NotAnAsset) =>
+			match getSession!(request, db) {
+				Ok({ session, setCookie }) => {
+					response = match handleRequest!(request, db, url, segments, session) {
+						Ok(value) => value
+						Err(err) => errorResponse!(request, session, err)
+					}
+
+					if setCookie {
+						cookie = sessionCookie(session.id)
+						Response.add_header(response, cookie.name, cookie.value)
+					} else {
+						response
+					}
+				}
+				Err(err) => errorResponse!(request, Models.anonymousSession, err)
+			}
+		}
+}
+
+assetResponse : Server.Request, List(Str) -> Try(Response, [NotAnAsset])
+assetResponse = |request, segments|
+	match (request.method(), segments) {
+		(GET, ["", "robots.txt"]) => Ok(bytesResponse(200, robots_txt, "text/plain; charset=utf-8"))
+		(GET, ["", "styles.css"]) => Ok(cacheableBytesResponse(200, styles_file, "text/css; charset=utf-8"))
+		(GET, ["", "htmx.min.js"]) =>
+			Ok(cacheableBytesResponse(200, htmx_js_file, "text/javascript; charset=utf-8"))
+		_ => Err(NotAnAsset)
+	}
+
+errorResponse! : Server.Request, Models.Session, AppError => Response
+errorResponse! = |_request, session, error|
+	match error {
+		Unauthorized => htmlResponse(401, Pages.unauthorized(session), [])
+		BadRequest(message) => htmlResponse(400, Pages.badRequest(session, message), [])
+		NotFound(target) => {
+			Stderr.line!("404 Not Found ${target}") ?? {}
+			htmlResponse(404, Pages.notFound(session), [])
+		}
+		AppErr(message) => {
+			Stderr.line!("SERVER ERROR ${message}") ?? {}
+			htmlResponse(500, Pages.serverError(session), [])
+		}
+	}
+
+sessionCookie : I64 -> Header
+sessionCookie = |id| {
+	name: "Set-Cookie",
+	value: "sessionId=${id.to_str()}; Path=/; HttpOnly; SameSite=Lax",
+}
+
 shutdown! : Server.ShutdownReason, Context => Try({}, [Exit(I64), ..])
 shutdown! = |_reason, _context| Ok({})
 
-handleRequest! : Server.Request, Sqlite.Db => Try(Response, AppError)
-handleRequest! = |request, db| {
-	url = Url.resolve(appOrigin, request.target()) ? |_| BadRequest("Invalid request target")
-	segments = Url.path(url).split_on("/")
-
+handleRequest! : Server.Request, Sqlite.Db, Url, List(Str), Models.Session => Try(Response, AppError)
+handleRequest! = |request, db, url, segments, session|
 	match (request.method(), segments) {
-		(GET, ["", ""]) => {
-			session = getSession!(request, db)?
-			Ok(htmlResponse(200, Pages.home(session), []))
-		}
-		(GET, ["", "robots.txt"]) => Ok(bytesResponse(200, robots_txt, "text/plain; charset=utf-8"))
-		(GET, ["", "styles.css"]) => Ok(bytesResponse(200, styles_file, "text/css; charset=utf-8"))
-		(GET, ["", "htmx.min.js"]) =>
-			Ok(bytesResponse(200, htmx_js_file, "text/javascript; charset=utf-8"))
+		(GET, ["", ""]) => Ok(htmlResponse(200, Pages.home(session), []))
 
-		(GET, ["", "register"]) => Ok(htmlResponse(200, Pages.register("", "", ""), []))
-		(POST, ["", "register"]) => register!(request, db)
+		(GET, ["", "register"]) => Ok(htmlResponse(200, Pages.register(session, "", "", ""), []))
+		(POST, ["", "register"]) => register!(request, db, session)
 
-		(GET, ["", "login"]) => {
-			session = getSession!(request, db)?
-			Ok(htmlResponse(200, Pages.login(session, "", ""), []))
-		}
-		(POST, ["", "login"]) => login!(request, db)
+		(GET, ["", "login"]) => Ok(htmlResponse(200, Pages.login(session, "", ""), []))
+		(POST, ["", "login"]) => login!(request, db, session)
 		(POST, ["", "logout"]) => logout!(db)
 
 		(GET, ["", "task", "new"]) => Ok(redirect("/task"))
-		(GET, ["", "task"]) => todoPage!(request, db)
+		(GET, ["", "task"]) => todoPage!(db, session)
 		(GET, ["", "task", "list"]) => todoList!(db, "")
 		(POST, ["", "task", "search"]) => searchTodos!(request, db)
 		(POST, ["", "task", "new"]) => createTodo!(request, db)
@@ -173,40 +221,52 @@ handleRequest! = |request, db| {
 		(PUT, ["", "task", id, "complete"]) => updateTodo!(db, id, "Completed")
 		(PUT, ["", "task", id, "in-progress"]) => updateTodo!(db, id, "In-Progress")
 
-		(GET, ["", "treeview"]) => treePage!(request, db)
-		(GET, ["", "user"]) => usersPage!(request, db)
+		(GET, ["", "treeview"]) => treePage!(db, session)
+		(GET, ["", "user"]) => usersPage!(db, session)
 
-		(GET, ["", "bigTask"]) => bigTaskPage!(request, db, url)
+		(GET, ["", "bigTask"]) => bigTaskPage!(db, url, session)
 		(GET, ["", "bigTask", "downloadCsv"]) => Ok(csvResponse())
-		(PUT, ["", "bigTask", "customerId", id]) => updateBigTask!(request, db, id, CustomerReferenceField)
-		(PUT, ["", "bigTask", "dateCreated", id]) => updateBigTask!(request, db, id, CreatedDateField)
-		(PUT, ["", "bigTask", "status", id]) => updateBigTask!(request, db, id, StatusField)
+		(PUT, ["", "bigTask", "customerId", id]) =>
+			updateBigTask!(request, db, id, CustomerReferenceField, session)
+		(PUT, ["", "bigTask", "dateCreated", id]) =>
+			updateBigTask!(request, db, id, CreatedDateField, session)
+		(PUT, ["", "bigTask", "status", id]) => updateBigTask!(request, db, id, StatusField, session)
 
 		_ => Err(NotFound(request.target()))
 	}
-}
 
-register! : Server.Request, Sqlite.Db => Try(Response, AppError)
-register! = |request, db| {
+register! : Server.Request, Sqlite.Db, Models.Session => Try(Response, AppError)
+register! = |request, db, session| {
 	form = readForm!(request)?
 	username = form.get("user") ?? ""
 	email = form.get("email") ?? ""
 
 	if username.trim().is_empty() or email.trim().is_empty() {
-		Ok(htmlResponse(400, Pages.register(username, email, "Username and email are required."), []))
+		Ok(
+			htmlResponse(
+				400,
+				Pages.register(session, username, email, "Username and email are required."),
+				[],
+			),
+		)
 	} else {
 		match Db.registerUser!(db, username, email) {
 			Ok({}) => Ok(redirect("/login"))
 			Err(UserAlreadyExists) =>
-				Ok(htmlResponse(409, Pages.register(username, email, "That username is already registered."), []))
+				Ok(
+					htmlResponse(
+						409,
+						Pages.register(session, username, email, "That username is already registered."),
+						[],
+					),
+				)
 			Err(err) => Err(appError(err))
 		}
 	}
 }
 
-login! : Server.Request, Sqlite.Db => Try(Response, AppError)
-login! = |request, db| {
-	session = getSession!(request, db)?
+login! : Server.Request, Sqlite.Db, Models.Session => Try(Response, AppError)
+login! = |request, db, session| {
 	form = readForm!(request)?
 	username = form.get("user") ?? ""
 
@@ -225,17 +285,11 @@ login! = |request, db| {
 logout! : Sqlite.Db => Try(Response, AppError)
 logout! = |db| {
 	id = Db.newSession!(db) ? appError
-	Ok(
-		redirectWithHeaders(
-			"/",
-			[{ name: "Set-Cookie", value: "sessionId=${id.to_str()}; Path=/; HttpOnly; SameSite=Lax" }],
-		),
-	)
+	Ok(redirectWithHeaders("/", [sessionCookie(id)]))
 }
 
-todoPage! : Server.Request, Sqlite.Db => Try(Response, AppError)
-todoPage! = |request, db| {
-	session = getSession!(request, db)?
+todoPage! : Sqlite.Db, Models.Session => Try(Response, AppError)
+todoPage! = |db, session| {
 	todos = Db.listTodos!(db, "") ? appError
 	Ok(htmlResponse(200, Pages.todos(session, todos, ""), []))
 }
@@ -280,23 +334,20 @@ updateTodo! = |db, idText, status| {
 	todoList!(db, "")
 }
 
-treePage! : Server.Request, Sqlite.Db => Try(Response, AppError)
-treePage! = |request, db| {
-	session = getSession!(request, db)?
+treePage! : Sqlite.Db, Models.Session => Try(Response, AppError)
+treePage! = |db, session| {
 	tree = Db.todoTree!(db, 1) ? appError
 	Ok(htmlResponse(200, Pages.tree(session, tree), []))
 }
 
-usersPage! : Server.Request, Sqlite.Db => Try(Response, AppError)
-usersPage! = |request, db| {
-	session = getSession!(request, db)?
+usersPage! : Sqlite.Db, Models.Session => Try(Response, AppError)
+usersPage! = |db, session| {
 	users = Db.listUsers!(db) ? appError
 	Ok(htmlResponse(200, Pages.users(session, users), []))
 }
 
-bigTaskPage! : Server.Request, Sqlite.Db, Url => Try(Response, AppError)
-bigTaskPage! = |request, db, url| {
-	session = getSession!(request, db)?
+bigTaskPage! : Sqlite.Db, Url, Models.Session => Try(Response, AppError)
+bigTaskPage! = |db, url, session| {
 	requireLogin(session)?
 	params = Dict.from_list(Url.query_pairs(url))
 	page = positiveParam(params, "page", 1)
@@ -316,9 +367,8 @@ bigTaskPage! = |request, db, url| {
 	)
 }
 
-updateBigTask! : Server.Request, Sqlite.Db, Str, BigTaskField => Try(Response, AppError)
-updateBigTask! = |request, db, idText, field| {
-	session = getSession!(request, db)?
+updateBigTask! : Server.Request, Sqlite.Db, Str, BigTaskField, Models.Session => Try(Response, AppError)
+updateBigTask! = |request, db, idText, field, session| {
 	requireLogin(session)?
 	id = parseId(idText)?
 	form = readForm!(request)?
@@ -343,23 +393,26 @@ updateBigTask! = |request, db, idText, field| {
 	}
 }
 
-getSession! : Server.Request, Sqlite.Db => Try(Models.Session, AppError)
+getSession! : Server.Request, Sqlite.Db => Try({ session : Models.Session, setCookie : Bool }, AppError)
 getSession! = |request, db|
 	match sessionId(request) {
 		Ok(id) =>
 			match Db.getSession!(db, id) {
-				Ok(session) => Ok(session)
-				Err(SessionNotFound) => {
-					newId = Db.newSession!(db) ? appError
-					Err(NewSession(newId))
-				}
+				Ok(session) => Ok({ session, setCookie: False })
+				Err(SessionNotFound) => newGuestSession!(db)
 				Err(err) => Err(appError(err))
 			}
-		Err(_) => {
-			id = Db.newSession!(db) ? appError
-			Err(NewSession(id))
-		}
+		Err(_) => newGuestSession!(db)
 	}
+
+newGuestSession! : Sqlite.Db => Try({ session : Models.Session, setCookie : Bool }, AppError)
+newGuestSession! = |db| {
+	id = Db.newSession!(db) ? appError
+	Ok({
+		session: Models.Session.{ id, user: Guest },
+		setCookie: True,
+	})
+}
 
 sessionId : Server.Request -> Try(I64, [InvalidSessionCookie])
 sessionId = |request| {
@@ -430,18 +483,21 @@ htmlResponse = |status, node, extraHeaders|
 		)
 		.with_body(Html.render(node).to_utf8())
 
-textResponse : U16, Str -> Response
-textResponse = |status, body|
-	Response.from_status(status)
-		.with_headers([{ name: "Content-Type", value: "text/plain; charset=utf-8" }])
-		.with_body(body.to_utf8())
-
 bytesResponse : U16, List(U8), Str -> Response
 bytesResponse = |status, body, contentType|
 	Response.from_status(status)
 		.with_headers([
 			{ name: "Content-Type", value: contentType },
 			{ name: "Cache-Control", value: "max-age=120" },
+		])
+		.with_body(body)
+
+cacheableBytesResponse : U16, List(U8), Str -> Response
+cacheableBytesResponse = |status, body, contentType|
+	Response.from_status(status)
+		.with_headers([
+			{ name: "Content-Type", value: contentType },
+			{ name: "Cache-Control", value: "public, max-age=31536000, immutable" },
 		])
 		.with_body(body)
 
@@ -483,6 +539,6 @@ appOrigin = "http://localhost"
 robots_txt : List(U8)
 robots_txt = (
 	\\User-agent: *
-	\\Disallow: /
+	\\Allow: /
 	,
 ).to_utf8()

@@ -35,6 +35,17 @@ Ensure `sqlite3` and `roc` are on your `PATH`.
 The server opens the SQLite connection pool once during `init!` and shares it
 with request handlers through immutable application context.
 
+The homepage also demonstrates platform-native static assets. `init!` registers
+the `assets/` directory as a `Server.FileRoot` and mounts it at `/assets` with
+`Server.static_mount_with_cache`, so basic-webserver handles MIME types, file
+transfer, and public cache headers before calling the Roc request handler.
+Asset sources, modifications, and license notices are documented in
+[`assets/README.md`](assets/README.md).
+
+For production, enable Brotli or gzip compression at a reverse proxy such as
+Caddy or nginx. This reduces the transfer size of dynamic HTML, CSS, and
+JavaScript responses that basic-webserver currently serves uncompressed.
+
 The `dev` command manages `test.db` automatically and initializes it from
 `test.sql` when it does not exist, so it needs no environment setup.
 

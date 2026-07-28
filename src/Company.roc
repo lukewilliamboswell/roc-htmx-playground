@@ -50,8 +50,15 @@ Company := {
 		to_str : Name -> Str
 		to_str = |Name.(value)| value
 
-		normalized : Name -> Str
-		normalized = |Name.(value)| value.trim().with_ascii_lowercased()
+		match_key : Name -> NameKey
+		match_key = |Name.(value)| NameKey.(value.with_ascii_lowercased())
+
+		is_eq : _
+	}
+
+	NameKey :: Str.{
+		to_str : NameKey -> Str
+		to_str = |NameKey.(value)| value
 
 		is_eq : _
 	}
@@ -251,6 +258,11 @@ Company := {
 
 expect Company.Name.from_str("  Acme Studio ").is_ok()
 expect Company.Name.from_str(" ").is_err()
+expect {
+	name = Company.Name.from_str("Mixed CASE Company") ?? Company.Name.("")
+	key = name.match_key()
+	name.to_str() == "Mixed CASE Company" and key.to_str() == "mixed case company"
+}
 expect Company.Lifecycle.from_str("customer") == Ok(Company.Lifecycle.Customer)
 expect Company.normalized_phone("+61 (03) 9000-0000") == "+610390000000"
 expect Company.website_domain("https://www.Acme.Example/about") == "acme.example"

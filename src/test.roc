@@ -15,8 +15,11 @@ import "../db/test-fixtures.sql" as test_fixtures : Str
 
 import BigTask
 import BigTaskStore
+import Actor
 import Company
+import CompanyHandler
 import CompanyStore
+import Http
 import Member
 import MemberStore
 import Person
@@ -162,6 +165,11 @@ test_companies! = |db| {
 		"https://northwind.example",
 		"+61 3 8111 2222",
 	)
+	previewed = CompanyStore.matches!(store, workspace.id, new_input)
+	expect match previewed {
+		Ok([]) => True
+		_ => False
+	}
 	created = CompanyStore.create!(
 		store,
 		workspace.id,
@@ -238,6 +246,29 @@ test_companies! = |db| {
 				and activities.any(|activity| activity.changeField == "owner")
 					and activities.any(|activity| activity.changeField == "lifecycle")
 		Err(_) => False
+	}
+
+	actor = match Actor.from_session(
+		Session.logged_in(Session.Id.from_i64(99), member),
+		workspace,
+	) {
+		Ok(value) => value
+		Err(_) => {
+			crash "Company handler test requires a logged-in actor."
+		}
+	}
+	preview_fields = Http.parse_form(
+		"name=Mixed+CASE+Company&owner=member-mara&lifecycle=lead&website=&phone=&source=&context=".to_utf8(),
+	) ?? Dict.empty()
+	preview_response = CompanyHandler.preview_form!(preview_fields, store, actor)
+	expect preview_response.is_ok()
+	preview_created = CompanyStore.list!(
+		store,
+		Company.Filter.from_str("Mixed CASE Company"),
+	)
+	expect match preview_created {
+		Ok([company]) => company.name.to_str() == "Mixed CASE Company"
+		_ => False
 	}
 }
 

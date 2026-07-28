@@ -105,7 +105,7 @@ CompanyStore :: { db : Sqlite.Db }.{
 			query: duplicate_query,
 			params: {
 				workspaceId: workspace_id.to_str(),
-				normalizedName: input.name.normalized(),
+				normalizedName: input.name.match_key().to_str(),
 				normalizedPhone: Company.normalized_phone(input.phone),
 				websiteDomain: Company.website_domain(input.website),
 			},
@@ -192,7 +192,7 @@ create_in_transaction! = |transaction, workspace_id, actor_id, input, now, confi
 			query: duplicate_query,
 			params: {
 				workspaceId: workspace_id.to_str(),
-				normalizedName: input.name.normalized(),
+				normalizedName: input.name.match_key().to_str(),
 				normalizedPhone: Company.normalized_phone(input.phone),
 				websiteDomain: Company.website_domain(input.website),
 			},
@@ -228,7 +228,7 @@ create_in_transaction! = |transaction, workspace_id, actor_id, input, now, confi
 			params: {
 				workspaceId: workspace_id.to_str(),
 				name: input.name.to_str(),
-				normalizedName: input.name.normalized(),
+				normalizedName: input.name.match_key().to_str(),
 				ownerId: input.ownerId.to_str(),
 				lifecycle: input.lifecycle.to_str(),
 				website: input.website,
@@ -342,7 +342,7 @@ update_in_transaction! = |transaction, workspace_id, actor_id, id, input, expect
 			params: {
 				id: id.to_str(),
 				name: input.name.to_str(),
-				normalizedName: input.name.normalized(),
+				normalizedName: input.name.match_key().to_str(),
 				ownerId: input.ownerId.to_str(),
 				lifecycle: input.lifecycle.to_str(),
 				website: input.website,

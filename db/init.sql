@@ -339,7 +339,8 @@ CREATE TABLE BigTask (
     SystemName TEXT,
     Location TEXT,
     FileReference TEXT,
-    Comments TEXT
+    Comments TEXT,
+    Version INTEGER NOT NULL DEFAULT 1
 );
 
 WITH RECURSIVE task_number(id) AS (

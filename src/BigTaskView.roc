@@ -30,6 +30,7 @@ BigTaskView :: [].{
 		label : Str,
 		value : Str,
 		validation : Str,
+		version : BigTask.Version,
 	}
 
 	page : PageModel -> Html.Node
@@ -243,6 +244,7 @@ row = |task|
 						label: "Customer reference for task ${task.referenceId}",
 						value: task.customerReferenceId.to_str(),
 						validation: "",
+						version: task.version,
 					}),
 				],
 			),
@@ -255,6 +257,7 @@ row = |task|
 						label: "Date created for task ${task.referenceId}",
 						value: task.dateCreated.to_str(),
 						validation: "",
+						version: task.version,
 					}),
 				],
 			),
@@ -268,6 +271,7 @@ row = |task|
 						label: "Status for task ${task.referenceId}",
 						value: task.status.to_str(),
 						validation: "",
+						version: task.version,
 					}),
 				],
 			),
@@ -281,6 +285,11 @@ input_editor = |model, kind|
 	Html.form(
 		editor_attributes(model),
 		[
+			Html.input([
+				Attribute.type("hidden"),
+				Attribute.name("version"),
+				Attribute.value(model.version.to_str()),
+			]),
 			Html.input(
 				[
 					Attribute.id(editor_control_id(model)),
@@ -300,6 +309,11 @@ status_editor = |model|
 	Html.form(
 		editor_attributes(model),
 		[
+			Html.input([
+				Attribute.type("hidden"),
+				Attribute.name("version"),
+				Attribute.value(model.version.to_str()),
+			]),
 			Html.select(
 				[
 					Attribute.id(editor_control_id(model)),

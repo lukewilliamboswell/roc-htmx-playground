@@ -566,10 +566,17 @@ The server reconstructs both controls and results from every represented URL.
 ### Concurrent requests express user intent
 
 Debouncing controls request frequency but does not determine which in-flight
-response is authoritative. Derived UI such as live search and autosave uses
+response is authoritative. Derived, read-only UI such as live search uses
 `Web.hx_sync_latest`, which maps the user-facing rule "newest input wins" to
 HTMX's `this:replace` synchronization. This prevents an older response from
 replacing newer input under uneven latency.
+
+Synchronization is a browser response policy, not a write-serialization
+guarantee. An aborted request may already have committed. Autosave therefore
+submits the rendered record version, and the store compares and increments that
+version in one immediate transaction. A stale write returns `409 Conflict`
+with the submitted value intact and the current version, so the user can review
+and retry without silently overwriting another committed edit.
 
 Do not apply latest-wins where every request matters or the first accepted
 mutation must run exactly once. Give each synchronization policy a name that

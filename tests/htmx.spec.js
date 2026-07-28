@@ -149,4 +149,37 @@ test.describe("HTMX interactions", () => {
     await expect(editor).toHaveAttribute("aria-invalid", "false");
     await expect(page.locator(`#${errorId}`)).toBeEmpty();
   });
+
+  test("rejects a stale autosave from another tab without overwriting", async ({
+    page,
+  }) => {
+    await loginAsMara(page);
+    const secondPage = await page.context().newPage();
+
+    await Promise.all([page.goto("/bigTask"), secondPage.goto("/bigTask")]);
+
+    const firstEditor = page.locator("#big-task-0-customerId-control");
+    const secondEditor = secondPage.locator("#big-task-0-customerId-control");
+
+    await firstEditor.fill("789");
+    await expect(
+      firstEditor.locator("xpath=../input[@name='version']"),
+    ).toHaveValue("2");
+
+    await secondEditor.fill("790");
+    await expect(
+      secondPage.getByText(
+        "This field changed elsewhere. Review your value and edit again to retry.",
+        { exact: true },
+      ),
+    ).toBeVisible();
+    await expect(secondEditor).toHaveValue("790");
+
+    await page.reload();
+    await expect(page.locator("#big-task-0-customerId-control")).toHaveValue(
+      "789",
+    );
+
+    await secondPage.close();
+  });
 });

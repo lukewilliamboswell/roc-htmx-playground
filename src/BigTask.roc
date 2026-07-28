@@ -16,6 +16,7 @@ BigTask := {
 	location : Str,
 	fileReference : Str,
 	comments : Str,
+	version : Version,
 }.{
 	Id :: I64.{
 		from_i64 : I64 -> Id
@@ -47,6 +48,29 @@ BigTask := {
 
 		to_str : CustomerReference -> Str
 		to_str = |CustomerReference.(value)| value
+
+		is_eq : _
+	}
+
+	Version :: I64.{
+		initial : Version
+		initial = Version.(1)
+
+		from_i64 : I64 -> Version
+		from_i64 = |value| Version.(value)
+
+		from_str : Str -> Try(Version, [InvalidBigTaskVersion])
+		from_str = |value|
+			match I64.from_str(value) {
+				Ok(number) if number > 0 => Ok(Version.(number))
+				_ => Err(InvalidBigTaskVersion)
+			}
+
+		to_i64 : Version -> I64
+		to_i64 = |Version.(value)| value
+
+		to_str : Version -> Str
+		to_str = |version| version.to_i64().to_str()
 
 		is_eq : _
 	}
@@ -317,12 +341,12 @@ BigTask := {
 		SetStatus(Status),
 	]
 
-	UpdateError(err) := [InvalidValue, StoreFailure(err)]
+	UpdateError(err) := [InvalidValue, Conflict(Version), NotFound, StoreFailure(err)]
 
-	complete_update : Try({}, err) -> Try({}, UpdateError(err))
+	complete_update : Try(Version, err) -> Try(Version, UpdateError(err))
 	complete_update = |stored|
 		match stored {
-			Ok({}) => Ok({})
+			Ok(version) => Ok(version)
 			Err(error) => Err(UpdateError.StoreFailure(error))
 		}
 
@@ -346,18 +370,15 @@ BigTask := {
 				}
 			}
 
-	update! : store, Id, Field, Str => Try({}, UpdateError(err))
+	update! : store, Id, Version, Field, Str => Try(Version, UpdateError(err))
 		where [
-			store.update! : store, Id, Update => Try({}, err),
+			store.update! : store, Id, Version, Update => Try(Version, UpdateError(err)),
 		]
-	update! = |store, id, field, value| {
+	update! = |store, id, version, field, value| {
 		Store : store
 		match BigTask.update(field, value) {
 			Err(_) => Err(UpdateError.InvalidValue)
-			Ok(update_value) => {
-				stored = Store.update!(store, id, update_value)
-				BigTask.complete_update(stored)
-			}
+			Ok(update_value) => Store.update!(store, id, version, update_value)
 		}
 	}
 
@@ -379,6 +400,7 @@ BigTask := {
 		location : Str,
 		fileReference : Str,
 		comments : Str,
+		version : I64,
 	} -> Try(BigTask, [InvalidBigTaskStatus(Str)])
 	from_storage = |row| {
 		parsed_status = Status.from_str(row.status)?
@@ -401,6 +423,7 @@ BigTask := {
 				location: row.location,
 				fileReference: row.fileReference,
 				comments: row.comments,
+				version: Version.from_i64(row.version),
 			},
 		)
 	}

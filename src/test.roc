@@ -910,12 +910,15 @@ test_big_tasks! = |db| {
 	}
 
 	id = BigTask.Id.from_i64(1)
-	customer_updated = apply_update!(store, id, BigTask.update(BigTask.Field.CustomerReferenceField, "789"))
-	expect customer_updated.is_ok()
-	date_updated = apply_update!(store, id, BigTask.update(BigTask.Field.DateCreatedField, "2026-07-28"))
-	expect date_updated.is_ok()
-	big_task_status_updated = apply_update!(store, id, BigTask.update(BigTask.Field.StatusField, "Approved"))
-	expect big_task_status_updated.is_ok()
+	customer_updated = apply_update!(store, id, BigTask.Version.initial, BigTask.update(BigTask.Field.CustomerReferenceField, "789"))
+	expect customer_updated == Ok(BigTask.Version.from_i64(2))
+	date_updated = apply_update!(store, id, BigTask.Version.from_i64(2), BigTask.update(BigTask.Field.DateCreatedField, "2026-07-28"))
+	expect date_updated == Ok(BigTask.Version.from_i64(3))
+	big_task_status_updated = apply_update!(store, id, BigTask.Version.from_i64(3), BigTask.update(BigTask.Field.StatusField, "Approved"))
+	expect big_task_status_updated == Ok(BigTask.Version.from_i64(4))
+
+	stale_update = apply_update!(store, id, BigTask.Version.initial, BigTask.update(BigTask.Field.StatusField, "Deferred"))
+	expect stale_update.is_err()
 
 	updated = BigTaskStore.list!(
 		store,
@@ -936,13 +939,13 @@ test_big_tasks! = |db| {
 	}
 }
 
-apply_update! : BigTaskStore, BigTask.Id, Try(BigTask.Update, err) => Try({}, [InvalidUpdate, DbErr(Sqlite.QueryError)])
-apply_update! = |store, id, update|
+apply_update! : BigTaskStore, BigTask.Id, BigTask.Version, Try(BigTask.Update, err) => Try(BigTask.Version, [InvalidUpdate, BigTaskUpdateErr(BigTask.UpdateError(Sqlite.QueryError))])
+apply_update! = |store, id, version, update|
 	match update {
 		Err(_) => Err(InvalidUpdate)
 		Ok(value) =>
-			match BigTaskStore.update!(store, id, value) {
-				Err(error) => Err(DbErr(error))
-				Ok({}) => Ok({})
+			match BigTaskStore.update!(store, id, version, value) {
+				Err(error) => Err(BigTaskUpdateErr(error))
+				Ok(next_version) => Ok(next_version)
 			}
 		}

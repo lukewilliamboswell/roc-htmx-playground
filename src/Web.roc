@@ -132,8 +132,9 @@ Web := [].{
 
 	## Keep only the newest request issued by the element.
 	##
-	## This is appropriate for derived UI such as live search and autosave,
-	## where an older response must never replace a newer state.
+	## This is appropriate for derived UI such as live search, where an older
+	## response must never replace newer state. Persisted writes additionally
+	## require an optimistic version or another server-side ordering invariant.
 	hx_sync_latest : Attribute.Attribute
 	hx_sync_latest = Attribute.attribute("hx-sync", "this:replace")
 

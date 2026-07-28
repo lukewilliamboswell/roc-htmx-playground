@@ -29,7 +29,8 @@ BigTaskStore :: { db : Sqlite.Db }.{
 			\\    IFNULL(SystemName, '') AS systemName,
 			\\    IFNULL(Location, '') AS location,
 			\\    IFNULL(FileReference, '') AS fileReference,
-			\\    IFNULL(Comments, '') AS comments
+			\\    IFNULL(Comments, '') AS comments,
+			\\    Version AS version
 			\\FROM BigTask
 			\\ORDER BY ${column} ${direction}
 			\\LIMIT :items OFFSET :offset;
@@ -60,28 +61,24 @@ BigTaskStore :: { db : Sqlite.Db }.{
 			limits: Sqlite.default_query_limits,
 		})
 
-	update! : BigTaskStore, BigTask.Id, BigTask.Update => Try({}, Sqlite.QueryError)
-	update! = |store, id, update|
-		match update {
-			SetCustomerReference(value) =>
-				Sqlite.execute!({
-					db: store.db,
-					query: "UPDATE BigTask SET CustomerReferenceID = :value WHERE ID = :id;",
-					params: { id: id.to_i64(), value: value.to_str() },
-				})
-			SetDateCreated(value) =>
-				Sqlite.execute!({
-					db: store.db,
-					query: "UPDATE BigTask SET DateCreated = :value WHERE ID = :id;",
-					params: { id: id.to_i64(), value: value.to_str() },
-				})
-			SetStatus(value) =>
-				Sqlite.execute!({
-					db: store.db,
-					query: "UPDATE BigTask SET Status = :value WHERE ID = :id;",
-					params: { id: id.to_i64(), value: value.to_str() },
-				})
+	update! : BigTaskStore, BigTask.Id, BigTask.Version, BigTask.Update => Try(BigTask.Version, BigTask.UpdateError(Sqlite.QueryError))
+	update! = |store, id, expected_version, update| {
+		transaction = Sqlite.begin!(store.db, Immediate)
+			? BigTask.UpdateError.StoreFailure
+
+		result = update_in_transaction!(transaction, id, expected_version, update)
+		match result {
+			Err(error) => {
+				Sqlite.Transaction.rollback!(transaction) ?? {}
+				Err(error)
 			}
+			Ok(version) => {
+				Sqlite.Transaction.commit!(transaction)
+					? BigTask.UpdateError.StoreFailure
+				Ok(version)
+			}
+		}
+	}
 }
 
 ## TODO(codec-upgrade): Give the scalar BigTask wrappers stable SQLite codecs,
@@ -106,6 +103,7 @@ RawBigTask : {
 	location : Str,
 	fileReference : Str,
 	comments : Str,
+	version : I64,
 }
 
 decode_rows : List(RawBigTask) -> Try(List(BigTask), [InvalidStoredStatus(Str), ..])
@@ -117,3 +115,70 @@ decode_rows = |rows|
 				Ok(task) => Ok(task)
 			},
 	)
+
+VersionRow : { version : I64 }
+
+update_in_transaction! : Sqlite.Transaction, BigTask.Id, BigTask.Version, BigTask.Update => Try(BigTask.Version, BigTask.UpdateError(Sqlite.QueryError))
+update_in_transaction! = |transaction, id, expected_version, update| {
+	rows : List(VersionRow)
+	rows = Sqlite.Transaction.query_many!(
+		transaction,
+		{
+			query: "SELECT Version AS version FROM BigTask WHERE ID = :id;",
+			params: { id: id.to_i64() },
+			limits: Sqlite.default_query_limits,
+		},
+	) ? BigTask.UpdateError.StoreFailure
+
+	current_version = match rows {
+		[] => return Err(BigTask.UpdateError.NotFound)
+		[row, ..] => BigTask.Version.from_i64(row.version)
+	}
+	if current_version != expected_version {
+		return Err(BigTask.UpdateError.Conflict(current_version))
+	}
+
+	next_version = BigTask.Version.from_i64(expected_version.to_i64() + 1)
+	match update {
+		SetCustomerReference(value) =>
+			Sqlite.Transaction.execute!(
+				transaction,
+				{
+					query: "UPDATE BigTask SET CustomerReferenceID = :value, Version = :nextVersion WHERE ID = :id AND Version = :expectedVersion;",
+					params: {
+						id: id.to_i64(),
+						value: value.to_str(),
+						expectedVersion: expected_version.to_i64(),
+						nextVersion: next_version.to_i64(),
+					},
+				},
+			) ? BigTask.UpdateError.StoreFailure
+		SetDateCreated(value) =>
+			Sqlite.Transaction.execute!(
+				transaction,
+				{
+					query: "UPDATE BigTask SET DateCreated = :value, Version = :nextVersion WHERE ID = :id AND Version = :expectedVersion;",
+					params: {
+						id: id.to_i64(),
+						value: value.to_str(),
+						expectedVersion: expected_version.to_i64(),
+						nextVersion: next_version.to_i64(),
+					},
+				},
+			) ? BigTask.UpdateError.StoreFailure
+		SetStatus(value) =>
+			Sqlite.Transaction.execute!(
+				transaction,
+				{
+					query: "UPDATE BigTask SET Status = :value, Version = :nextVersion WHERE ID = :id AND Version = :expectedVersion;",
+					params: {
+						id: id.to_i64(),
+						value: value.to_str(),
+						expectedVersion: expected_version.to_i64(),
+						nextVersion: next_version.to_i64(),
+					},
+				},
+			) ? BigTask.UpdateError.StoreFailure
+		}
+	Ok(next_version)
+}

@@ -88,6 +88,81 @@ CREATE TABLE sessions (
         ON DELETE SET NULL
 );
 
+-- CRM COMPANIES
+CREATE TABLE companies (
+    company_id TEXT PRIMARY KEY,
+    workspace_id TEXT NOT NULL,
+    name TEXT NOT NULL,
+    normalized_name TEXT NOT NULL,
+    owner_id TEXT NOT NULL,
+    lifecycle_status TEXT NOT NULL CHECK(lifecycle_status IN ('lead', 'prospect', 'customer', 'inactive')),
+    website TEXT NOT NULL DEFAULT '',
+    website_domain TEXT NOT NULL DEFAULT '',
+    phone TEXT NOT NULL DEFAULT '',
+    normalized_phone TEXT NOT NULL DEFAULT '',
+    source_id TEXT NOT NULL DEFAULT '',
+    context TEXT NOT NULL DEFAULT '',
+    created_by_id TEXT NOT NULL,
+    updated_by_id TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    archived_at TEXT NOT NULL DEFAULT '',
+    version INTEGER NOT NULL DEFAULT 1 CHECK(version > 0),
+    FOREIGN KEY (workspace_id) REFERENCES workspaces(workspace_id),
+    FOREIGN KEY (owner_id) REFERENCES members(member_id),
+    FOREIGN KEY (created_by_id) REFERENCES members(member_id),
+    FOREIGN KEY (updated_by_id) REFERENCES members(member_id)
+);
+
+CREATE INDEX companies_active_name
+    ON companies(workspace_id, archived_at, normalized_name);
+CREATE INDEX companies_phone
+    ON companies(workspace_id, normalized_phone);
+CREATE INDEX companies_domain
+    ON companies(workspace_id, website_domain);
+
+CREATE TABLE company_revisions (
+    company_id TEXT NOT NULL,
+    version INTEGER NOT NULL,
+    name TEXT NOT NULL,
+    owner_id TEXT NOT NULL,
+    lifecycle_status TEXT NOT NULL,
+    website TEXT NOT NULL,
+    phone TEXT NOT NULL,
+    source_id TEXT NOT NULL,
+    context TEXT NOT NULL,
+    changed_by_id TEXT NOT NULL,
+    changed_at TEXT NOT NULL,
+    PRIMARY KEY (company_id, version),
+    FOREIGN KEY (company_id) REFERENCES companies(company_id) ON DELETE CASCADE,
+    FOREIGN KEY (changed_by_id) REFERENCES members(member_id)
+);
+
+CREATE TABLE activities (
+    activity_id TEXT PRIMARY KEY,
+    workspace_id TEXT NOT NULL,
+    activity_type TEXT NOT NULL,
+    occurred_at TEXT NOT NULL,
+    created_by_id TEXT NOT NULL,
+    subject TEXT NOT NULL DEFAULT '',
+    details TEXT NOT NULL DEFAULT '',
+    outcome TEXT NOT NULL DEFAULT '',
+    change_field TEXT NOT NULL DEFAULT '',
+    change_from TEXT NOT NULL DEFAULT '',
+    change_to TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL,
+    FOREIGN KEY (workspace_id) REFERENCES workspaces(workspace_id),
+    FOREIGN KEY (created_by_id) REFERENCES members(member_id)
+);
+
+CREATE TABLE activity_companies (
+    activity_id TEXT NOT NULL,
+    company_id TEXT NOT NULL,
+    PRIMARY KEY (activity_id, company_id),
+    FOREIGN KEY (activity_id) REFERENCES activities(activity_id) ON DELETE CASCADE,
+    FOREIGN KEY (company_id) REFERENCES companies(company_id) ON DELETE CASCADE
+);
+
 -- TASKS
 CREATE TABLE tasks (
     id INTEGER PRIMARY KEY,

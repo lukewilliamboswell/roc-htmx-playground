@@ -18,6 +18,9 @@ Member := {
 		to_str : Id -> Str
 		to_str = |Id.(value)| value
 
+		from_storage : Str -> Id
+		from_storage = |value| Id.(value)
+
 		is_eq : _
 	}
 

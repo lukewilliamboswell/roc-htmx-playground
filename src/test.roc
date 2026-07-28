@@ -15,6 +15,8 @@ import "../db/test-fixtures.sql" as test_fixtures : Str
 
 import BigTask
 import BigTaskStore
+import Company
+import CompanyStore
 import Member
 import MemberStore
 import Session
@@ -68,6 +70,8 @@ init! = || {
 	Stdout.line!("schema: ok") ? |_| Exit(3)
 	test_workspace!(db)
 	Stdout.line!("workspace: ok") ? |_| Exit(3)
+	test_companies!(db)
+	Stdout.line!("companies: ok") ? |_| Exit(3)
 	test_sessions_and_users!(db)
 	Stdout.line!("sessions and users: ok") ? |_| Exit(3)
 	test_todos!(db)
@@ -75,6 +79,34 @@ init! = || {
 	test_big_tasks!(db)
 	Stdout.line!("big tasks: ok") ? |_| Exit(3)
 	Err(Exit(0))
+}
+
+test_companies! : Sqlite.Db => {}
+test_companies! = |db| {
+	store = CompanyStore.new(db)
+	listed = CompanyStore.list!(store, Company.Filter.empty)
+	expect match listed {
+		Ok([company]) =>
+			company.id.to_str() == "company-acme"
+				and company.name.to_str() == "Acme Studio"
+					and company.ownerName == "Mara Singh"
+						and company.lifecycle == Company.Lifecycle.Prospect
+							and company.sourceName == "Referral"
+		_ => False
+	}
+
+	filtered = CompanyStore.list!(store, Company.Filter.from_str("acme.example"))
+	expect match filtered {
+		Ok([company]) => company.id.to_str() == "company-acme"
+		_ => False
+	}
+
+	missing_id = Company.Id.from_storage("company-missing")
+	missing = CompanyStore.find!(store, missing_id)
+	expect match missing {
+		Err(Company.FindError.NotFound) => True
+		_ => False
+	}
 }
 
 test_workspace! : Sqlite.Db => {}

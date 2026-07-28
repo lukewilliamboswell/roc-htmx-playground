@@ -5,6 +5,15 @@ demonstrate its platform-native static file mount without a separate
 static-file server. `init!` exposes this directory at `/assets` with a one-year
 public cache policy.
 
+## README screenshot
+
+- File: `app-home.png`
+- Source: the application homepage rendered at 1440 × 1100
+- Captured: 2026-07-28
+
+The screenshot includes the planning desk photo and interface icons attributed
+below.
+
 ## Planning desk photo
 
 - Files: `planning-desk.webp` and responsive 480, 640, 720, and 960 px

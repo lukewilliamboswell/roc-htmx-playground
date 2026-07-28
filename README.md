@@ -1,71 +1,94 @@
-# roc + htmx playground
+# Roc + htmx playground
 
-- Explore [roc](https://www.roc-lang.org) and [htmx](https://htmx.org) for app development
-- Add new features to [roc-lang/basic-webserver](https://github.com/roc-lang/basic-webserver)
-- Generally tinker and have fun
+A small server-rendered application for exploring how
+[Roc](https://www.roc-lang.org), [htmx](https://htmx.org), and SQLite fit
+together. It goes beyond a minimal example with typed routing, forms, sessions,
+database adapters, static assets, and focused htmx interactions.
 
-> **Note:** This project uses modern Roc syntax and
-> [basic-webserver 0.14.0](https://github.com/roc-lang/basic-webserver/releases/tag/0.14.0).
-> It vendors the
-> [HTMX 4.0.0-beta6 browser build](https://github.com/bigskysoftware/htmx/releases/tag/v4.0.0-beta6)
-> while HTMX 4 is in beta.
+![The Roc and htmx playground homepage](assets/app-home.png)
 
-Any PR's or ideas welcome.
+The playground includes:
 
-You are welcome to play with this and if you have something to share then please do.
+- task creation, filtering, status updates, and deletion;
+- registration, login, and shared session-aware navigation;
+- a server-rendered task hierarchy;
+- a sortable, paginated, editable data table with CSV export; and
+- native static-file serving for responsive images and SVG icons.
 
-See [architecture.md](architecture.md) for the typed feature-slice structure,
-the alternatives considered, and the evidence collected from refactoring the
-application.
+The application uses modern Roc syntax,
+[basic-webserver 0.14.0](https://github.com/roc-lang/basic-webserver/releases/tag/0.14.0),
+and the vendored
+[HTMX 4.0.0-beta6](https://github.com/bigskysoftware/htmx/releases/tag/v4.0.0-beta6)
+browser build.
 
-![demo](demo.gif)
+## Quick start
 
-## Getting Started
+Install `roc` and `sqlite3`, then run:
 
-Ensure `sqlite3` and `roc` are on your `PATH`.
+```sh
+sqlite3 test.db < test.sql
+roc build --opt=speed src/main.roc
+DB_PATH=test.db ./main
+```
 
-**format, validate, build, and serve the app** `roc scripts/tasks.roc dev`
+Open <http://127.0.0.1:8000>.
 
-**download the standalone Tailwind CLI and build CSS**
-`roc scripts/tasks.roc css`
+The optimized build is the recommended way to run the application. For a
+shorter edit-and-run cycle, use:
 
-**create test.db** `rm -rf test.db && sqlite3 test.db < test.sql`
+```sh
+DB_PATH=test.db roc run src/main.roc
+```
 
-**start server** `DB_PATH=test.db roc src/main.roc`
+Delete `test.db` before running the initialization command again if you want a
+fresh copy of the sample data.
 
-**change port** Set `ROC_BASIC_WEBSERVER_PORT` to run on a different port, e.g.
-`DB_PATH=test.db ROC_BASIC_WEBSERVER_PORT=8080 roc src/main.roc`
+## Development
 
-The server opens the SQLite connection pool once during `init!` and shares it
-with request handlers through immutable application context.
+The repository includes a Roc task runner, so no npm or Make installation is
+needed:
 
-The homepage also demonstrates platform-native static assets. `init!` registers
-the `assets/` directory as a `Server.FileRoot` and mounts it at `/assets` with
-`Server.static_mount_with_cache`, so basic-webserver handles MIME types, file
-transfer, and public cache headers before calling the Roc request handler.
-Asset sources, modifications, and license notices are documented in
-[`assets/README.md`](assets/README.md).
+```sh
+# Format, validate, build, and serve a development build
+roc scripts/tasks.roc dev
 
-For production, enable Brotli or gzip compression at a reverse proxy such as
-Caddy or nginx. This reduces the transfer size of dynamic HTML, CSS, and
-JavaScript responses that basic-webserver currently serves uncompressed.
+# Run the same generated-CSS, formatting, type, unit, and integration checks as CI
+roc scripts/tasks.roc check
 
-The `dev` command manages `test.db` automatically and initializes it from
-`test.sql` when it does not exist, so it needs no environment setup.
+# Rebuild CSS once, or continuously while editing the design system
+roc scripts/tasks.roc css
+roc scripts/tasks.roc css-watch
+```
 
-Run `roc scripts/tasks.roc css-watch` in another terminal while changing the
-design system. Run `roc scripts/tasks.roc check` for the same CSS, formatting,
-type-checking, inline pure tests, and SQLite adapter integration runner used by
-CI.
+The task runner downloads and verifies the pinned standalone Tailwind CSS CLI
+under `.tools/`. Tailwind utilities are centralized as semantic attributes in
+`src/Design.roc`; views consume those attributes instead of assembling class
+strings throughout the application.
 
-The Roc task runner uses
-[basic-cli 0.21.0](https://github.com/roc-lang/basic-cli/releases/tag/0.21.0)
-to download and verify the pinned standalone Tailwind CLI under `.tools/`.
-Tailwind utility strings live in `src/Design.roc`; views consume its typed,
-semantic attributes instead of assembling class names directly. No npm or Make
-installation is needed.
+## Architecture
 
-## Continuous integration
+The code is organized into typed feature slices:
 
-Pull requests run `roc scripts/tasks.roc check` to verify generated CSS,
-formatting, type-checking, and tests.
+- domain modules define validated values and use cases;
+- handlers translate HTTP input into domain values and responses;
+- stores isolate SQLite queries and storage conversion;
+- views render typed models into HTML; and
+- `src/main.roc` composes dependencies and dispatches typed routes.
+
+See [architecture.md](architecture.md) for the design, alternatives considered,
+and evidence gathered during the refactor.
+
+The server opens one SQLite connection pool during initialization and shares it
+with request handlers through immutable application context. It also mounts the
+`assets/` directory through basic-webserver's native static-file support,
+including MIME handling, file transfer, and public cache headers. Asset sources
+and licenses are documented in [assets/README.md](assets/README.md).
+
+For production deployment, put the application behind a reverse proxy such as
+Caddy or nginx to add TLS and Brotli or gzip compression.
+
+## Contributing
+
+Pull requests and experiments are welcome. CI runs
+`roc scripts/tasks.roc check` to verify generated CSS, formatting,
+type-checking, unit tests, and SQLite integration tests.

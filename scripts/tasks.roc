@@ -150,7 +150,7 @@ buildReleaseTargets! = |remaining, checksum_lines|
 				"roc",
 				[
 					"build",
-					"--opt=size",
+					"--opt=speed",
 					"--target=${target.target}",
 					"--output=${output}",
 					"src/main.roc",

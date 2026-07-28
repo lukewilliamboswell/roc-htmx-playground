@@ -245,6 +245,27 @@ Design :: [].{
 	matchItem : Attribute.Attribute
 	matchItem = class("rounded-lg bg-white p-3")
 
+	contactList : Attribute.Attribute
+	contactList = class("mt-4 space-y-3")
+
+	contactRow : Attribute.Attribute
+	contactRow = class("flex flex-wrap items-center justify-between gap-3 rounded-lg border border-slate-200 p-3")
+
+	contactMeta : Attribute.Attribute
+	contactMeta = class("text-xs font-medium uppercase tracking-wide text-slate-500")
+
+	inlineForm : Attribute.Attribute
+	inlineForm = class("mt-4 grid gap-3 rounded-lg bg-slate-50 p-4 sm:grid-cols-2")
+
+	checkboxLabel : Attribute.Attribute
+	checkboxLabel = class("flex items-center gap-2 text-sm text-slate-700")
+
+	fullWidthField : Attribute.Attribute
+	fullWidthField = class("sm:col-span-2")
+
+	dangerLinkButton : Attribute.Attribute
+	dangerLinkButton = class("text-sm font-medium text-red-700 hover:underline")
+
 	todoForm : Attribute.Attribute
 	todoForm = class("mt-6 grid gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm md:grid-cols-12")
 

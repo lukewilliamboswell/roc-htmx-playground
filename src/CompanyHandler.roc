@@ -8,6 +8,7 @@ import Company
 import CompanyStore
 import CompanyView
 import Http
+import PersonStore
 import Route
 import Web
 
@@ -26,10 +27,15 @@ CompanyHandler := [].{
 			Err(error) => Err(AppError.from(error))
 		}
 
-	detail! : CompanyStore, Actor, Company.Id => Try(Response, AppError)
-	detail! = |store, actor, id|
+	detail! : CompanyStore, PersonStore, Actor, Company.Id => Try(Response, AppError)
+	detail! = |store, people, actor, id|
 		match CompanyStore.find!(store, id) {
-			Ok(company) => Ok(Http.html(200, CompanyView.detail(actor, company), []))
+			Ok(company) =>
+				match PersonStore.list_for_company!(people, id) {
+					Ok(associated) =>
+						Ok(Http.html(200, CompanyView.detail(actor, company, associated), []))
+					Err(error) => Err(AppError.from(error))
+				}
 			Err(Company.FindError.NotFound) =>
 				Err(AppError.NotFound("company ${id.to_str()}"))
 			Err(Company.FindError.StoreFailure(error)) => Err(AppError.from(error))

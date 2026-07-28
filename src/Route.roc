@@ -3,6 +3,7 @@ import pf.Url
 
 import BigTask
 import Company
+import Person
 import Todo
 
 ## The complete HTTP vocabulary owned by the application.
@@ -25,6 +26,8 @@ Route := [
 		Users,
 		Companies,
 		CompanyNew,
+		People,
+		PersonNew,
 		BigTasks,
 	].{
 		is_eq : _
@@ -40,6 +43,8 @@ Route := [
 				Users => "Users"
 				Companies => "Companies"
 				CompanyNew => "New company"
+				People => "People"
+				PersonNew => "New person"
 				BigTasks => "BigTask"
 			}
 
@@ -54,6 +59,8 @@ Route := [
 				Users => "/user"
 				Companies => "/companies"
 				CompanyNew => "/companies/new"
+				People => "/people"
+				PersonNew => "/people/new"
 				BigTasks => "/bigTask"
 			}
 	}
@@ -72,6 +79,10 @@ Route := [
 		CompanySearch(Company.Filter),
 		CompanyDetail(Company.Id),
 		CompanyEdit(Company.Id),
+		PersonSearch(Person.Filter),
+		PersonDetail(Person.Id),
+		PersonEdit(Person.Id),
+		PersonNewForCompany(Company.Id),
 	].{
 		to_href : Location -> Str
 		to_href = |location|
@@ -85,6 +96,10 @@ Route := [
 					"/companies?q=${form_encode(filter.to_str())}"
 				CompanyDetail(id) => "/companies/${id.to_str()}"
 				CompanyEdit(id) => "/companies/${id.to_str()}/edit"
+				PersonSearch(filter) => "/people?q=${form_encode(filter.to_str())}"
+				PersonDetail(id) => "/people/${id.to_str()}"
+				PersonEdit(id) => "/people/${id.to_str()}/edit"
+				PersonNewForCompany(id) => "/people/new?company=${form_encode(id.to_str())}"
 			}
 	}
 
@@ -98,6 +113,13 @@ Route := [
 		PreviewCompany,
 		CreateCompany,
 		UpdateCompany(Company.Id),
+		PreviewPerson,
+		CreatePerson,
+		UpdatePerson(Person.Id),
+		AddPersonEmail(Person.Id),
+		AddPersonPhone(Person.Id),
+		DeletePersonEmail(Person.Id, Person.ContactId),
+		DeletePersonPhone(Person.Id, Person.ContactId),
 	].{
 		to_post_url : PostAction -> Str
 		to_post_url = |action|
@@ -111,7 +133,16 @@ Route := [
 				PreviewCompany => "/companies/preview"
 				CreateCompany => "/companies"
 				UpdateCompany(id) => "/companies/${id.to_str()}"
-			}
+				PreviewPerson => "/people/preview"
+				CreatePerson => "/people"
+				UpdatePerson(id) => "/people/${id.to_str()}"
+				AddPersonEmail(id) => "/people/${id.to_str()}/emails"
+				AddPersonPhone(id) => "/people/${id.to_str()}/phones"
+				DeletePersonEmail(id, contact_id) =>
+					"/people/${id.to_str()}/emails/${contact_id.to_str()}/delete"
+				DeletePersonPhone(id, contact_id) =>
+					"/people/${id.to_str()}/phones/${contact_id.to_str()}/delete"
+				}
 	}
 
 	PutAction := [
@@ -163,6 +194,26 @@ Route := [
 				Context => "context"
 				ConfirmDistinct => "confirmDistinct"
 				Version => "version"
+			}
+	}
+
+	PersonInput := [Name, Company, JobTitle, Lifecycle, Source, Context, Email, Phone, ConfirmDistinct, Version, Label, Value, Primary].{
+		to_name : PersonInput -> Str
+		to_name = |input|
+			match input {
+				Name => "name"
+				Company => "company"
+				JobTitle => "jobTitle"
+				Lifecycle => "lifecycle"
+				Source => "source"
+				Context => "context"
+				Email => "email"
+				Phone => "phone"
+				ConfirmDistinct => "confirmDistinct"
+				Version => "version"
+				Label => "label"
+				Value => "value"
+				Primary => "primary"
 			}
 	}
 
@@ -271,6 +322,53 @@ Route := [
 			(Get, ["", "companies", id]) =>
 				Ok(Visit(CompanyDetail(Company.Id.from_storage(id))))
 
+			(Get, ["", "people"]) => {
+				filter = Person.Filter.from_str(query_value(Url.query_pairs(url), "q"))
+				if filter.to_str().is_empty() {
+					Ok(Visit(AtPage(People)))
+				} else {
+					Ok(Visit(PersonSearch(filter)))
+				}
+			}
+			(Get, ["", "people", "new"]) => {
+				company_id = query_value(Url.query_pairs(url), "company")
+				if company_id.is_empty() {
+					Ok(Visit(AtPage(PersonNew)))
+				} else {
+					Ok(Visit(PersonNewForCompany(Company.Id.from_storage(company_id))))
+				}
+			}
+			(Post, ["", "people", "preview"]) => Ok(Post(PreviewPerson))
+			(Post, ["", "people"]) => Ok(Post(CreatePerson))
+			(Get, ["", "people", id, "edit"]) =>
+				Ok(Visit(PersonEdit(Person.Id.from_storage(id))))
+			(Post, ["", "people", id]) =>
+				Ok(Post(UpdatePerson(Person.Id.from_storage(id))))
+			(Get, ["", "people", id]) =>
+				Ok(Visit(PersonDetail(Person.Id.from_storage(id))))
+			(Post, ["", "people", id, "emails"]) =>
+				Ok(Post(AddPersonEmail(Person.Id.from_storage(id))))
+			(Post, ["", "people", id, "phones"]) =>
+				Ok(Post(AddPersonPhone(Person.Id.from_storage(id))))
+			(Post, ["", "people", id, "emails", contact_id, "delete"]) =>
+				Ok(
+					Post(
+						DeletePersonEmail(
+							Person.Id.from_storage(id),
+							Person.ContactId.from_storage(contact_id),
+						),
+					),
+				)
+			(Post, ["", "people", id, "phones", contact_id, "delete"]) =>
+				Ok(
+					Post(
+						DeletePersonPhone(
+							Person.Id.from_storage(id),
+							Person.ContactId.from_storage(contact_id),
+						),
+					),
+				)
+
 			(Get, ["", "bigTask"]) =>
 				{
 					query = BigTask.Query.from_pairs(Url.query_pairs(url))
@@ -292,11 +390,15 @@ Route := [
 
 	company_filter : List((Str, Str)) -> Company.Filter
 	company_filter = |pairs|
-		match pairs.find_first(|(name, _)| name == "q") {
-			Ok((_, value)) => Company.Filter.from_str(value)
-			Err(_) => Company.Filter.empty
-		}
+		Company.Filter.from_str(query_value(pairs, "q"))
 }
+
+query_value : List((Str, Str)), Str -> Str
+query_value = |pairs, expected|
+	match pairs.find_first(|(name, _)| name == expected) {
+		Ok((_, value)) => value
+		Err(_) => ""
+	}
 
 method_from_request : Server.Request -> Route.Method
 method_from_request = |request|

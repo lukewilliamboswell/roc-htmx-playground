@@ -163,6 +163,86 @@ CREATE TABLE activity_companies (
     FOREIGN KEY (company_id) REFERENCES companies(company_id) ON DELETE CASCADE
 );
 
+-- CRM PEOPLE
+CREATE TABLE people (
+    person_id TEXT PRIMARY KEY,
+    workspace_id TEXT NOT NULL,
+    name TEXT NOT NULL,
+    normalized_name TEXT NOT NULL,
+    company_id TEXT NOT NULL DEFAULT '',
+    job_title TEXT NOT NULL DEFAULT '',
+    owner_id TEXT NOT NULL,
+    lifecycle_status TEXT NOT NULL CHECK(lifecycle_status IN ('lead', 'prospect', 'customer', 'inactive')),
+    source_id TEXT NOT NULL DEFAULT '',
+    context TEXT NOT NULL DEFAULT '',
+    created_by_id TEXT NOT NULL,
+    updated_by_id TEXT NOT NULL,
+    created_at TEXT NOT NULL,
+    updated_at TEXT NOT NULL,
+    archived_at TEXT NOT NULL DEFAULT '',
+    version INTEGER NOT NULL DEFAULT 1 CHECK(version > 0),
+    FOREIGN KEY (workspace_id) REFERENCES workspaces(workspace_id),
+    FOREIGN KEY (owner_id) REFERENCES members(member_id),
+    FOREIGN KEY (created_by_id) REFERENCES members(member_id),
+    FOREIGN KEY (updated_by_id) REFERENCES members(member_id)
+);
+
+CREATE INDEX people_active_name
+    ON people(workspace_id, archived_at, normalized_name);
+CREATE INDEX people_company
+    ON people(workspace_id, company_id, archived_at);
+
+CREATE TABLE person_emails (
+    email_id TEXT PRIMARY KEY,
+    person_id TEXT NOT NULL,
+    label TEXT NOT NULL,
+    email TEXT NOT NULL,
+    normalized_email TEXT NOT NULL,
+    is_primary INTEGER NOT NULL CHECK(is_primary IN (0, 1)),
+    position INTEGER NOT NULL,
+    FOREIGN KEY (person_id) REFERENCES people(person_id) ON DELETE CASCADE
+);
+
+CREATE INDEX person_email_match ON person_emails(normalized_email);
+
+CREATE TABLE person_phones (
+    phone_id TEXT PRIMARY KEY,
+    person_id TEXT NOT NULL,
+    label TEXT NOT NULL,
+    phone TEXT NOT NULL,
+    normalized_phone TEXT NOT NULL,
+    is_primary INTEGER NOT NULL CHECK(is_primary IN (0, 1)),
+    position INTEGER NOT NULL,
+    FOREIGN KEY (person_id) REFERENCES people(person_id) ON DELETE CASCADE
+);
+
+CREATE INDEX person_phone_match ON person_phones(normalized_phone);
+
+CREATE TABLE person_revisions (
+    person_id TEXT NOT NULL,
+    version INTEGER NOT NULL,
+    name TEXT NOT NULL,
+    company_id TEXT NOT NULL,
+    job_title TEXT NOT NULL,
+    owner_id TEXT NOT NULL,
+    lifecycle_status TEXT NOT NULL,
+    source_id TEXT NOT NULL,
+    context TEXT NOT NULL,
+    changed_by_id TEXT NOT NULL,
+    changed_at TEXT NOT NULL,
+    PRIMARY KEY (person_id, version),
+    FOREIGN KEY (person_id) REFERENCES people(person_id) ON DELETE CASCADE,
+    FOREIGN KEY (changed_by_id) REFERENCES members(member_id)
+);
+
+CREATE TABLE activity_people (
+    activity_id TEXT NOT NULL,
+    person_id TEXT NOT NULL,
+    PRIMARY KEY (activity_id, person_id),
+    FOREIGN KEY (activity_id) REFERENCES activities(activity_id) ON DELETE CASCADE,
+    FOREIGN KEY (person_id) REFERENCES people(person_id) ON DELETE CASCADE
+);
+
 -- TASKS
 CREATE TABLE tasks (
     id INTEGER PRIMARY KEY,

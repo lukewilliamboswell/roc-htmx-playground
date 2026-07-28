@@ -19,6 +19,8 @@ import Company
 import CompanyStore
 import Member
 import MemberStore
+import Person
+import PersonStore
 import Session
 import SessionStore
 import Todo
@@ -73,6 +75,8 @@ init! = || {
 	Stdout.line!("workspace: ok") ? |_| Exit(3)
 	test_companies!(db)
 	Stdout.line!("companies: ok") ? |_| Exit(3)
+	test_people!(db)
+	Stdout.line!("people: ok") ? |_| Exit(3)
 	test_sessions_and_users!(db)
 	Stdout.line!("sessions and users: ok") ? |_| Exit(3)
 	test_todos!(db)
@@ -228,6 +232,141 @@ valid_company_input = |name, owner_id, lifecycle, website, phone|
 		Ok(input) => input
 		Err(_) => {
 			crash "Company test input should be valid."
+		}
+	}
+
+test_people! : Sqlite.Db => {}
+test_people! = |db| {
+	store = PersonStore.new(db)
+	workspace = WorkspaceStore.load!(WorkspaceStore.new(db))
+		?? Workspace.from_storage(
+			"workspace-example",
+			"Example CRM",
+			"AUD",
+			"Australia/Melbourne",
+			[],
+			[],
+		)
+	member = Member.from_storage("member-mara", "Mara Singh", "mara@example.com", 1)
+	input = valid_person_input(
+		"Ada Lovelace",
+		member.id,
+		"company-acme",
+		"ada@example.com",
+		"+61 3 9000 1234",
+	)
+	created = PersonStore.create!(
+		store,
+		workspace.id,
+		member.id,
+		input,
+		"2026-07-28T11:00:00Z",
+		False,
+	)
+	person_id = match created {
+		Ok(id) => id
+		Err(_) => Person.Id.from_storage("person-missing")
+	}
+	found = PersonStore.find!(store, person_id)
+	expect match found {
+		Ok(person) =>
+			person.name.to_str() == "Ada Lovelace"
+				and person.companyName == "Acme Studio"
+					and Person.primary_value(person.emails) == "ada@example.com"
+						and Person.primary_value(person.phones) == "+61 3 9000 1234"
+		Err(_) => False
+	}
+
+	duplicate = valid_person_input(
+		"Ada L.",
+		member.id,
+		"",
+		"ADA@example.com",
+		"",
+	)
+	matches = PersonStore.matches!(store, workspace.id, duplicate)
+	expect match matches {
+		Ok([{ strength: Person.MatchStrength.Strong, reason: "Same email address", .. }]) => True
+		_ => False
+	}
+	blocked = PersonStore.create!(
+		store,
+		workspace.id,
+		member.id,
+		duplicate,
+		"2026-07-28T11:05:00Z",
+		False,
+	)
+	expect match blocked {
+		Err(Person.CreateError.DuplicateMatches([_])) => True
+		_ => False
+	}
+
+	email_added = PersonStore.add_contact!(store, person_id, Email, "Personal", "ada@home.example", False)
+	expect email_added.is_ok()
+	phone_added = PersonStore.add_contact!(store, person_id, Phone, "Mobile", "0400 000 000", True)
+	expect phone_added.is_ok()
+	with_contacts = PersonStore.find!(store, person_id)
+	expect match with_contacts {
+		Ok(person) =>
+			person.emails.len() == 2
+				and person.phones.len() == 2
+					and Person.primary_value(person.phones) == "0400 000 000"
+		Err(_) => False
+	}
+
+	company_people = PersonStore.list_for_company!(store, Company.Id.from_storage("company-acme"))
+	expect match company_people {
+		Ok([person]) => person.id == person_id
+		_ => False
+	}
+
+	moved = valid_person_input("Ada Lovelace", member.id, "", "", "")
+	updated = PersonStore.update!(
+		store,
+		workspace.id,
+		member.id,
+		person_id,
+		moved,
+		Company.Version.initial,
+		"2026-07-28T11:10:00Z",
+	)
+	expect match updated {
+		Ok(version) => version.to_i64() == 2
+		Err(_) => False
+	}
+	stale = PersonStore.update!(
+		store,
+		workspace.id,
+		member.id,
+		person_id,
+		input,
+		Company.Version.initial,
+		"2026-07-28T11:15:00Z",
+	)
+	expect match stale {
+		Err(Person.UpdateError.Conflict(current)) =>
+			current.version.to_i64() == 2 and current.companyId.is_empty()
+		_ => False
+	}
+}
+
+valid_person_input : Str, Member.Id, Str, Str, Str -> Person.New
+valid_person_input = |name, owner_id, company_id, email, phone|
+	match Person.new(
+		name,
+		company_id,
+		"",
+		owner_id,
+		"lead",
+		"referral",
+		"Test context",
+		email,
+		phone,
+	) {
+		Ok(input) => input
+		Err(_) => {
+			crash "Person test input should be valid."
 		}
 	}
 

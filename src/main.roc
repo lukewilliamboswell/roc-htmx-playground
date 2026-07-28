@@ -25,6 +25,9 @@ import CompanyStore
 import HomeView
 import Http
 import MemberStore
+import Person
+import PersonHandler
+import PersonStore
 import Route
 import Session
 import SessionHandler
@@ -47,6 +50,7 @@ Context := {
 	todoStore : TodoStore,
 	bigTaskStore : BigTaskStore,
 	companyStore : CompanyStore,
+	personStore : PersonStore,
 }
 
 program = { init!, respond!, shutdown! }
@@ -97,6 +101,7 @@ init! = || {
 			todoStore: TodoStore.new(db),
 			bigTaskStore: BigTaskStore.new(db),
 			companyStore: CompanyStore.new(db),
+			personStore: PersonStore.new(db),
 		},
 	})
 }
@@ -191,6 +196,18 @@ visit! = |context, session, location|
 							actor_from_session(session, context.workspace)?,
 						),
 					)
+				Route.Page.People =>
+					PersonHandler.page!(
+						context.personStore,
+						actor_from_session(session, context.workspace)?,
+						Person.Filter.empty,
+					)
+				Route.Page.PersonNew =>
+					PersonHandler.new_page!(
+						context.companyStore,
+						actor_from_session(session, context.workspace)?,
+						"",
+					)
 				Route.Page.BigTasks =>
 					BigTaskHandler.page!(context.bigTaskStore, BigTask.Query.default, session)
 				}
@@ -208,6 +225,7 @@ visit! = |context, session, location|
 		Route.Location.CompanyDetail(id) =>
 			CompanyHandler.detail!(
 				context.companyStore,
+				context.personStore,
 				actor_from_session(session, context.workspace)?,
 				id,
 			)
@@ -216,6 +234,31 @@ visit! = |context, session, location|
 				context.companyStore,
 				actor_from_session(session, context.workspace)?,
 				id,
+			)
+		Route.Location.PersonSearch(filter) =>
+			PersonHandler.page!(
+				context.personStore,
+				actor_from_session(session, context.workspace)?,
+				filter,
+			)
+		Route.Location.PersonDetail(id) =>
+			PersonHandler.detail!(
+				context.personStore,
+				actor_from_session(session, context.workspace)?,
+				id,
+			)
+		Route.Location.PersonEdit(id) =>
+			PersonHandler.edit_page!(
+				context.personStore,
+				context.companyStore,
+				actor_from_session(session, context.workspace)?,
+				id,
+			)
+		Route.Location.PersonNewForCompany(company_id) =>
+			PersonHandler.new_page!(
+				context.companyStore,
+				actor_from_session(session, context.workspace)?,
+				company_id.to_str(),
 			)
 		}
 
@@ -259,6 +302,36 @@ post! = |request, context, session, action|
 				actor_from_session(session, context.workspace)?,
 				id,
 			)
+		Route.PostAction.PreviewPerson =>
+			PersonHandler.preview!(
+				request,
+				context.personStore,
+				context.companyStore,
+				actor_from_session(session, context.workspace)?,
+			)
+		Route.PostAction.CreatePerson =>
+			PersonHandler.create!(
+				request,
+				context.personStore,
+				context.companyStore,
+				actor_from_session(session, context.workspace)?,
+			)
+		Route.PostAction.UpdatePerson(id) =>
+			PersonHandler.update!(
+				request,
+				context.personStore,
+				context.companyStore,
+				actor_from_session(session, context.workspace)?,
+				id,
+			)
+		Route.PostAction.AddPersonEmail(id) =>
+			PersonHandler.add_contact!(request, context.personStore, id, Email)
+		Route.PostAction.AddPersonPhone(id) =>
+			PersonHandler.add_contact!(request, context.personStore, id, Phone)
+		Route.PostAction.DeletePersonEmail(id, contact_id) =>
+			PersonHandler.delete_contact!(context.personStore, id, Email, contact_id)
+		Route.PostAction.DeletePersonPhone(id, contact_id) =>
+			PersonHandler.delete_contact!(context.personStore, id, Phone, contact_id)
 		}
 
 put! : Server.Request, Context, Session, Route.PutAction => Try(Response, AppError)

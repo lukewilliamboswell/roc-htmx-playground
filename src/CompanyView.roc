@@ -5,6 +5,7 @@ import Actor
 import Company
 import Design
 import Layout
+import Person
 import Route
 import Web
 
@@ -71,8 +72,8 @@ CompanyView :: [].{
 	conflict_page = |actor, current, attempted|
 		edit_form_page(actor, current, attempted, "", True)
 
-	detail : Actor, Company -> Html.Node
-	detail = |actor, company|
+	detail : Actor, Company, List(Person) -> Html.Node
+	detail = |actor, company, people|
 		Layout.page(
 			actor.session,
 			Route.Page.Companies,
@@ -124,10 +125,7 @@ CompanyView :: [].{
 						),
 					],
 				),
-				placeholder_section(
-					"People",
-					"Associated people will appear here in the next seam.",
-				),
+				people_section(company, people),
 				placeholder_section(
 					"Open tasks",
 					"Scheduled follow-up will appear here in the task seam.",
@@ -237,6 +235,50 @@ edit_form_page = |actor, company, form, validation, conflict|
 						[Html.text("Save company")],
 					),
 				],
+			),
+		],
+	)
+
+people_section : Company, List(Person) -> Html.Node
+people_section = |company, people|
+	Html.element(
+		"section",
+		[Design.contentSection],
+		[
+			Html.div(
+				[Design.pageHeader],
+				[
+					Html.h2([Design.sectionHeading], [Html.text("People")]),
+					Web.link(
+						Route.Location.PersonNewForCompany(company.id),
+						[Design.button(Design.ButtonTone.Outline, Design.ButtonSize.Small)],
+						[Html.text("Add person")],
+					),
+				],
+			),
+			Html.ul(
+				[Design.contactList],
+				if people.is_empty() {
+					[Html.li([Design.secondaryText], [Html.text("No people are associated with this company.")])]
+				} else {
+					people.map(
+						|person|
+							Html.li(
+								[Design.contactRow],
+								[
+									Web.link(
+										Route.Location.PersonDetail(person.id),
+										[Design.recordLink],
+										[Html.text(person.name.to_str())],
+									),
+									Html.p(
+										[Design.secondaryText],
+										[Html.text(display_optional(person.jobTitle))],
+									),
+								],
+							),
+					)
+				},
 			),
 		],
 	)

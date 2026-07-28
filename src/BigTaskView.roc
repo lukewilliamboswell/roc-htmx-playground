@@ -29,6 +29,7 @@ BigTaskView :: [].{
 		field : BigTask.Field,
 		label : Str,
 		value : Str,
+		original : Str,
 		validation : Str,
 		version : BigTask.Version,
 	}
@@ -243,6 +244,7 @@ row = |task|
 						field: BigTask.Field.CustomerReferenceField,
 						label: "Customer reference for task ${task.referenceId}",
 						value: task.customerReferenceId.to_str(),
+						original: task.customerReferenceId.to_str(),
 						validation: "",
 						version: task.version,
 					}),
@@ -256,6 +258,7 @@ row = |task|
 						field: BigTask.Field.DateCreatedField,
 						label: "Date created for task ${task.referenceId}",
 						value: task.dateCreated.to_str(),
+						original: task.dateCreated.to_str(),
 						validation: "",
 						version: task.version,
 					}),
@@ -270,6 +273,7 @@ row = |task|
 						field: BigTask.Field.StatusField,
 						label: "Status for task ${task.referenceId}",
 						value: task.status.to_str(),
+						original: task.status.to_str(),
 						validation: "",
 						version: task.version,
 					}),
@@ -289,6 +293,11 @@ input_editor = |model, kind|
 				Attribute.type("hidden"),
 				Attribute.name("version"),
 				Attribute.value(model.version.to_str()),
+			]),
+			Html.input([
+				Attribute.type("hidden"),
+				Attribute.name("original"),
+				Attribute.value(model.original),
 			]),
 			Html.input(
 				[
@@ -313,6 +322,11 @@ status_editor = |model|
 				Attribute.type("hidden"),
 				Attribute.name("version"),
 				Attribute.value(model.version.to_str()),
+			]),
+			Html.input([
+				Attribute.type("hidden"),
+				Attribute.name("original"),
+				Attribute.value(model.original),
 			]),
 			Html.select(
 				[

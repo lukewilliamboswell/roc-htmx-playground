@@ -341,7 +341,7 @@ BigTask := {
 		SetStatus(Status),
 	]
 
-	UpdateError(err) := [InvalidValue, Conflict(Version), NotFound, StoreFailure(err)]
+	UpdateError(err) := [InvalidValue, Conflict({ version : Version, value : Str }), NotFound, StoreFailure(err)]
 
 	complete_update : Try(Version, err) -> Try(Version, UpdateError(err))
 	complete_update = |stored|
@@ -370,15 +370,15 @@ BigTask := {
 				}
 			}
 
-	update! : store, Id, Version, Field, Str => Try(Version, UpdateError(err))
+	update! : store, Id, Version, Field, Str, Str => Try(Version, UpdateError(err))
 		where [
-			store.update! : store, Id, Version, Update => Try(Version, UpdateError(err)),
+			store.update! : store, Id, Version, Str, Update => Try(Version, UpdateError(err)),
 		]
-	update! = |store, id, version, field, value| {
+	update! = |store, id, version, field, original, value| {
 		Store : store
 		match BigTask.update(field, value) {
 			Err(_) => Err(UpdateError.InvalidValue)
-			Ok(update_value) => Store.update!(store, id, version, update_value)
+			Ok(update_value) => Store.update!(store, id, version, original, update_value)
 		}
 	}
 

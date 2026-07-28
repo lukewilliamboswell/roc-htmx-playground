@@ -15,6 +15,7 @@ EditorModel : {
 	field : BigTask.Field,
 	label : Str,
 	value : Str,
+	original : Str,
 	validation : Str,
 	version : BigTask.Version,
 }
@@ -46,7 +47,7 @@ BigTaskHandler := [].{
 
 	update! : Server.Request, store, Session, BigTask.Id, BigTask.Field => Try(Response, AppError)
 		where [
-			store.update! : store, BigTask.Id, BigTask.Version, BigTask.Update => Try(BigTask.Version, BigTask.UpdateError(err)),
+			store.update! : store, BigTask.Id, BigTask.Version, Str, BigTask.Update => Try(BigTask.Version, BigTask.UpdateError(err)),
 		]
 	update! = |request, store, session, id, field| {
 		Http.require_login(session)?
@@ -56,11 +57,12 @@ BigTaskHandler := [].{
 
 	update_form! : Dict(Str, Str), store, Session, BigTask.Id, BigTask.Field => Try(Response, AppError)
 		where [
-			store.update! : store, BigTask.Id, BigTask.Version, BigTask.Update => Try(BigTask.Version, BigTask.UpdateError(err)),
+			store.update! : store, BigTask.Id, BigTask.Version, Str, BigTask.Update => Try(BigTask.Version, BigTask.UpdateError(err)),
 		]
 	update_form! = |form, store, session, id, field| {
 		Http.require_login(session)?
 		value = form.get(field.form_name()) ?? ""
+		original = form.get("original") ?? ""
 		version = BigTask.Version.from_str(form.get("version") ?? "")
 			? |_| AppError.BadRequest("Expected a valid BigTask version")
 		editor_model = {
@@ -68,11 +70,12 @@ BigTaskHandler := [].{
 			field,
 			label: field_label(field),
 			value,
+			original,
 			validation: "",
 			version,
 		}
 
-		result = BigTask.update!(store, id, version, field, value)
+		result = BigTask.update!(store, id, version, field, original, value)
 		BigTaskHandler.editor_response(editor_model, result)
 	}
 
@@ -80,7 +83,7 @@ BigTaskHandler := [].{
 	editor_response = |editor_model, result|
 		match result {
 			Ok(version) => {
-				Ok(Http.html(200, BigTaskView.editor({ ..editor_model, version }), []))
+				Ok(Http.html(200, BigTaskView.editor({ ..editor_model, version, original: editor_model.value }), []))
 			}
 			Err(BigTask.UpdateError.InvalidValue) =>
 				Ok(
@@ -93,13 +96,14 @@ BigTaskHandler := [].{
 						[],
 					),
 				)
-			Err(BigTask.UpdateError.Conflict(version)) =>
+			Err(BigTask.UpdateError.Conflict(current)) =>
 				Ok(
 					Http.html(
 						409,
 						BigTaskView.editor({
 							..editor_model,
-							version,
+							version: current.version,
+							original: current.value,
 							validation: "This field changed elsewhere. Review your value and edit again to retry.",
 						}),
 						[],
@@ -152,6 +156,7 @@ expect {
 		field: BigTask.Field.StatusField,
 		label: "Status",
 		value: "Unknown",
+		original: "Raised",
 		validation: "",
 		version: BigTask.Version.initial,
 	}
@@ -171,6 +176,7 @@ expect {
 		field: BigTask.Field.StatusField,
 		label: "Status",
 		value: "Approved",
+		original: "Raised",
 		validation: "",
 		version: BigTask.Version.initial,
 	}
@@ -187,6 +193,7 @@ expect match BigTaskHandler.editor_response(
 		field: BigTask.Field.StatusField,
 		label: "Status",
 		value: "Approved",
+		original: "Raised",
 		validation: "",
 		version: BigTask.Version.initial,
 	},

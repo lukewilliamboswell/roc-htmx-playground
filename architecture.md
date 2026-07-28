@@ -584,10 +584,13 @@ replacing newer input under uneven latency.
 
 Synchronization is a browser response policy, not a write-serialization
 guarantee. An aborted request may already have committed. Autosave therefore
-submits the rendered record version, and the store compares and increments that
-version in one immediate transaction. A stale write returns `409 Conflict`
-with the submitted value intact and the current version, so the user can review
-and retry without silently overwriting another committed edit.
+submits the rendered record version and original field value. In one immediate
+transaction, the store permits a stale record version only when that field is
+still unchanged, then compares the field and increments the record version.
+This lets independent field editors proceed without allowing two tabs to
+silently overwrite the same field. A stale field returns `409 Conflict` with
+the submitted value intact and the current comparison state, so the user can
+review and retry.
 
 Do not apply latest-wins where every request matters. Give each synchronization
 policy a name that states its intent, and back mutations with a server-side

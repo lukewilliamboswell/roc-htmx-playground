@@ -910,14 +910,14 @@ test_big_tasks! = |db| {
 	}
 
 	id = BigTask.Id.from_i64(1)
-	customer_updated = apply_update!(store, id, BigTask.Version.initial, BigTask.update(BigTask.Field.CustomerReferenceField, "789"))
+	customer_updated = apply_update!(store, id, BigTask.Version.initial, "41137", BigTask.update(BigTask.Field.CustomerReferenceField, "789"))
 	expect customer_updated == Ok(BigTask.Version.from_i64(2))
-	date_updated = apply_update!(store, id, BigTask.Version.from_i64(2), BigTask.update(BigTask.Field.DateCreatedField, "2026-07-28"))
+	date_updated = apply_update!(store, id, BigTask.Version.initial, "2025-08-06", BigTask.update(BigTask.Field.DateCreatedField, "2026-07-28"))
 	expect date_updated == Ok(BigTask.Version.from_i64(3))
-	big_task_status_updated = apply_update!(store, id, BigTask.Version.from_i64(3), BigTask.update(BigTask.Field.StatusField, "Approved"))
+	big_task_status_updated = apply_update!(store, id, BigTask.Version.initial, "In-Progress", BigTask.update(BigTask.Field.StatusField, "Approved"))
 	expect big_task_status_updated == Ok(BigTask.Version.from_i64(4))
 
-	stale_update = apply_update!(store, id, BigTask.Version.initial, BigTask.update(BigTask.Field.StatusField, "Deferred"))
+	stale_update = apply_update!(store, id, BigTask.Version.initial, "In-Progress", BigTask.update(BigTask.Field.StatusField, "Deferred"))
 	expect stale_update.is_err()
 
 	updated = BigTaskStore.list!(
@@ -939,12 +939,12 @@ test_big_tasks! = |db| {
 	}
 }
 
-apply_update! : BigTaskStore, BigTask.Id, BigTask.Version, Try(BigTask.Update, err) => Try(BigTask.Version, [InvalidUpdate, BigTaskUpdateErr(BigTask.UpdateError(Sqlite.QueryError))])
-apply_update! = |store, id, version, update|
+apply_update! : BigTaskStore, BigTask.Id, BigTask.Version, Str, Try(BigTask.Update, err) => Try(BigTask.Version, [InvalidUpdate, BigTaskUpdateErr(BigTask.UpdateError(Sqlite.QueryError))])
+apply_update! = |store, id, version, original, update|
 	match update {
 		Err(_) => Err(InvalidUpdate)
 		Ok(value) =>
-			match BigTaskStore.update!(store, id, version, value) {
+			match BigTaskStore.update!(store, id, version, original, value) {
 				Err(error) => Err(BigTaskUpdateErr(error))
 				Ok(next_version) => Ok(next_version)
 			}

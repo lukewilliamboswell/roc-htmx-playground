@@ -170,6 +170,15 @@ test.describe("HTMX interactions", () => {
       firstEditor.locator("xpath=../input[@name='version']"),
     ).toHaveValue("2");
 
+    const independentEditor = page.locator(
+      "#big-task-0-dateCreated-control",
+    );
+    await independentEditor.fill("2026-07-28");
+    await expect(independentEditor).toHaveValue("2026-07-28");
+    await expect(
+      independentEditor.locator("xpath=../input[@name='version']"),
+    ).toHaveValue("3");
+
     await secondEditor.fill("790");
     await expect(
       secondPage.getByText(
@@ -182,6 +191,9 @@ test.describe("HTMX interactions", () => {
     await page.reload();
     await expect(page.locator("#big-task-0-customerId-control")).toHaveValue(
       "789",
+    );
+    await expect(page.locator("#big-task-0-dateCreated-control")).toHaveValue(
+      "2026-07-28",
     );
 
     await secondPage.close();

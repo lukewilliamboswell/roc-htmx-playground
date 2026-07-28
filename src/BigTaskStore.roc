@@ -61,12 +61,12 @@ BigTaskStore :: { db : Sqlite.Db }.{
 			limits: Sqlite.default_query_limits,
 		})
 
-	update! : BigTaskStore, BigTask.Id, BigTask.Version, BigTask.Update => Try(BigTask.Version, BigTask.UpdateError(Sqlite.QueryError))
-	update! = |store, id, expected_version, update| {
+	update! : BigTaskStore, BigTask.Id, BigTask.Version, Str, BigTask.Update => Try(BigTask.Version, BigTask.UpdateError(Sqlite.QueryError))
+	update! = |store, id, expected_version, original, update| {
 		transaction = Sqlite.begin!(store.db, Immediate)
 			? BigTask.UpdateError.StoreFailure
 
-		result = update_in_transaction!(transaction, id, expected_version, update)
+		result = update_in_transaction!(transaction, id, expected_version, original, update)
 		match result {
 			Err(error) => {
 				Sqlite.Transaction.rollback!(transaction) ?? {}
@@ -116,29 +116,44 @@ decode_rows = |rows|
 			},
 	)
 
-VersionRow : { version : I64 }
+WriteState : {
+	customerReferenceId : Str,
+	dateCreated : Str,
+	status : Str,
+	version : I64,
+}
 
-update_in_transaction! : Sqlite.Transaction, BigTask.Id, BigTask.Version, BigTask.Update => Try(BigTask.Version, BigTask.UpdateError(Sqlite.QueryError))
-update_in_transaction! = |transaction, id, expected_version, update| {
-	rows : List(VersionRow)
+update_in_transaction! : Sqlite.Transaction, BigTask.Id, BigTask.Version, Str, BigTask.Update => Try(BigTask.Version, BigTask.UpdateError(Sqlite.QueryError))
+update_in_transaction! = |transaction, id, expected_version, original, update| {
+	rows : List(WriteState)
 	rows = Sqlite.Transaction.query_many!(
 		transaction,
 		{
-			query: "SELECT Version AS version FROM BigTask WHERE ID = :id;",
+			query: "SELECT CustomerReferenceID AS customerReferenceId, DateCreated AS dateCreated, Status AS status, Version AS version FROM BigTask WHERE ID = :id;",
 			params: { id: id.to_i64() },
 			limits: Sqlite.default_query_limits,
 		},
 	) ? BigTask.UpdateError.StoreFailure
 
-	current_version = match rows {
+	current = match rows {
 		[] => return Err(BigTask.UpdateError.NotFound)
-		[row, ..] => BigTask.Version.from_i64(row.version)
+		[row, ..] => row
 	}
-	if current_version != expected_version {
-		return Err(BigTask.UpdateError.Conflict(current_version))
+	current_version = BigTask.Version.from_i64(current.version)
+	current_value = value_for_update(current, update)
+	new_value = new_value_for_update(update)
+
+	if current_value == new_value {
+		return Ok(current_version)
+	}
+	if current_version != expected_version and current_value != original {
+		return Err(BigTask.UpdateError.Conflict({ version: current_version, value: current_value }))
+	}
+	if current_value != original {
+		return Err(BigTask.UpdateError.Conflict({ version: current_version, value: current_value }))
 	}
 
-	next_version = BigTask.Version.from_i64(expected_version.to_i64() + 1)
+	next_version = BigTask.Version.from_i64(current_version.to_i64() + 1)
 	match update {
 		SetCustomerReference(value) =>
 			Sqlite.Transaction.execute!(
@@ -148,7 +163,7 @@ update_in_transaction! = |transaction, id, expected_version, update| {
 					params: {
 						id: id.to_i64(),
 						value: value.to_str(),
-						expectedVersion: expected_version.to_i64(),
+						expectedVersion: current_version.to_i64(),
 						nextVersion: next_version.to_i64(),
 					},
 				},
@@ -161,7 +176,7 @@ update_in_transaction! = |transaction, id, expected_version, update| {
 					params: {
 						id: id.to_i64(),
 						value: value.to_str(),
-						expectedVersion: expected_version.to_i64(),
+						expectedVersion: current_version.to_i64(),
 						nextVersion: next_version.to_i64(),
 					},
 				},
@@ -174,7 +189,7 @@ update_in_transaction! = |transaction, id, expected_version, update| {
 					params: {
 						id: id.to_i64(),
 						value: value.to_str(),
-						expectedVersion: expected_version.to_i64(),
+						expectedVersion: current_version.to_i64(),
 						nextVersion: next_version.to_i64(),
 					},
 				},
@@ -182,3 +197,19 @@ update_in_transaction! = |transaction, id, expected_version, update| {
 		}
 	Ok(next_version)
 }
+
+value_for_update : WriteState, BigTask.Update -> Str
+value_for_update = |current, update|
+	match update {
+		SetCustomerReference(_) => current.customerReferenceId
+		SetDateCreated(_) => current.dateCreated
+		SetStatus(_) => current.status
+	}
+
+new_value_for_update : BigTask.Update -> Str
+new_value_for_update = |update|
+	match update {
+		SetCustomerReference(value) => value.to_str()
+		SetDateCreated(value) => value.to_str()
+		SetStatus(value) => value.to_str()
+	}

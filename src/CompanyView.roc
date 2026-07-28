@@ -56,7 +56,7 @@ CompanyView :: [].{
 					],
 				),
 				search_form(model.filter),
-				company_table(model.companies),
+				company_table(model.companies, model.filter),
 			],
 		)
 
@@ -477,6 +477,7 @@ search_form = |filter|
 		[
 			Attribute.action(Route.Page.to_href(Route.Page.Companies)),
 			Attribute.method("get"),
+			attribute("role", "search"),
 			Design.searchForm,
 		],
 		[
@@ -507,13 +508,10 @@ search_form = |filter|
 		],
 	)
 
-company_table : List(Company) -> Html.Node
-company_table = |companies|
+company_table : List(Company), Company.Filter -> Html.Node
+company_table = |companies, filter|
 	if companies.is_empty() {
-		Html.div(
-			[Design.emptyState],
-			[Html.text("No companies match this view.")],
-		)
+		company_empty_state(filter)
 	} else {
 		Html.div(
 			[Design.tableScroll],
@@ -544,6 +542,37 @@ company_table = |companies|
 			],
 		)
 	}
+
+company_empty_state : Company.Filter -> Html.Node
+company_empty_state = |filter|
+	Html.div(
+		[Design.emptyStatePanel],
+		if filter.to_str().is_empty() {
+			[
+				Html.p(
+					[Design.emptyStateText],
+					[Html.text("No companies have been recorded yet. Use New company to capture the first relationship.")],
+				),
+			]
+		} else {
+			[
+				Html.p(
+					[Design.emptyStateText],
+					[Html.text("No companies match “${filter.to_str()}”. Clear the search to see every company.")],
+				),
+				Html.div(
+					[Design.emptyStateActions],
+					[
+						Web.link(
+							Route.Page.Companies,
+							[Design.button(Design.ButtonTone.Outline, Design.ButtonSize.Regular)],
+							[Html.text("Clear search")],
+						),
+					],
+				),
+			]
+		},
+	)
 
 company_row : Company -> Html.Node
 company_row = |company|

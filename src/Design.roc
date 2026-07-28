@@ -200,6 +200,15 @@ Design :: [].{
 	emptyState : Attribute.Attribute
 	emptyState = class("px-4 py-10 text-center text-sm text-slate-500")
 
+	emptyStatePanel : Attribute.Attribute
+	emptyStatePanel = class("rounded-xl border border-slate-200 bg-white px-4 py-10 text-center shadow-sm")
+
+	emptyStateText : Attribute.Attribute
+	emptyStateText = class("text-sm text-slate-600")
+
+	emptyStateActions : Attribute.Attribute
+	emptyStateActions = class("mt-4 flex justify-center")
+
 	detailGrid : Attribute.Attribute
 	detailGrid = class("grid gap-6 lg:grid-cols-3")
 

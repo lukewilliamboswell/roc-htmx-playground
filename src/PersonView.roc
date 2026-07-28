@@ -52,7 +52,7 @@ PersonView :: [].{
 					],
 				),
 				search_form(filter),
-				people_table(people),
+				people_table(people, filter),
 			],
 		)
 
@@ -467,6 +467,7 @@ search_form = |filter|
 		[
 			Attribute.action(Route.Page.to_href(Route.Page.People)),
 			Attribute.method("get"),
+			attribute("role", "search"),
 			Design.searchForm,
 		],
 		[
@@ -494,45 +495,68 @@ search_form = |filter|
 		],
 	)
 
-people_table : List(Person) -> Html.Node
-people_table = |people|
-	Html.div(
-		[Design.tableScroll],
-		[
-			Html.table(
-				[Design.table],
-				[
-					Html.thead(
-						[Design.tableHead],
-						[
-							Html.tr(
-								[],
-								[
-									header_cell("Person"),
-									header_cell("Company"),
-									header_cell("Primary contact"),
-									header_cell("Owner"),
-									header_cell("Lifecycle"),
-								],
-							),
-						],
-					),
-					Html.tbody(
-						[Design.tableBody],
-						if people.is_empty() {
+people_table : List(Person), Person.Filter -> Html.Node
+people_table = |people, filter|
+	if people.is_empty() {
+		people_empty_state(filter)
+	} else {
+		Html.div(
+			[Design.tableScroll],
+			[
+				Html.table(
+					[Design.table],
+					[
+						Html.thead(
+							[Design.tableHead],
 							[
 								Html.tr(
 									[],
-									[Html.td([Design.emptyState, attribute("colspan", "5")], [Html.text("No people match this view.")])],
+									[
+										header_cell("Person"),
+										header_cell("Company"),
+										header_cell("Primary contact"),
+										header_cell("Owner"),
+										header_cell("Lifecycle"),
+									],
 								),
-							]
-						} else {
-							people.map(person_row)
-						},
-					),
-				],
-			),
-		],
+							],
+						),
+						Html.tbody([Design.tableBody], people.map(person_row)),
+					],
+				),
+			],
+		)
+	}
+
+people_empty_state : Person.Filter -> Html.Node
+people_empty_state = |filter|
+	Html.div(
+		[Design.emptyStatePanel],
+		if filter.to_str().is_empty() {
+			[
+				Html.p(
+					[Design.emptyStateText],
+					[Html.text("No people have been recorded yet. Use New person to capture the first relationship.")],
+				),
+			]
+		} else {
+			[
+				Html.p(
+					[Design.emptyStateText],
+					[Html.text("No people match “${filter.to_str()}”. Clear the search to see every person.")],
+				),
+				Html.div(
+					[Design.emptyStateActions],
+					[
+						Web.link(
+							Route.Page.People,
+							[Design.button(Design.ButtonTone.Outline, Design.ButtonSize.Regular)],
+							[Html.text("Clear search")],
+						),
+					],
+				),
+			]
+		},
 	)
 
 person_row : Person -> Html.Node

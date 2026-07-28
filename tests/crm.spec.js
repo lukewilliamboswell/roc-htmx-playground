@@ -37,6 +37,38 @@ test.describe("CRM journeys", () => {
         exact: true,
       }),
     ).toBeVisible();
+
+    await page.getByLabel("Search companies").fill("No matching company");
+    await page.getByRole("button", { name: "Search", exact: true }).click();
+    await expect(
+      page.getByText(
+        "No companies match “No matching company”. Clear the search to see every company.",
+      ),
+    ).toBeVisible();
+    await page.getByRole("link", { name: "Clear search", exact: true }).click();
+    await expect(page).toHaveURL("/companies");
+    await expect(
+      page.getByRole("link", {
+        name: "Playwright Mixed CASE Company",
+        exact: true,
+      }),
+    ).toBeVisible();
+
+    await page.goto("/people");
+    await page.getByLabel("Search people").fill("No matching person");
+    await page.getByRole("button", { name: "Search", exact: true }).click();
+    await expect(
+      page.getByText(
+        "No people match “No matching person”. Clear the search to see every person.",
+      ),
+    ).toBeVisible();
+    await page.getByRole("link", { name: "Clear search", exact: true }).click();
+    await expect(page).toHaveURL("/people");
+    await expect(
+      page.getByText(
+        "No people have been recorded yet. Use New person to capture the first relationship.",
+      ),
+    ).toBeVisible();
   });
 
   test("previews canonical company-name matches before creating", async ({

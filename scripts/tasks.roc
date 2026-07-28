@@ -70,10 +70,11 @@ usage! = || {
 
 dev! : () => Try({}, _)
 dev! = || {
-	run!("roc", ["fmt", "scripts", "src"])?
+	run!("roc", ["fmt", "scripts", "platform"])?
 	buildCss!(Bool.False)?
-	run!("roc", ["check", "src/main.roc"])?
-	run!("roc", ["test", "src/main.roc"])?
+	run!("roc", ["check", "platform/main.roc"])?
+	run!("roc", ["test", "platform/main.roc"])?
+	run!("roc", ["platform/test.roc"])?
 
 	db_path = ensureDevDatabase!()?
 	binary = ".tools/roc-htmx-playground-dev"
@@ -83,7 +84,7 @@ dev! = || {
 			"build",
 			"--opt=dev",
 			"--output=${binary}",
-			"src/main.roc",
+			"platform/main.roc",
 		],
 	)?
 
@@ -116,9 +117,10 @@ check! = || {
 	if before != after {
 		return Err(GeneratedCssWasOutOfDate)
 	}
-	run!("roc", ["fmt", "--check", "scripts", "src"])?
-	run!("roc", ["check", "src/main.roc"])?
-	run!("roc", ["test", "src/main.roc"])?
+	run!("roc", ["fmt", "--check", "scripts", "platform"])?
+	run!("roc", ["check", "platform/main.roc"])?
+	run!("roc", ["test", "platform/main.roc"])?
+	run!("roc", ["platform/test.roc"])?
 
 	Ok({})
 }
@@ -151,7 +153,7 @@ buildReleaseTargets! = |remaining, checksum_lines|
 					"--opt=size",
 					"--target=${target.target}",
 					"--output=${output}",
-					"src/main.roc",
+					"platform/main.roc",
 				],
 			)?
 			checksum = checksum!(output)?

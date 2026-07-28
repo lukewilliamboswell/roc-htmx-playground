@@ -1,2 +1,2 @@
 @import "tailwindcss" source(none);
-@source "./Design.roc";
+@source "../platform/Design.roc";

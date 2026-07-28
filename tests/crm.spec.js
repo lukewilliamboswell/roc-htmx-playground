@@ -7,6 +7,14 @@ async function loginAsMara(page) {
   await expect(page.getByText("Mara Singh", { exact: true })).toBeVisible();
 }
 
+async function expectNoDocumentOverflow(page) {
+  const widths = await page.evaluate(() => ({
+    client: document.documentElement.clientWidth,
+    scroll: document.documentElement.scrollWidth,
+  }));
+  expect(widths.scroll).toBeLessThanOrEqual(widths.client);
+}
+
 test.describe("CRM journeys", () => {
   test("preserves a company display name and provides submitted search", async ({
     page,
@@ -222,6 +230,51 @@ test.describe("CRM journeys", () => {
       .getByRole("link", { name: "Cancel", exact: true })
       .click();
     await expect(page).toHaveURL("/companies/company-acme");
+
+    await context.close();
+  });
+
+  test("keeps core CRM views within a small viewport", async ({ browser }) => {
+    const context = await browser.newContext({
+      viewport: { width: 375, height: 812 },
+    });
+    const page = await context.newPage();
+
+    await loginAsMara(page);
+    await page.goto("/companies");
+    await expectNoDocumentOverflow(page);
+    await expect(
+      page.getByRole("link", { name: "New company", exact: true }),
+    ).toBeVisible();
+
+    const tableRegion = page.locator("div.overflow-x-auto");
+    await expect(tableRegion).toBeVisible();
+    const tableWidths = await tableRegion.evaluate((region) => ({
+      client: region.clientWidth,
+      scroll: region.scrollWidth,
+    }));
+    expect(tableWidths.scroll).toBeGreaterThanOrEqual(tableWidths.client);
+
+    await page.goto("/people/new");
+    await expectNoDocumentOverflow(page);
+    await expect(
+      page.getByRole("button", {
+        name: "Check and save person",
+        exact: true,
+      }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("link", { name: "Cancel", exact: true }),
+    ).toBeVisible();
+
+    await page.goto("/companies/company-acme");
+    await expectNoDocumentOverflow(page);
+    await expect(
+      page.getByRole("heading", { name: "Open tasks", exact: true }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("button", { name: "Schedule task", exact: true }),
+    ).toBeVisible();
 
     await context.close();
   });

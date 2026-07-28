@@ -913,6 +913,12 @@ in repeated forms, the caller supplies a contextual ID while the primitive
 preserves the server-facing name. Labels, focus restoration, and fragment
 targets refer to that contextual identity.
 
+Layouts are mobile-first. The document itself does not scroll horizontally at
+the supported small viewport; actions wrap, controls fit their container, and
+cards collapse into one column. Intrinsically wide data such as a table owns
+its horizontal scrolling inside a labelled or otherwise understandable region
+instead of widening the whole page.
+
 ## Handler modules
 
 A handler coordinates a use case. It can:

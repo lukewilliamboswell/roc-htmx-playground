@@ -887,6 +887,40 @@ A module that merely renames another function without hiding details, enforcing
 a type boundary, or creating a useful seam adds navigation cost without adding
 architecture.
 
+## CRM vertical slices
+
+The playground is being replaced incrementally by a real company-enquiry CRM.
+The product-facing slices now follow the same request path:
+
+| Slice | Domain | Persistence | HTTP and presentation |
+| --- | --- | --- | --- |
+| Actor/workspace | `Member`, `Session`, `Actor`, `Workspace` | `MemberStore`, `SessionStore`, `WorkspaceStore` | authentication handlers and the composition root |
+| Companies | `Company` | `CompanyStore` | `CompanyHandler`, `CompanyView` |
+| People | `Person` | `PersonStore` | `PersonHandler`, `PersonView` |
+| Follow-up work | `WorkTask` | `WorkTaskStore` | `WorkTaskHandler`, `WorkTaskView` |
+
+`db/init.sql` is intentionally a replaceable initialization schema during this
+refactor. There is no migration layer or compatibility promise for old
+database files; `roc scripts/tasks.roc reset-db` recreates the disposable
+development database. The platform integration runner loads the same
+initialization SQL into a fresh database, then adds `db/test-fixtures.sql`.
+
+The actor boundary resolves a session to one active workspace member. Stores
+receive the workspace and actor identifiers required for each mutation rather
+than consulting global request state. Company and person creation perform
+duplicate review before commitment. Company edits compare the submitted record
+version inside an immediate transaction and return the current record on a
+conflict. Person edits expose the same conflict outcome at the HTTP boundary.
+
+Follow-up due values are captured as workspace-local date-times and stored with
+their UTC instant. The runtime `TZ` must equal the workspace timezone; the
+development and integration commands pin that value explicitly. Work buckets
+are therefore evaluated against the workspace-local date rather than an
+implicit server locale.
+
+Tailwind class strings are centralized in `Design.roc`. CRM views use semantic
+design attributes only, keeping visual policy out of feature rendering.
+
 ## Architecture experiment and evaluation
 
 The refactor that applies this guide is an architecture experiment. A
@@ -918,10 +952,10 @@ use exactly these modules.
 | Static-dispatch ergonomics | Are `where` clauses small and caller-local, without broad trait-like contracts or forwarding wrappers? | Review each generic signature and list why substitution is useful | **Validated with a constraint.** `Todo.create!` asks only for effectful `insert!`; generic `Web` helpers ask for one URL/selector method each. Static dispatch clarified capability boundaries, but did not replace the functional-core testing seam. Closed errors needed explicit nominal wrappers such as `Todo.CreateError(err)`. |
 | Effect clarity | Are pure rules separate from effectful adapter and handler methods? | Audit of `->`, `=>`, and `!` at use-case boundaries | **Validated.** Route/query parsing, validation, tree construction, effect-result classification, and response decisions are pure. HTTP reads and store operations use `=>` and `!`. Roc's lack of effect polymorphism is handled by testing typed outcomes purely and the concrete interpreter separately. |
 | Runtime choices | Are values known only at runtime represented by data and explicit matches rather than misusing static dispatch? | Review routing and any configurable adapter selection | **Validated.** Requests parse to the closed `Route` union and dispatch through matches. Static dispatch is limited to compile-time-known helper and adapter types. |
-| Test value | Can important decisions be tested without effects while real SQLite paths retain integration coverage? | Test list, failures caught, and setup complexity | **Validated.** The app suite runs 251 inline expectations, including typed success/failure simulations and HTTP response decisions. The single `src/test.roc` runner loads the canonical initialization and fixture SQL and covers session creation/lookup, registration/login, Todo CRUD/filter/tree/invalid-row decoding, and BigTask count/pagination/update through the real stores. |
+| Test value | Can important decisions be tested without effects while real SQLite paths retain integration coverage? | Test list, failures caught, and setup complexity | **Validated.** The app suite runs 272 inline expectations, including typed routing, normalization, bucketing, and HTTP response decisions. The single `src/test.roc` runner loads the canonical initialization and fixture SQL and covers workspace/member resolution, company and person matching/creation/conflicts, contact methods, workspace-local work tasks, and the still-addressable legacy stores through real SQLite adapters. |
 | Navigation cost | Can a contributor follow a request from route to response without excessive jumping or hidden indirection? | Short walkthrough by someone who did not perform the refactor | **Partially validated.** The path is consistently `Route -> main dispatch -> Handler -> Store/View`; however, no independent contributor walkthrough has been recorded yet. |
 | Duplication | Did feature slicing or small contracts introduce repeated parsing, mapping, or rendering that should have one owner? | Duplicate-code review with decisions to keep or extract | **Validated.** Route parsing/printing, HTTP forms/responses, layout, and typed link generation each have one owner. Small feature-specific validation messages remain deliberately local. |
-| Build feedback | Do acyclic, focused modules preserve useful compiler caching and acceptable check/test times? | Before-and-after clean and incremental timings | **Validated for the current size.** The current suite runs 251 pure expectations plus one effectful SQLite runner. Exact timings vary by machine and compiler cache state; no controlled before/after clean benchmark was recorded. |
+| Build feedback | Do acyclic, focused modules preserve useful compiler caching and acceptable check/test times? | Before-and-after clean and incremental timings | **Validated for the current size.** The current suite runs 272 pure expectations plus one effectful SQLite runner. Exact timings vary by machine and compiler cache state; no controlled before/after clean benchmark was recorded. |
 | Upgrade exercise | Can a URL, database representation, or HTML delivery mechanism change without unrelated edits? | Perform one small change from each relevant category and record affected modules | **Partially validated.** URLs and HTML attributes have single typed owners, and SQL decoding is isolated in stores. A real replacement database or second delivery mechanism has not yet been implemented. |
 
 The experiment also exposed costs and current toolchain sharp edges:

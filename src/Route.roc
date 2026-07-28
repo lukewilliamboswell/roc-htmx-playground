@@ -516,6 +516,34 @@ expect {
 	}
 }
 
+expect Route.Page.to_href(Route.Page.Work) == "/work"
+
+expect {
+	result = Route.parse_parts(
+		Route.Method.Get,
+		"/people/new?company=company-acme",
+		"http://localhost/people/new?company=company-acme",
+	)
+	match result {
+		Ok(Route.Visit(Route.Location.PersonNewForCompany(id))) =>
+			id.to_str() == "company-acme"
+		_ => False
+	}
+}
+
+expect {
+	result = Route.parse_parts(
+		Route.Method.Post,
+		"/tasks/task-follow-up/complete",
+		"http://localhost/tasks/task-follow-up/complete",
+	)
+	match result {
+		Ok(Route.Post(Route.PostAction.CompleteTask(id))) =>
+			id.to_str() == "task-follow-up"
+		_ => False
+	}
+}
+
 expect {
 	result = Route.parse_parts(
 		Route.Method.Post,

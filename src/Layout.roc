@@ -29,7 +29,7 @@ Layout := [].{
 							Attribute.name("description"),
 							attribute(
 								"content",
-								"Explore a server-rendered Roc and htmx application with tasks, sessions, SQLite data, and native static assets.",
+								"A focused CRM for company enquiries, people, and accountable follow-up.",
 							),
 						]),
 						Html.title([], [Html.text(page_identity.title())]),
@@ -86,14 +86,13 @@ navbar = |session|
 			Html.div(
 				[Design.navInner],
 				[
-					Web.link(Route.Page.Home, [Design.brand], [Html.text("Roc + htmx")]),
+					Web.link(Route.Page.Home, [Design.brand], [Html.text("Enquiry CRM")]),
 					Html.ul(
 						[Design.navLinks],
 						[
-							nav_item("Tasks", Route.Page.Todos),
-							nav_item("Users", Route.Page.Users),
-							nav_item("Tree", Route.Page.TodoTree),
-							nav_item("BigTask", Route.Page.BigTasks),
+							nav_item("Companies", Route.Page.Companies),
+							nav_item("People", Route.Page.People),
+							nav_item("My Work", Route.Page.Work),
 						],
 					),
 					auth_controls(session),

@@ -31,6 +31,12 @@ Design :: [].{
 	hero : Attribute.Attribute
 	hero = class("grid overflow-hidden rounded-2xl bg-slate-950 shadow-xl lg:grid-cols-2")
 
+	crmHero : Attribute.Attribute
+	crmHero = class("overflow-hidden rounded-2xl bg-slate-950 shadow-xl")
+
+	crmHeroCopy : Attribute.Attribute
+	crmHeroCopy = class("p-8 sm:p-12 lg:p-16")
+
 	heroCopy : Attribute.Attribute
 	heroCopy = class("flex flex-col justify-center p-8 sm:p-12 lg:p-16")
 

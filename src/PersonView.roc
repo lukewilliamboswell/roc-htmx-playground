@@ -187,6 +187,18 @@ form_page = |actor, companies, existing, form, validation, matches| {
 					),
 				],
 			),
+			if editing {
+				Html.text("")
+			} else {
+				Html.p(
+					[Design.lead],
+					[
+						Html.text(
+							"Only a name is required. Add an email or phone when known to make follow-up and duplicate checking more reliable.",
+						),
+					],
+				)
+			},
 			if validation.is_empty() {
 				Html.text("")
 			} else {
@@ -214,7 +226,7 @@ form_page = |actor, companies, existing, form, validation, matches| {
 							])
 						None => Html.text("")
 					},
-					text_field("Name", Route.PersonInput.Name, form.name, "Ada Lovelace"),
+					required_text_field("Name", Route.PersonInput.Name, form.name, "Ada Lovelace"),
 					text_field("Role or title", Route.PersonInput.JobTitle, form.jobTitle, "Operations lead"),
 					select_field(
 						"Company",
@@ -600,17 +612,46 @@ person_row = |person|
 
 text_field : Str, Route.PersonInput, Str, Str -> Html.Node
 text_field = |label, input, value, placeholder|
+	text_field_with_requirement(label, input, value, placeholder, False)
+
+required_text_field : Str, Route.PersonInput, Str, Str -> Html.Node
+required_text_field = |label, input, value, placeholder|
+	text_field_with_requirement(label, input, value, placeholder, True)
+
+text_field_with_requirement : Str, Route.PersonInput, Str, Str, Bool -> Html.Node
+text_field_with_requirement = |label, input, value, placeholder, required|
 	Html.div(
 		[Design.field],
 		[
-			Html.label([Attribute.for_(input.to_name()), Design.label], [Html.text(label)]),
-			Html.input([
-				Attribute.id(input.to_name()),
-				Attribute.name(input.to_name()),
-				Attribute.value(value),
-				attribute("placeholder", placeholder),
-				Design.input,
-			]),
+			Html.label(
+				[Attribute.for_(input.to_name()), Design.label],
+				[
+					Html.text(label),
+					if required {
+						Html.span(
+							[attribute("aria-hidden", "true"), Design.requiredHint],
+							[Html.text(" (required)")],
+						)
+					} else {
+						Html.text("")
+					},
+				],
+			),
+			Html.input(
+				[
+					Attribute.id(input.to_name()),
+					Attribute.name(input.to_name()),
+					Attribute.value(value),
+					attribute("placeholder", placeholder),
+					Design.input,
+				].concat(
+					if required {
+						[attribute("required", "")]
+					} else {
+						[]
+					},
+				),
+			),
 		],
 	)
 

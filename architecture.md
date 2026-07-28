@@ -593,6 +593,12 @@ failed; a general error must not be falsely associated with one control.
 Native constraint validation may complement this response but does not replace
 server validation.
 
+Use native constraints only for stable invariants the browser can express
+accurately. Required controls show a visible cue as well as their semantic
+attribute. Values that improve a record without being essential remain
+optional; explanatory copy may state why they are useful, but the form must not
+turn that guidance into an extra gate.
+
 ### Contextual mutations defend the action at three layers
 
 A mutation initiated inside a record context keeps the member in that context.

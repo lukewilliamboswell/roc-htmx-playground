@@ -189,7 +189,7 @@ edit_form_page = |actor, company, form, validation, conflict|
 						Attribute.name(Route.CompanyInput.to_name(Route.CompanyInput.Version)),
 						Attribute.value(company.version.to_str()),
 					]),
-					text_field("Company name", Route.CompanyInput.Name, form.name, "Acme Studio"),
+					required_text_field("Company name", Route.CompanyInput.Name, form.name, "Acme Studio"),
 					text_field("Website", Route.CompanyInput.Website, form.website, "https://acme.example"),
 					text_field("Phone", Route.CompanyInput.Phone, form.phone, "+61 3 9000 0000"),
 					select_field(
@@ -332,7 +332,7 @@ company_form_page = |actor, form, validation, matches|
 				},
 				[Design.newRecordForm],
 				[
-					text_field("Company name", Route.CompanyInput.Name, form.name, "Acme Studio"),
+					required_text_field("Company name", Route.CompanyInput.Name, form.name, "Acme Studio"),
 					text_field("Website", Route.CompanyInput.Website, form.website, "https://acme.example"),
 					text_field("Phone", Route.CompanyInput.Phone, form.phone, "+61 3 9000 0000"),
 					select_field(
@@ -454,17 +454,46 @@ duplicate_panel = |matches|
 
 text_field : Str, Route.CompanyInput, Str, Str -> Html.Node
 text_field = |label, input, value, placeholder|
+	text_field_with_requirement(label, input, value, placeholder, False)
+
+required_text_field : Str, Route.CompanyInput, Str, Str -> Html.Node
+required_text_field = |label, input, value, placeholder|
+	text_field_with_requirement(label, input, value, placeholder, True)
+
+text_field_with_requirement : Str, Route.CompanyInput, Str, Str, Bool -> Html.Node
+text_field_with_requirement = |label, input, value, placeholder, required|
 	Html.div(
 		[Design.field],
 		[
-			Html.label([Attribute.for_(input.to_name()), Design.label], [Html.text(label)]),
-			Html.input([
-				Attribute.id(input.to_name()),
-				Attribute.name(input.to_name()),
-				Attribute.value(value),
-				attribute("placeholder", placeholder),
-				Design.input,
-			]),
+			Html.label(
+				[Attribute.for_(input.to_name()), Design.label],
+				[
+					Html.text(label),
+					if required {
+						Html.span(
+							[attribute("aria-hidden", "true"), Design.requiredHint],
+							[Html.text(" (required)")],
+						)
+					} else {
+						Html.text("")
+					},
+				],
+			),
+			Html.input(
+				[
+					Attribute.id(input.to_name()),
+					Attribute.name(input.to_name()),
+					Attribute.value(value),
+					attribute("placeholder", placeholder),
+					Design.input,
+				].concat(
+					if required {
+						[attribute("required", "")]
+					} else {
+						[]
+					},
+				),
+			),
 		],
 	)
 

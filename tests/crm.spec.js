@@ -108,9 +108,20 @@ test.describe("CRM journeys", () => {
     await page
       .getByLabel("Website", { exact: true })
       .fill("https://preserved.example");
-    await page
-      .getByRole("button", { name: "Check and save company", exact: true })
-      .click();
+    const companyName = page.locator("#name");
+    const companySubmit = page.getByRole("button", {
+      name: "Check and save company",
+      exact: true,
+    });
+    await expect(companyName).toHaveAttribute("required", "");
+    await companySubmit.click();
+    await expect(companyName).toBeFocused();
+    await expect(page).toHaveURL("/companies/new");
+
+    await companyName.evaluate((input) => {
+      input.form.noValidate = true;
+    });
+    await companySubmit.click();
 
     const companyError = page.getByRole("alert");
     await expect(companyError).toHaveText("Enter a company name.");
@@ -123,9 +134,25 @@ test.describe("CRM journeys", () => {
     await page
       .getByLabel("Role or title", { exact: true })
       .fill("Preserved role");
-    await page
-      .getByRole("button", { name: "Check and save person", exact: true })
-      .click();
+    await expect(
+      page.getByText(
+        "Only a name is required. Add an email or phone when known to make follow-up and duplicate checking more reliable.",
+      ),
+    ).toBeVisible();
+    const personName = page.locator("#name");
+    const personSubmit = page.getByRole("button", {
+      name: "Check and save person",
+      exact: true,
+    });
+    await expect(personName).toHaveAttribute("required", "");
+    await personSubmit.click();
+    await expect(personName).toBeFocused();
+    await expect(page).toHaveURL("/people/new");
+
+    await personName.evaluate((input) => {
+      input.form.noValidate = true;
+    });
+    await personSubmit.click();
 
     const personError = page.getByRole("alert");
     await expect(personError).toHaveText("Enter a person's name.");
@@ -184,7 +211,9 @@ test.describe("CRM journeys", () => {
     await loginAsMara(page);
     await page.goto("/people/new");
 
-    await page.getByLabel("Name", { exact: true }).fill("Ada Playwright");
+    await page
+      .getByRole("textbox", { name: "Name", exact: true })
+      .fill("Ada Playwright");
     await page.getByLabel("Company", { exact: true }).selectOption("company-acme");
     await page
       .getByLabel("Email", { exact: true })
@@ -337,7 +366,9 @@ test.describe("CRM journeys", () => {
 
     await loginAsMara(page);
     await page.goto("/people/new");
-    await page.getByLabel("Name", { exact: true }).fill("No Script Follow-up");
+    await page
+      .getByRole("textbox", { name: "Name", exact: true })
+      .fill("No Script Follow-up");
     await page
       .getByRole("button", { name: "Check and save person", exact: true })
       .click();

@@ -553,9 +553,11 @@ history traversal restores that region without replacing unrelated document
 state. A direct request for every pushed URL must return a complete page.
 
 Ephemeral UI state should not create history entries merely because HTMX can
-do so. Rapidly changing filters require a separate decision about whether URL
-replacement improves the user task; that decision is validated at their own
-seam.
+do so. The todo live filter is meaningful because it changes the represented
+collection and users may reload or share it, so it uses the canonical typed
+GET query URL. It replaces the current URL rather than pushing one entry per
+keystroke. A browser journey verifies that the newest query reaches the address
+bar and a direct reload reconstructs both the input and results from that URL.
 
 ### Concurrent requests express user intent
 

@@ -77,6 +77,7 @@ Route := [
 	Location := [
 		AtPage(Page),
 		TodoList,
+		TodoSearch(Todo.Filter),
 		TodoNewCompatibility,
 		BigTasks(BigTask.Query),
 		BigTaskCsv,
@@ -93,6 +94,8 @@ Route := [
 			match location {
 				AtPage(page) => Page.to_href(page)
 				TodoList => "/task/list"
+				TodoSearch(filter) =>
+					"/task?${TodoInput.to_name(TodoInput.Filter)}=${form_encode(filter.to_str())}"
 				TodoNewCompatibility => "/task/new"
 				BigTasks(query) => "/bigTask?${BigTask.Query.to_query(query)}"
 				BigTaskCsv => "/bigTask/downloadCsv"
@@ -111,7 +114,6 @@ Route := [
 		Register,
 		Login,
 		Logout,
-		SearchTodos,
 		CreateTodo,
 		DeleteTodo(Todo.Id),
 		PreviewCompany,
@@ -136,7 +138,6 @@ Route := [
 				Register => "/register"
 				Login => "/login"
 				Logout => "/logout"
-				SearchTodos => "/task/search"
 				CreateTodo => "/task/new"
 				DeleteTodo(id) => "/task/${Todo.Id.to_str(id)}/delete"
 				PreviewCompany => "/companies/preview"
@@ -310,10 +311,21 @@ Route := [
 			(Post, ["", "login"]) => Ok(Post(Login))
 			(Post, ["", "logout"]) => Ok(Post(Logout))
 
-			(Get, ["", "task"]) => Ok(Visit(AtPage(Todos)))
+			(Get, ["", "task"]) => {
+				filter = Todo.Filter.from_str(
+					query_value(
+						Url.query_pairs(url),
+						TodoInput.to_name(TodoInput.Filter),
+					),
+				)
+				if filter == Todo.Filter.empty {
+					Ok(Visit(AtPage(Todos)))
+				} else {
+					Ok(Visit(TodoSearch(filter)))
+				}
+			}
 			(Get, ["", "task", "list"]) => Ok(Visit(TodoList))
 			(Get, ["", "task", "new"]) => Ok(Visit(TodoNewCompatibility))
-			(Post, ["", "task", "search"]) => Ok(Post(SearchTodos))
 			(Post, ["", "task", "new"]) => Ok(Post(CreateTodo))
 			(Post, ["", "task", id, "delete"]) =>
 				match parse_todo_id(id) {
@@ -522,8 +534,24 @@ hex_digit_byte = |value|
 
 expect Route.Page.to_href(Route.Page.Todos) == "/task"
 expect Route.Location.to_href(
+	Route.Location.TodoSearch(Todo.Filter.from_str("council permit")),
+) == "/task?filterTasks=council+permit"
+expect Route.Location.to_href(
 	Route.Location.CompanySearch(Company.Filter.from_str("Acme Studio")),
 ) == "/companies?q=Acme+Studio"
+
+expect {
+	result = Route.parse_parts(
+		Route.Method.Get,
+		"/task?filterTasks=council+permit",
+		"http://localhost/task?filterTasks=council+permit",
+	)
+	match result {
+		Ok(Route.Visit(Route.Location.TodoSearch(filter))) =>
+			filter == Todo.Filter.from_str("council permit")
+		_ => False
+	}
+}
 
 expect {
 	id = Todo.Id.from_i64(42)

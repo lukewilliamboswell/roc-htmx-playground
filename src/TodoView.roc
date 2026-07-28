@@ -31,13 +31,16 @@ TodoView :: [].{
 			Route.Page.Todos,
 			[
 				Html.h1([Design.pageTitle], [Html.text("Tasks")]),
-				Html.form(
+				Web.get_form(
+					Route.Page.Todos,
 					[
-						Web.hx_post(Route.PostAction.SearchTodos),
+						Web.hx_get(Route.Page.Todos),
 						attribute("hx-trigger", "input delay:250ms"),
 						Web.hx_sync_latest,
 						Web.hx_target(TodoTarget.TodoList),
+						Web.hx_select(TodoTarget.TodoList),
 						Web.hx_swap(Web.Swap.OuterHtml),
+						Web.hx_replace_url,
 					],
 					[
 						Html.label([Attribute.for_(filter_name), Design.srOnly], [Html.text("Filter tasks")]),

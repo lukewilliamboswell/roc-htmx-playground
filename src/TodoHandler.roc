@@ -17,18 +17,18 @@ CreateForm := {
 }
 
 TodoHandler := [].{
-	page! : store, Session => Try(Response, AppError)
+	page! : store, Session, Todo.Filter => Try(Response, AppError)
 		where [
 			store.list! : store, Todo.Filter => Try(List(Todo), err),
 		]
-	page! = |store, session| {
+	page! = |store, session, filter| {
 		Store : store
-		match Store.list!(store, Todo.Filter.empty) {
+		match Store.list!(store, filter) {
 			Ok(todos) =>
 				Ok(
 					Http.html(
 						200,
-						TodoView.page({ session, todos, filter: Todo.Filter.empty }),
+						TodoView.page({ session, todos, filter }),
 						[],
 					),
 				)
@@ -47,30 +47,6 @@ TodoHandler := [].{
 			Err(err) => Err(AppError.from(err))
 		}
 	}
-
-	search! : Server.Request, store => Try(Response, AppError)
-		where [
-			store.list! : store, Todo.Filter => Try(List(Todo), err),
-		]
-	search! = |request, store| {
-		form = Http.read_form!(request)?
-		TodoHandler.search_form!(form, store)
-	}
-
-	search_form! : Dict(Str, Str), store => Try(Response, AppError)
-		where [
-			store.list! : store, Todo.Filter => Try(List(Todo), err),
-		]
-	search_form! = |form, store| {
-		filter = TodoHandler.search_filter(form)
-		TodoHandler.list!(store, filter)
-	}
-
-	search_filter : Dict(Str, Str) -> Todo.Filter
-	search_filter = |form|
-		Todo.Filter.from_str(
-			form.get(Route.TodoInput.to_name(Route.TodoInput.Filter)) ?? "",
-		)
 
 	create! : Server.Request, store => Try(Response, AppError)
 		where [
@@ -152,11 +128,6 @@ TodoHandler := [].{
 	new_compatibility : () -> Response
 	new_compatibility = || Web.redirect(Route.Page.Todos)
 }
-
-expect TodoHandler.search_filter(
-	Dict.from_list([(Route.TodoInput.to_name(Route.TodoInput.Filter), "urgent")]),
-) == Todo.Filter.from_str("urgent")
-expect TodoHandler.search_filter(Dict.empty()) == Todo.Filter.empty
 
 expect {
 	result = TodoHandler.create_response(Ok({}))

@@ -67,6 +67,19 @@ Web := [].{
 			children,
 		)
 
+	get_form : location, List(Attribute.Attribute), List(Html.Node) -> Html.Node
+		where [
+			location.to_href : location -> Str,
+		]
+	get_form = |location, attributes, children|
+		Html.form(
+			[
+				Attribute.action(location.to_href()),
+				Attribute.method("get"),
+			].concat(attributes),
+			children,
+		)
+
 	hx_get : location -> Attribute.Attribute
 		where [
 			location.to_href : location -> Str,
@@ -103,6 +116,11 @@ Web := [].{
 	## Mark the stable region restored when browser history is traversed.
 	hx_history_element : Attribute.Attribute
 	hx_history_element = Attribute.attribute("hx-history-elt", "")
+
+	## Keep the address bar aligned with rapidly changing meaningful state
+	## without adding one browser-history entry per change.
+	hx_replace_url : Attribute.Attribute
+	hx_replace_url = Attribute.attribute("hx-replace-url", "true")
 
 	## Keep only the newest request issued by the element.
 	##

@@ -194,7 +194,8 @@ visit! = |context, session, location|
 				Route.Page.Home => Ok(Http.html(200, HomeView.page(session), []))
 				Route.Page.Register => Ok(AuthHandler.register_page(session))
 				Route.Page.Login => Ok(AuthHandler.login_page(session))
-				Route.Page.Todos => TodoHandler.page!(context.todoStore, session)
+				Route.Page.Todos =>
+					TodoHandler.page!(context.todoStore, session, Todo.Filter.empty)
 				Route.Page.TodoTree => TodoHandler.tree_page!(context.todoStore, session)
 				Route.Page.Users => UserHandler.page!(context.userStore, session)
 				Route.Page.Companies =>
@@ -230,6 +231,8 @@ visit! = |context, session, location|
 					BigTaskHandler.page!(context.bigTaskStore, BigTask.Query.default, session)
 				}
 		Route.Location.TodoList => TodoHandler.list!(context.todoStore, Todo.Filter.empty)
+		Route.Location.TodoSearch(filter) =>
+			TodoHandler.page!(context.todoStore, session, filter)
 		Route.Location.TodoNewCompatibility => Ok(TodoHandler.new_compatibility())
 		Route.Location.BigTasks(query) =>
 			BigTaskHandler.page!(context.bigTaskStore, query, session)
@@ -297,8 +300,6 @@ post! = |request, context, session, action|
 		Route.PostAction.Login =>
 			AuthHandler.login!(request, context.memberStore, session)
 		Route.PostAction.Logout => AuthHandler.logout!(context.sessionStore)
-		Route.PostAction.SearchTodos =>
-			TodoHandler.search!(request, context.todoStore)
 		Route.PostAction.CreateTodo =>
 			TodoHandler.create!(request, context.todoStore)
 		Route.PostAction.DeleteTodo(id) =>

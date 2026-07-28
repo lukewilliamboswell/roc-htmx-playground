@@ -13,9 +13,9 @@ test.describe("HTMX interactions", () => {
   }) => {
     const requestedFilters = [];
 
-    await page.route("**/task/search", async (route) => {
-      const form = new URLSearchParams(route.request().postData() || "");
-      const filter = form.get("filterTasks") || "";
+    await page.route("**/task?*", async (route) => {
+      const filter =
+        new URL(route.request().url()).searchParams.get("filterTasks") || "";
       requestedFilters.push(filter);
 
       await new Promise((resolve) =>
@@ -25,7 +25,7 @@ test.describe("HTMX interactions", () => {
       await route.fulfill({
         status: 200,
         contentType: "text/html",
-        body: `<div id="todo-list"><p>Results for ${filter}</p></div>`,
+        body: `<html><body><div id="todo-list"><p>Results for ${filter}</p></div></body></html>`,
       });
     });
 
@@ -39,10 +39,17 @@ test.describe("HTMX interactions", () => {
 
     await search.fill("latest");
     await expect(page.getByText("Results for latest")).toBeVisible();
+    await expect(page).toHaveURL("/task?filterTasks=latest");
 
     await page.waitForTimeout(600);
     await expect(page.getByText("Results for latest")).toBeVisible();
     await expect(page.getByText("Results for first")).toHaveCount(0);
+
+    await page.unroute("**/task?*");
+    await page.reload();
+
+    await expect(page.getByLabel("Filter tasks")).toHaveValue("latest");
+    await expect(page.getByText("No tasks to show.")).toBeVisible();
   });
 
   test("keeps BigTask navigation bounded and restorable", async ({ page }) => {

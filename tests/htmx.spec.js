@@ -182,4 +182,31 @@ test.describe("HTMX interactions", () => {
 
     await secondPage.close();
   });
+
+  test("navigates the whole window to login when an enhanced session expires", async ({
+    page,
+  }) => {
+    await loginAsMara(page);
+    await page.goto("/bigTask");
+
+    const url = new URL(page.url());
+    await page.context().addCookies([
+      {
+        name: "sessionId",
+        value: "999999999",
+        domain: url.hostname,
+        path: "/",
+        httpOnly: true,
+        sameSite: "Lax",
+      },
+    ]);
+
+    await page.locator("#big-task-0-customerId-control").fill("789");
+
+    await expect(page).toHaveURL("/login");
+    await expect(
+      page.getByRole("heading", { name: "Login", exact: true }),
+    ).toBeVisible();
+    await expect(page.locator("#big-task-results")).toHaveCount(0);
+  });
 });

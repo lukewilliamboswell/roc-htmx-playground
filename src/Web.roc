@@ -153,7 +153,12 @@ Web := [].{
 	hx_errors_to = |target| {
 		policy = "target:${target.to_selector()} select:${ErrorTarget.to_selector(ErrorTarget.RequestError)} swap:innerHTML"
 		[
-			Attribute.attribute("hx-status:4xx", policy),
+			Attribute.attribute("hx-status:400", policy),
+			Attribute.attribute("hx-status:403", policy),
+			Attribute.attribute("hx-status:404", policy),
+			Attribute.attribute("hx-status:409", policy),
+			Attribute.attribute("hx-status:422", policy),
+			Attribute.attribute("hx-status:429", policy),
 			Attribute.attribute("hx-status:5xx", policy),
 		]
 	}
@@ -198,6 +203,15 @@ Web := [].{
 		]
 	hx_push_header = |location| {
 		name: "HX-Push-Url",
+		value: location.to_href(),
+	}
+
+	hx_redirect_header : location -> Header
+		where [
+			location.to_href : location -> Str,
+		]
+	hx_redirect_header = |location| {
+		name: "HX-Redirect",
 		value: location.to_href(),
 	}
 }

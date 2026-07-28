@@ -6,7 +6,9 @@ import http.Response
 
 import AppError
 import ErrorView
+import Route
 import Session
+import Web
 
 ## HTTP representation concerns shared by feature handlers and the application
 ## entry point. Domain and view modules deliberately do not import this module.
@@ -111,8 +113,25 @@ Http := [].{
 
 	error_response! : Session, AppError => Response
 	error_response! = |session, error|
+		error_response_for_headers!([], session, error)
+
+	error_response_for! : Server.Request, Session, AppError => Response
+	error_response_for! = |request, session, error|
+		error_response_for_headers!(request.headers(), session, error)
+
+	error_response_for_headers! : List(Header), Session, AppError => Response
+	error_response_for_headers! = |headers, session, error|
 		match error {
-			AppError.Unauthorized => html(401, ErrorView.unauthorized(session), [])
+			AppError.Unauthorized =>
+				if is_htmx_request(headers) {
+					html(
+						200,
+						ErrorView.unauthorized(session),
+						[Web.hx_redirect_header(Route.Page.Login)],
+					)
+				} else {
+					html(401, ErrorView.unauthorized(session), [])
+				}
 			AppError.BadRequest(message) => html(400, ErrorView.bad_request(session, message), [])
 			AppError.NotFound(target) => {
 				Stderr.line!("404 Not Found ${target}") ?? {}
@@ -123,4 +142,15 @@ Http := [].{
 				html(500, ErrorView.server_error(session), [])
 			}
 		}
+
+	is_htmx_request : List(Header) -> Bool
+	is_htmx_request = |headers|
+		headers.find_first(
+			|header|
+				header.name.with_ascii_lowercased() == "hx-request"
+					and header.value.with_ascii_lowercased() == "true",
+		).is_ok()
 }
+
+expect Http.is_htmx_request([{ name: "HX-Request", value: "true" }])
+expect !Http.is_htmx_request([{ name: "HX-Request", value: "false" }])

@@ -126,7 +126,8 @@ respond! = |request, context| {
 	response = match Url.resolve(app_origin, request.target()) {
 		Ok(url) => route_request!(request, context, url)
 		Err(_) =>
-			Http.error_response!(
+			Http.error_response_for!(
+				request,
 				Session.anonymous,
 				AppError.BadRequest("Invalid request target"),
 			)
@@ -154,11 +155,11 @@ route_request! = |request, context, url|
 route_with_session! : Server.Request, Context, Route => Response
 route_with_session! = |request, context, route|
 	match SessionHandler.resolve!(request, context.sessionStore) {
-		Err(error) => Http.error_response!(Session.anonymous, error)
+		Err(error) => Http.error_response_for!(request, Session.anonymous, error)
 		Ok({ session, setCookie }) => {
 			response = match dispatch!(request, context, session, route) {
 				Ok(value) => value
-				Err(error) => Http.error_response!(session, error)
+				Err(error) => Http.error_response_for!(request, session, error)
 			}
 
 			if setCookie {
@@ -173,8 +174,8 @@ route_with_session! = |request, context, route|
 error_with_session! : Server.Request, SessionStore, AppError => Response
 error_with_session! = |request, store, error|
 	match SessionHandler.resolve!(request, store) {
-		Ok({ session, .. }) => Http.error_response!(session, error)
-		Err(session_error) => Http.error_response!(Session.anonymous, session_error)
+		Ok({ session, .. }) => Http.error_response_for!(request, session, error)
+		Err(session_error) => Http.error_response_for!(request, Session.anonymous, session_error)
 	}
 
 dispatch! : Server.Request, Context, Session, Route => Try(Response, AppError)

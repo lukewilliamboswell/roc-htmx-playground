@@ -628,9 +628,20 @@ result and replays for duplicate submissions.
 
 HTMX 4 error responses have an explicit destination. Full error pages expose a
 stable `Web.ErrorTarget.RequestError` summary; enhanced mutation forms use
-`Web.hx_errors_to` to place that summary in a dedicated local `aria-live`
-region for `4xx` and `5xx` responses. The normal interaction state remains in
-place for correction or retry.
+`Web.hx_errors_to` to place expected `400`, `403`, `404`, `409`, `422`, `429`,
+and `5xx` summaries in a dedicated local `aria-live` region. The normal
+interaction state remains in place for correction or retry. Do not use one
+blanket `4xx` policy: authentication, validation, conflict, missing context,
+and rate limiting require different user recovery even when some share a
+render target.
+
+An expired session during an enhanced request must navigate the whole window to
+the typed login location, never swap a login document into a local fragment.
+The server detects `HX-Request: true` and returns `200` with `HX-Redirect`;
+ordinary unauthorized requests remain `401`. Ordinary successful form
+redirects remain `303 See Other`. HTMX response headers are emitted on a
+successful response because error-status header processing is not a navigation
+contract.
 
 ### Browser code closes only browser-owned gaps
 

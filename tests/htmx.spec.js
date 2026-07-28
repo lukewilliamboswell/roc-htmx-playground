@@ -164,36 +164,44 @@ test.describe("HTMX interactions", () => {
 
     const firstEditor = page.locator("#big-task-0-customerId-control");
     const secondEditor = secondPage.locator("#big-task-0-customerId-control");
+    const firstVersion = firstEditor.locator(
+      "xpath=../input[@name='version']",
+    );
+    const initialValue = await firstEditor.inputValue();
+    const initialVersion = Number(await firstVersion.inputValue());
+    const firstValue = initialValue === "789" ? "790" : "789";
+    const staleValue = firstValue === "790" ? "791" : "790";
 
-    await firstEditor.fill("789");
-    await expect(
-      firstEditor.locator("xpath=../input[@name='version']"),
-    ).toHaveValue("2");
+    await firstEditor.fill(firstValue);
+    await expect(firstVersion).toHaveValue(String(initialVersion + 1));
 
     const independentEditor = page.locator(
       "#big-task-0-dateCreated-control",
     );
-    await independentEditor.fill("2026-07-28");
-    await expect(independentEditor).toHaveValue("2026-07-28");
+    const initialDate = await independentEditor.inputValue();
+    const independentDate =
+      initialDate === "2026-07-28" ? "2026-07-29" : "2026-07-28";
+    await independentEditor.fill(independentDate);
+    await expect(independentEditor).toHaveValue(independentDate);
     await expect(
       independentEditor.locator("xpath=../input[@name='version']"),
-    ).toHaveValue("3");
+    ).toHaveValue(String(initialVersion + 2));
 
-    await secondEditor.fill("790");
+    await secondEditor.fill(staleValue);
     await expect(
       secondPage.getByText(
         "This field changed elsewhere. Review your value and edit again to retry.",
         { exact: true },
       ),
     ).toBeVisible();
-    await expect(secondEditor).toHaveValue("790");
+    await expect(secondEditor).toHaveValue(staleValue);
 
     await page.reload();
     await expect(page.locator("#big-task-0-customerId-control")).toHaveValue(
-      "789",
+      firstValue,
     );
     await expect(page.locator("#big-task-0-dateCreated-control")).toHaveValue(
-      "2026-07-28",
+      independentDate,
     );
 
     await secondPage.close();

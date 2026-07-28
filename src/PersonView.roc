@@ -370,6 +370,10 @@ contact_section = |person, kind| {
 		Email => Route.PostAction.AddPersonEmail(person.id)
 		Phone => Route.PostAction.AddPersonPhone(person.id)
 	}
+	field_prefix = match kind {
+		Email => "person-email"
+		Phone => "person-phone"
+	}
 	Html.element(
 		"section",
 		[Design.contentSection],
@@ -413,8 +417,20 @@ contact_section = |person, kind| {
 				action,
 				[Design.inlineForm],
 				[
-					FormView.text_field("Label", Route.PersonInput.Label, "Work", "Work"),
-					FormView.text_field("Value", Route.PersonInput.Value, "", ""),
+					FormView.text_field_with_id(
+						"Label",
+						Route.PersonInput.Label,
+						"${field_prefix}-label",
+						"Work",
+						"Work",
+					),
+					FormView.text_field_with_id(
+						"Value",
+						Route.PersonInput.Value,
+						"${field_prefix}-value",
+						"",
+						"",
+					),
 					Html.label(
 						[Design.checkboxLabel],
 						[

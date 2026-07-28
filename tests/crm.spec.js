@@ -253,6 +253,21 @@ test.describe("CRM journeys", () => {
         exact: true,
       }),
     });
+    const phoneSection = page.locator("section").filter({
+      has: page.getByRole("heading", {
+        name: "Phone numbers",
+        exact: true,
+      }),
+    });
+    await expect(
+      emailSection.getByLabel("Label", { exact: true }),
+    ).toHaveAttribute("id", "person-email-label");
+    await expect(
+      phoneSection.getByLabel("Label", { exact: true }),
+    ).toHaveAttribute("id", "person-phone-label");
+    await phoneSection.locator('label[for="person-phone-value"]').click();
+    await expect(phoneSection.locator("#person-phone-value")).toBeFocused();
+
     await emailSection.getByLabel("Label", { exact: true }).fill("Personal");
     await emailSection
       .getByLabel("Value", { exact: true })

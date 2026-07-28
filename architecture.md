@@ -907,6 +907,12 @@ label association, required-state semantics, and baseline styling. The feature
 view still owns field-specific help, validation messages, request behavior, and
 swap boundaries so reuse does not erase interaction intent.
 
+Control IDs are stable and unique within the rendered document. A wire name is
+not automatically a safe DOM identity: when the same input vocabulary appears
+in repeated forms, the caller supplies a contextual ID while the primitive
+preserves the server-facing name. Labels, focus restoration, and fragment
+targets refer to that contextual identity.
+
 ## Handler modules
 
 A handler coordinates a use case. It can:

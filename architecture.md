@@ -901,6 +901,12 @@ TodoView.PageModel := {
 Views generate URLs through typed routing helpers. They should not contain raw
 application paths or database representations.
 
+Promote repeated semantic controls to shared view primitives only after at
+least two feature views need the same contract. Such a primitive owns stable
+label association, required-state semantics, and baseline styling. The feature
+view still owns field-specific help, validation messages, request behavior, and
+swap boundaries so reuse does not erase interaction intent.
+
 ## Handler modules
 
 A handler coordinates a use case. It can:

@@ -5,6 +5,7 @@ import Activity
 import Actor
 import Company
 import Design
+import FormView
 import Layout
 import Person
 import Route
@@ -248,9 +249,9 @@ form_page = |actor, companies, origin, existing, form, validation, matches| {
 							])
 						None => Html.text("")
 					},
-					required_text_field("Name", Route.PersonInput.Name, form.name, "Ada Lovelace"),
-					text_field("Role or title", Route.PersonInput.JobTitle, form.jobTitle, "Operations lead"),
-					select_field(
+					FormView.required_text_field("Name", Route.PersonInput.Name, form.name, "Ada Lovelace"),
+					FormView.text_field("Role or title", Route.PersonInput.JobTitle, form.jobTitle, "Operations lead"),
+					FormView.select_field(
 						"Company",
 						Route.PersonInput.Company,
 						form.company,
@@ -258,13 +259,13 @@ form_page = |actor, companies, origin, existing, form, validation, matches| {
 							companies.map(|company| (company.id.to_str(), company.name.to_str())),
 						),
 					),
-					select_field(
+					FormView.select_field(
 						"Owner",
 						Route.PersonInput.Owner,
 						form.owner,
 						actor.workspace.members.map(|member| (member.id.to_str(), member.name.to_str())),
 					),
-					select_field(
+					FormView.select_field(
 						"Lifecycle",
 						Route.PersonInput.Lifecycle,
 						form.lifecycle,
@@ -275,7 +276,7 @@ form_page = |actor, companies, origin, existing, form, validation, matches| {
 							("inactive", "Inactive"),
 						],
 					),
-					select_field(
+					FormView.select_field(
 						"Source",
 						Route.PersonInput.Source,
 						form.source,
@@ -289,8 +290,8 @@ form_page = |actor, companies, origin, existing, form, validation, matches| {
 						Html.div(
 							[],
 							[
-								text_field("Email", Route.PersonInput.Email, form.email, "ada@example.com"),
-								text_field("Phone", Route.PersonInput.Phone, form.phone, "+61 3 9000 0000"),
+								FormView.text_field("Email", Route.PersonInput.Email, form.email, "ada@example.com"),
+								FormView.text_field("Phone", Route.PersonInput.Phone, form.phone, "+61 3 9000 0000"),
 							],
 						)
 					},
@@ -412,8 +413,8 @@ contact_section = |person, kind| {
 				action,
 				[Design.inlineForm],
 				[
-					text_field("Label", Route.PersonInput.Label, "Work", "Work"),
-					text_field("Value", Route.PersonInput.Value, "", ""),
+					FormView.text_field("Label", Route.PersonInput.Label, "Work", "Work"),
+					FormView.text_field("Value", Route.PersonInput.Value, "", ""),
 					Html.label(
 						[Design.checkboxLabel],
 						[
@@ -629,74 +630,6 @@ person_row = |person|
 			),
 			Html.td([Design.tableCell], [Html.text(person.ownerName)]),
 			Html.td([Design.tableCell], [Html.text(person.lifecycle.to_label())]),
-		],
-	)
-
-text_field : Str, Route.PersonInput, Str, Str -> Html.Node
-text_field = |label, input, value, placeholder|
-	text_field_with_requirement(label, input, value, placeholder, False)
-
-required_text_field : Str, Route.PersonInput, Str, Str -> Html.Node
-required_text_field = |label, input, value, placeholder|
-	text_field_with_requirement(label, input, value, placeholder, True)
-
-text_field_with_requirement : Str, Route.PersonInput, Str, Str, Bool -> Html.Node
-text_field_with_requirement = |label, input, value, placeholder, required|
-	Html.div(
-		[Design.field],
-		[
-			Html.label(
-				[Attribute.for_(input.to_name()), Design.label],
-				[
-					Html.text(label),
-					if required {
-						Html.span(
-							[attribute("aria-hidden", "true"), Design.requiredHint],
-							[Html.text(" (required)")],
-						)
-					} else {
-						Html.text("")
-					},
-				],
-			),
-			Html.input(
-				[
-					Attribute.id(input.to_name()),
-					Attribute.name(input.to_name()),
-					Attribute.value(value),
-					attribute("placeholder", placeholder),
-					Design.input,
-				].concat(
-					if required {
-						[attribute("required", "")]
-					} else {
-						[]
-					},
-				),
-			),
-		],
-	)
-
-select_field : Str, Route.PersonInput, Str, List((Str, Str)) -> Html.Node
-select_field = |label, input, selected, options|
-	Html.div(
-		[Design.field],
-		[
-			Html.label([Attribute.for_(input.to_name()), Design.label], [Html.text(label)]),
-			Html.select(
-				[Attribute.id(input.to_name()), Attribute.name(input.to_name()), Design.select],
-				options.map(
-					|(value, option_label)|
-						Html.option(
-							if value == selected {
-								[Attribute.value(value), attribute("selected", "")]
-							} else {
-								[Attribute.value(value)]
-							},
-							[Html.text(option_label)],
-						),
-				),
-			),
 		],
 	)
 

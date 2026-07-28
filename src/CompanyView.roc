@@ -5,6 +5,7 @@ import Activity
 import Actor
 import Company
 import Design
+import FormView
 import Layout
 import Person
 import Route
@@ -189,16 +190,16 @@ edit_form_page = |actor, company, form, validation, conflict|
 						Attribute.name(Route.CompanyInput.to_name(Route.CompanyInput.Version)),
 						Attribute.value(company.version.to_str()),
 					]),
-					required_text_field("Company name", Route.CompanyInput.Name, form.name, "Acme Studio"),
-					text_field("Website", Route.CompanyInput.Website, form.website, "https://acme.example"),
-					text_field("Phone", Route.CompanyInput.Phone, form.phone, "+61 3 9000 0000"),
-					select_field(
+					FormView.required_text_field("Company name", Route.CompanyInput.Name, form.name, "Acme Studio"),
+					FormView.text_field("Website", Route.CompanyInput.Website, form.website, "https://acme.example"),
+					FormView.text_field("Phone", Route.CompanyInput.Phone, form.phone, "+61 3 9000 0000"),
+					FormView.select_field(
 						"Owner",
 						Route.CompanyInput.Owner,
 						form.owner,
 						actor.workspace.members.map(|member| (member.id.to_str(), member.name.to_str())),
 					),
-					select_field(
+					FormView.select_field(
 						"Lifecycle",
 						Route.CompanyInput.Lifecycle,
 						form.lifecycle,
@@ -209,7 +210,7 @@ edit_form_page = |actor, company, form, validation, conflict|
 							("inactive", "Inactive"),
 						],
 					),
-					select_field(
+					FormView.select_field(
 						"Source",
 						Route.CompanyInput.Source,
 						form.source,
@@ -332,16 +333,16 @@ company_form_page = |actor, form, validation, matches|
 				},
 				[Design.newRecordForm],
 				[
-					required_text_field("Company name", Route.CompanyInput.Name, form.name, "Acme Studio"),
-					text_field("Website", Route.CompanyInput.Website, form.website, "https://acme.example"),
-					text_field("Phone", Route.CompanyInput.Phone, form.phone, "+61 3 9000 0000"),
-					select_field(
+					FormView.required_text_field("Company name", Route.CompanyInput.Name, form.name, "Acme Studio"),
+					FormView.text_field("Website", Route.CompanyInput.Website, form.website, "https://acme.example"),
+					FormView.text_field("Phone", Route.CompanyInput.Phone, form.phone, "+61 3 9000 0000"),
+					FormView.select_field(
 						"Owner",
 						Route.CompanyInput.Owner,
 						form.owner,
 						actor.workspace.members.map(|member| (member.id.to_str(), member.name.to_str())),
 					),
-					select_field(
+					FormView.select_field(
 						"Lifecycle",
 						Route.CompanyInput.Lifecycle,
 						form.lifecycle,
@@ -352,7 +353,7 @@ company_form_page = |actor, form, validation, matches|
 							("inactive", "Inactive"),
 						],
 					),
-					select_field(
+					FormView.select_field(
 						"Source",
 						Route.CompanyInput.Source,
 						form.source,
@@ -446,74 +447,6 @@ duplicate_panel = |matches|
 									[Html.text("${candidate.strength.to_label()}: ${candidate.reason.to_label()}")],
 								),
 							],
-						),
-				),
-			),
-		],
-	)
-
-text_field : Str, Route.CompanyInput, Str, Str -> Html.Node
-text_field = |label, input, value, placeholder|
-	text_field_with_requirement(label, input, value, placeholder, False)
-
-required_text_field : Str, Route.CompanyInput, Str, Str -> Html.Node
-required_text_field = |label, input, value, placeholder|
-	text_field_with_requirement(label, input, value, placeholder, True)
-
-text_field_with_requirement : Str, Route.CompanyInput, Str, Str, Bool -> Html.Node
-text_field_with_requirement = |label, input, value, placeholder, required|
-	Html.div(
-		[Design.field],
-		[
-			Html.label(
-				[Attribute.for_(input.to_name()), Design.label],
-				[
-					Html.text(label),
-					if required {
-						Html.span(
-							[attribute("aria-hidden", "true"), Design.requiredHint],
-							[Html.text(" (required)")],
-						)
-					} else {
-						Html.text("")
-					},
-				],
-			),
-			Html.input(
-				[
-					Attribute.id(input.to_name()),
-					Attribute.name(input.to_name()),
-					Attribute.value(value),
-					attribute("placeholder", placeholder),
-					Design.input,
-				].concat(
-					if required {
-						[attribute("required", "")]
-					} else {
-						[]
-					},
-				),
-			),
-		],
-	)
-
-select_field : Str, Route.CompanyInput, Str, List((Str, Str)) -> Html.Node
-select_field = |label, input, selected, options|
-	Html.div(
-		[Design.field],
-		[
-			Html.label([Attribute.for_(input.to_name()), Design.label], [Html.text(label)]),
-			Html.select(
-				[Attribute.id(input.to_name()), Attribute.name(input.to_name()), Design.select],
-				options.map(
-					|(value, option_label)|
-						Html.option(
-							if value == selected {
-								[Attribute.value(value), attribute("selected", "")]
-							} else {
-								[Attribute.value(value)]
-							},
-							[Html.text(option_label)],
 						),
 				),
 			),

@@ -503,19 +503,11 @@ a second client-side application model. Each interaction must therefore start
 with a semantic HTML control and a server-rendered representation of the
 resulting application state.
 
-We adopt HTMX patterns one behavioral seam at a time. A seam is accepted only
-when:
-
-1. its user-facing claim is stated in observable terms;
-2. a browser journey exercises the failure mode, not only the happy path;
-3. removing the behavior makes that journey fail when a practical mutation
-   check is available;
-4. the complete Roc and browser suites still pass; and
-5. the principle and its tradeoff are recorded here.
-
-Each accepted seam gets its own commit. This keeps interaction policy
-reviewable and prevents a broad collection of copied HTMX conventions from
-acquiring authority without evidence in this application.
+Interaction policy belongs in typed helpers only after a feature establishes
+the user intent it represents. Browser tests cover the relevant failure mode,
+including concurrency, history, accessibility, or progressive enhancement as
+applicable. This prevents convenient HTMX attributes from becoming implicit
+application-wide behavior.
 
 ### Semantic controls remain the baseline
 
@@ -527,14 +519,6 @@ Where HTML supports the method, the form also declares its native action and
 method; methods such as `PUT` still require enhancement or a deliberate POST
 fallback.
 
-This is why BigTask sort and pagination controls are links, even though HTMX
-normally handles their activation.
-
-The no-JavaScript browser journey exercises the actual application rather than
-only inspecting generated attributes: Todo filtering submits its GET form and
-BigTask sorting follows its anchor to the same canonical states with scripting
-disabled.
-
 Do not introduce a shared `hx_nav` helper that silently chooses a global target
 and swap strategy. `Web` owns typed protocol primitives; the feature view
 composes target, selection, and swap attributes beside the region whose
@@ -544,14 +528,13 @@ full navigation already serves the task well.
 ### A swap target owns one coherent state
 
 Target the smallest stable region that completely owns the state changed by an
-interaction. A live search owns its results fragment. BigTask sorting and
-pagination jointly own the results table and pagination controls. Page chrome,
-client-only state, focus, and unrelated regions must not be replaced merely
-because returning a full document is convenient.
+interaction. A live search owns its results fragment. Sorting and pagination
+jointly own the results collection and its navigation controls. Page chrome,
+client-only state, focus, and unrelated regions are outside that ownership.
 
 The server may still return the canonical full page. `hx-select` can select the
 owned region from that response, avoiding a second partial-rendering branch
-until response size or rendering cost provides evidence that one is needed.
+until measured response size or rendering cost justifies one.
 This trades some response bytes for one representation and reliable direct
 navigation.
 
@@ -563,12 +546,10 @@ their typed query URL. The stable results region is the history element so
 history traversal restores that region without replacing unrelated document
 state. A direct request for every pushed URL must return a complete page.
 
-Ephemeral UI state should not create history entries merely because HTMX can
-do so. The todo live filter is meaningful because it changes the represented
-collection and users may reload or share it, so it uses the canonical typed
-GET query URL. It replaces the current URL rather than pushing one entry per
-keystroke. A browser journey verifies that the newest query reaches the address
-bar and a direct reload reconstructs both the input and results from that URL.
+Ephemeral UI state does not create history entries merely because HTMX can do
+so. Rapidly changing but meaningful filters use the canonical typed GET query
+URL and replace the current URL rather than pushing one entry per keystroke.
+The server reconstructs both controls and results from every represented URL.
 
 ### Concurrent requests express user intent
 
@@ -578,9 +559,9 @@ response is authoritative. Derived UI such as live search and autosave uses
 HTMX's `this:replace` synchronization. This prevents an older response from
 replacing newer input under uneven latency.
 
-Do not apply latest-wins to operations where every request matters or where
-the first accepted mutation must run exactly once. Those require separately
-named policies and evidence before they are added to `Web`.
+Do not apply latest-wins where every request matters or the first accepted
+mutation must run exactly once. Give each synchronization policy a name that
+states its intent, and back mutations with a server-side invariant.
 
 ### Form fragments own validation and focus
 
@@ -591,57 +572,29 @@ after replacement. `aria-invalid` reflects the rendered validation state and
 `aria-describedby` points to a stable `aria-live="polite"` message region.
 
 Inline validation and autosave are latest-wins interactions: an older
-validation response must not overwrite a newer value. The BigTask browser
-journey submits an invalid value, observes the associated `422` fragment,
-corrects it, and verifies that focus and the accessible state survive both
-swaps.
-
-BigTask is a legacy validation fixture scheduled for removal as the CRM slice
-replaces playground features. Its value here is evidence for the generic
-fragment contract; do not expand its domain or persistence design merely to
-retain this example. New CRM field editors should apply the contract directly.
+validation response must not overwrite a newer value.
 
 HTMX 4 swaps error responses by default, unlike HTMX 2. A validation response
 may therefore use `422` only when its HTML is shaped for the declared target.
-Unexpected server errors must not be allowed to replace a local editor with a
-full-page error representation; the application-wide failure-feedback seam
-owns that policy.
+Unexpected server errors must not replace a local editor with a full-page
+error representation.
 
 ### Contextual mutations defend the action at three layers
 
-A mutation initiated inside a relationship record should keep the member in
-that relationship context. Task completion actions therefore carry a typed
-`Route.TaskContext`; their native POST redirects to the corresponding person,
-company, or work-list location. On person and company pages HTMX follows the
-same action and replaces only the stable open-tasks section selected from the
-canonical redirected page. The native behavior is the contract, not a
-different fallback destination.
+A mutation initiated inside a record context keeps the member in that context.
+Its native POST redirects to the typed containing location, while HTMX replaces
+only the stable section that owns the changed state. The native destination is
+the contract.
 
-Mutation feedback is local. The submitting button exposes a request status for
-the duration of the request; a global spinner would be ambiguous when requests
-overlap and would make fast local actions feel heavier than they are.
-`Web.hx_sync_first` maps "the first accepted completion wins" to
-`this:drop`. An adversarial browser journey holds the first request open and
-activates the button twice; removing the policy produces two POSTs and fails
-the journey. This transport policy is not the business invariant:
-`WorkTaskStore.complete!` still updates only an open task, so a repeated or
-retried request cannot complete it twice.
+The submitting control exposes local request status. A named first-wins policy
+may drop repeated browser submissions, but the persistence operation still
+enforces the state transition exactly once.
 
-HTMX 4 error responses need an explicit destination. Full error pages expose a
-stable `Web.ErrorTarget.RequestError` summary, and enhanced mutation forms use
-`Web.hx_errors_to` to select that summary into a dedicated local `aria-live`
-feedback region for both `4xx` and `5xx` responses. The normal task section,
-including any entered state, remains in place. The browser journey injects a
-`500` response before allowing a successful retry and verifies both the alert
-and preservation of context.
-
-This seam validates contextual delivery and duplicate-action behavior; it does
-not claim that CRM-020 and CRM-021 are complete. The current task model still
-needs a completion result and the option to schedule the next action. Network
-loss and timeout feedback have no HTTP error representation to select, so they
-are owned by the deliberately small browser-event boundary below. The product
-gaps should be solved on the CRM task workflow, not by expanding the legacy
-playground features.
+HTMX 4 error responses have an explicit destination. Full error pages expose a
+stable `Web.ErrorTarget.RequestError` summary; enhanced mutation forms use
+`Web.hx_errors_to` to place that summary in a dedicated local `aria-live`
+region for `4xx` and `5xx` responses. The normal interaction state remains in
+place for correction or retry.
 
 ### Browser code closes only browser-owned gaps
 
@@ -654,20 +607,13 @@ local feedback region. A later retry clears the transport alert before issuing
 the request. Server-rendered success, validation, and operational error markup
 remain authoritative.
 
-The browser journey aborts a real completion request, verifies that the task
-and relationship context remain intact, observes the local alert, and then
-retries through the server-error and success paths. Removing the interaction
-asset from the person page makes that journey fail. The event asset is loaded
-only on the CRM page identities that currently opt into this behavior; legacy
-Todo and BigTask pages do not pay for it.
-
 Do not generalize this boundary into a client state layer. In particular, we
 reject global spinners and transient success/error toasts as the default:
 
 - a global spinner cannot accurately communicate which of several concurrent
   requests is pending;
 - fast local interactions should not make the whole application appear busy;
-- disappearing toasts are poor primary evidence for consequential CRM actions;
+- disappearing toasts are poor primary feedback for consequential CRM actions;
   and
 - server-rendered inline state survives long enough to inspect, associate with
   the initiating control, and test without JavaScript.
@@ -679,12 +625,9 @@ feedback.
 ### Removed controls need an explicit focus destination
 
 When a successful local mutation removes the control that held keyboard focus,
-the interaction must restore orientation deliberately. Task completion makes
-the open-tasks heading programmatically focusable and opts into
-`Web.focus_after_swap`; after a successful HTMX swap, the browser boundary
-focuses that stable heading without scrolling the page. The browser journey
-verifies focus after the completed task and its button disappear. Removing the
-opt-in focus target makes the journey fail.
+the interaction restores orientation deliberately. The owning section exposes
+a stable, programmatically focusable heading and the source opts into
+`Web.focus_after_swap`.
 
 This is not a global "focus every target" rule. Live-search input and inline
 validation preserve focus through stable element IDs, while normal navigation
@@ -693,30 +636,28 @@ for interactions that remove the active element and can name a nearby semantic
 anchor. Error responses keep focus in place and announce their local alert
 instead.
 
-### Technique admission matrix
+### Advanced techniques require product pressure
 
-HTMX offers more mechanisms than this application currently needs. The
-following matrix is the decision record for future work; availability in the
-library is not sufficient reason to adopt a technique.
+Availability in the library is not sufficient reason to adopt a technique.
 
-| Technique | Current decision | Admission rule |
+| Technique | Default | Admission rule |
 | --- | --- | --- |
-| Semantic links and forms | Adopted | Every interaction starts with the native control and canonical typed URL that expresses its meaning. |
-| Bounded swaps | Adopted | The target is the smallest stable region that owns the complete changed state. |
-| Selecting from a canonical full page | Adopted with a cost | Prefer one representation and `hx-select` until measured response size or rendering cost justifies a dedicated fragment response. |
-| History updates | Adopted selectively | Push discrete navigation; replace rapidly changing but meaningful filter state; do neither for ephemeral presentation state. |
-| Request synchronization | Adopted as named policies | Use latest-wins only for derived state and first-wins only for a guarded mutation. Every new strategy needs an adversarial concurrency journey. |
-| Local indicators and errors | Adopted | Feedback belongs beside the initiating interaction and must survive long enough to inspect. HTTP and transport failures have separate owners. |
-| Focus management | Adopted selectively | Preserve stable focused controls; explicitly name a semantic destination only when a successful swap removes the active element. |
-| Out-of-band swaps or multi-target partials | Deferred | Admit only when one server transition changes two tightly coupled representations already visible on the same page, and a browser journey proves both update atomically. Prefer enlarging one coherent target first. |
-| Polling, SSE, or WebSockets | Not admitted | There is no current CRM state that must change in an open page without member action. Reconsider only for a concrete asynchronous workflow with a defined freshness target, stop condition, visibility behavior, and failure state. |
-| Optimistic mutation | Not admitted | Consequential CRM state remains server-authoritative. Reconsider only for a reversible, high-frequency action with measured latency pain and a tested rollback experience. |
+| Semantic links and forms | Use | Every interaction starts with the native control and canonical typed URL that expresses its meaning. |
+| Bounded swaps | Use | The target is the smallest stable region that owns the complete changed state. |
+| Selecting from a canonical full page | Use until cost justifies a fragment | Prefer one representation and `hx-select` until measured response size or rendering cost justifies a dedicated fragment response. |
+| History updates | Use selectively | Push discrete navigation; replace rapidly changing but meaningful filter state; do neither for ephemeral presentation state. |
+| Request synchronization | Use named policies | Use latest-wins only for derived state and first-wins only for a guarded mutation. Every new strategy needs an adversarial concurrency test. |
+| Local indicators and errors | Use | Feedback belongs beside the initiating interaction and must survive long enough to inspect. HTTP and transport failures have separate owners. |
+| Focus management | Use selectively | Preserve stable focused controls; explicitly name a semantic destination only when a successful swap removes the active element. |
+| Out-of-band swaps or multi-target partials | Defer | Admit only when one server transition changes two tightly coupled representations already visible on the same page. Prefer enlarging one coherent target first. |
+| Polling, SSE, or WebSockets | Do not use by default | Use only for state that must change in an open page without member action, with a defined freshness target, stop condition, visibility behavior, and failure state. |
+| Optimistic mutation | Do not use by default | Consequential CRM state remains server-authoritative. Use only for a reversible, high-frequency action with measured latency pain and a tested rollback experience. |
 | Global request spinner | Rejected as a default | Concurrent local requests make one global busy state ambiguous. Use a local indicator where delay is perceptible. |
 | Transient toasts | Rejected as primary feedback | Consequential outcomes and errors require persistent inline evidence. A toast may supplement a genuinely cross-page, non-consequential notice. |
-| Client event bus or broad `HX-Trigger` use | Deferred | Prefer response HTML. Admit an event only for browser-owned behavior or a truly decoupled consumer that cannot be represented by the response target. |
-| Global boosting or a shared navigation macro | Not admitted | Enhance individual typed controls only after their target, selection, history, and fallback behavior are explicit. |
-| Infinite scrolling | Not admitted for operational lists | CRM lists need knowable filters, counts, position, reload, and back behavior. Use typed, URL-addressable pagination unless observed usage proves otherwise. |
-| Preserving arbitrary DOM islands | Deferred | Choose a smaller target first. Use preservation only for a named rich widget whose state cannot be server-rendered, with lifecycle tests across swaps and history. |
+| Client event bus or broad `HX-Trigger` use | Defer | Prefer response HTML. Admit an event only for browser-owned behavior or a truly decoupled consumer that cannot be represented by the response target. |
+| Global boosting or a shared navigation macro | Do not use | Enhance individual typed controls only after their target, selection, history, and fallback behavior are explicit. |
+| Infinite scrolling | Do not use for operational lists | CRM lists need knowable filters, counts, position, reload, and back behavior. Use typed, URL-addressable pagination unless observed usage proves otherwise. |
+| Preserving arbitrary DOM islands | Defer | Choose a smaller target first. Use preservation only for a named rich widget whose state cannot be server-rendered, with lifecycle tests across swaps and history. |
 
 Polling is especially inappropriate as a substitute for the work-list
 requirements. Due and overdue work is visible when a member opens or refreshes
@@ -750,26 +691,14 @@ nearest useful action or broadening control. It must not rely on a client hook
 that runs only after a swap; direct requests, history restoration, and
 JavaScript-disabled submissions need the same explanation.
 
-### Completion audit
+### Interaction testing contract
 
-The admitted interaction principles above have executable browser evidence:
-uneven request latency, browser history and direct reload, JavaScript-disabled
-fallbacks, validation focus and association, HTTP and transport failures,
-duplicate activation, bounded DOM ownership, and focus after removal. Practical
-mutation checks were performed for the policies whose absence could otherwise
-leave a happy-path test passing.
-
-The deferred techniques are intentionally not represented by unused helpers or
-demonstration code. They become candidates only when a CRM workflow satisfies
-their admission rule, at which point they must go through the same
-one-seam/one-commit evaluation. This audit validates the interaction
-architecture, not completion of every CRM product requirement: task outcomes,
-next-action scheduling, full search/filter coverage, archive, merge, import,
-export, and permanent deletion still require their own vertical slices.
-
-Legacy Todo and BigTask screens remain evidence fixtures only. New principles
-are applied to CRM slices; legacy code is changed only when needed to preserve
-an existing experiment until those screens are removed.
+Browser tests exercise the failure mode that each interaction policy exists to
+prevent. Depending on the policy, this includes uneven latency, duplicate
+activation, direct reload, history traversal, JavaScript-disabled submission,
+HTTP or transport failure, validation association, and focus after replacement.
+Tests assert the user-visible contract rather than merely checking for HTMX
+attributes.
 
 ## Suggested module dependency direction
 
@@ -1164,8 +1093,7 @@ architecture.
 
 ## CRM vertical slices
 
-The playground is being replaced incrementally by a real company-enquiry CRM.
-The product-facing slices now follow the same request path:
+Product-facing slices follow the same request path:
 
 | Slice | Domain | Persistence | HTTP and presentation |
 | --- | --- | --- | --- |
@@ -1174,11 +1102,10 @@ The product-facing slices now follow the same request path:
 | People | `Person` | `PersonStore` | `PersonHandler`, `PersonView` |
 | Follow-up work | `WorkTask` | `WorkTaskStore` | `WorkTaskHandler`, `WorkTaskView` |
 
-`db/init.sql` is intentionally a replaceable initialization schema during this
-refactor. There is no migration layer or compatibility promise for old
-database files; `roc scripts/tasks.roc reset-db` recreates the disposable
-development database. The platform integration runner loads the same
-initialization SQL into a fresh database, then adds `db/test-fixtures.sql`.
+`db/init.sql` is the canonical development and test schema. The platform
+integration runner loads it into a fresh database, then adds
+`db/test-fixtures.sql`. Schema evolution needs an explicit migration policy
+before persistent production databases are supported.
 
 The actor boundary resolves a session to one active workspace member. Stores
 receive the workspace and actor identifiers required for each mutation rather
@@ -1196,44 +1123,9 @@ implicit server locale.
 Tailwind class strings are centralized in `Design.roc`. CRM views use semantic
 design attributes only, keeping visual policy out of feature rendering.
 
-## Architecture experiment and evaluation
+## Toolchain constraints
 
-The refactor that applies this guide is an architecture experiment. A
-successful compile or a cleaner-looking file tree is not enough to validate
-the design. We should evaluate whether the boundaries make realistic changes
-safer and easier.
-
-Before drawing conclusions, implement representative flows from more than one
-feature. Include at least:
-
-- a read-only full page;
-- an htmx fragment;
-- a validated mutation;
-- authentication or authorization;
-- a database query with typed identifiers and finite values; and
-- one use case whose pure decisions are exercised with simulated typed effect
-  outcomes and whose production adapter is exercised by the platform test.
-
-The first implementation experiment was completed in July 2026. Its results
-are evidence for the direction, not a claim that every future application must
-use exactly these modules.
-
-| Criterion | Question to answer | Evidence to collect | Result |
-| --- | --- | --- | --- |
-| Type safety | Are page names, links, actions, IDs, statuses, and editable fields typed after boundary parsing? | Search results for raw paths and duplicated parsing; compiler errors from one deliberate type mismatch | **Validated.** Raw application paths occur in `Route.roc`; the native `/assets` mount remains an intentional platform-boundary string. Views receive typed IDs, statuses, fields, pages, locations, actions, and assets. |
-| Change locality | Does a feature change stay mostly within its domain, route, adapter, view, and handler modules? | Files changed for two representative feature changes | **Validated.** Todo and BigTask were implemented as independent domain/store/view/handler slices; shared changes were limited to `Route`, `Web`, `Http`, layout, and the composition root. |
-| Exhaustiveness | Do new route, status, or field tags reveal all affected matches? | Compiler diagnostics after adding one temporary tag | **Validated.** A temporary `Todo.Status.ArchitectureAuditOnly` tag produced three precise non-exhaustive-match errors in domain serialization and view badge rendering, then was removed. |
-| Dependency direction | Do domain and generic use-case modules avoid imports of HTTP, views, and concrete persistence adapters? | Import graph or manual module audit | **Validated.** Domain modules import no HTTP, HTML, route, or store modules. Stores import domain types; handlers compose stores and views; `main.roc` selects adapters. |
-| Static-dispatch ergonomics | Are `where` clauses small and caller-local, without broad trait-like contracts or forwarding wrappers? | Review each generic signature and list why substitution is useful | **Validated with a constraint.** `Todo.create!` asks only for effectful `insert!`; generic `Web` helpers ask for one URL/selector method each. Static dispatch clarified capability boundaries, but did not replace the functional-core testing seam. Closed errors needed explicit nominal wrappers such as `Todo.CreateError(err)`. |
-| Effect clarity | Are pure rules separate from effectful adapter and handler methods? | Audit of `->`, `=>`, and `!` at use-case boundaries | **Validated.** Route/query parsing, validation, tree construction, effect-result classification, and response decisions are pure. HTTP reads and store operations use `=>` and `!`. Roc's lack of effect polymorphism is handled by testing typed outcomes purely and the concrete interpreter separately. |
-| Runtime choices | Are values known only at runtime represented by data and explicit matches rather than misusing static dispatch? | Review routing and any configurable adapter selection | **Validated.** Requests parse to the closed `Route` union and dispatch through matches. Static dispatch is limited to compile-time-known helper and adapter types. |
-| Test value | Can important decisions be tested without effects while real SQLite paths retain integration coverage? | Test list, failures caught, and setup complexity | **Validated.** The app suite runs 272 inline expectations, including typed routing, normalization, bucketing, and HTTP response decisions. The single `src/test.roc` runner loads the canonical initialization and fixture SQL and covers workspace/member resolution, company and person matching/creation/conflicts, contact methods, workspace-local work tasks, and the still-addressable legacy stores through real SQLite adapters. |
-| Navigation cost | Can a contributor follow a request from route to response without excessive jumping or hidden indirection? | Short walkthrough by someone who did not perform the refactor | **Partially validated.** The path is consistently `Route -> main dispatch -> Handler -> Store/View`; however, no independent contributor walkthrough has been recorded yet. |
-| Duplication | Did feature slicing or small contracts introduce repeated parsing, mapping, or rendering that should have one owner? | Duplicate-code review with decisions to keep or extract | **Validated.** Route parsing/printing, HTTP forms/responses, layout, and typed link generation each have one owner. Small feature-specific validation messages remain deliberately local. |
-| Build feedback | Do acyclic, focused modules preserve useful compiler caching and acceptable check/test times? | Before-and-after clean and incremental timings | **Validated for the current size.** The current suite runs 272 pure expectations plus one effectful SQLite runner. Exact timings vary by machine and compiler cache state; no controlled before/after clean benchmark was recorded. |
-| Upgrade exercise | Can a URL, database representation, or HTML delivery mechanism change without unrelated edits? | Perform one small change from each relevant category and record affected modules | **Partially validated.** URLs and HTML attributes have single typed owners, and SQL decoding is isolated in stores. A real replacement database or second delivery mechanism has not yet been implemented. |
-
-The experiment also exposed costs and current toolchain sharp edges:
+The architecture accommodates these toolchain constraints:
 
 - contributors must learn type modules, nested opaque values, typed routing,
   static dispatch, and the domain/store/view/handler request path;
@@ -1248,11 +1140,6 @@ The experiment also exposed costs and current toolchain sharp edges:
   the store integration runner must use the production platform;
 - SQLite record shorthand for parameters type-checks but fails at runtime, so
   adapter smoke tests remain necessary.
-
-After collecting this evidence, keep the rules that reduced realistic change
-risk, revise rules that created friction without value, and document exceptions.
-The intended outcome is an architecture that scales; this section deliberately
-does not assume the first implementation has achieved that.
 
 ## Decision summary
 

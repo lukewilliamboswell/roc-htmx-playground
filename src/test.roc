@@ -142,7 +142,20 @@ test_companies! = |db| {
 	)
 	matches = CompanyStore.matches!(store, workspace.id, duplicate_input)
 	expect match matches {
-		Ok([{ strength: Company.MatchStrength.Strong, reason: "Same website domain", .. }]) => True
+		Ok([{ strength: Company.MatchStrength.Strong, reason: Company.MatchReason.SameWebsite, .. }]) => True
+		_ => False
+	}
+
+	name_variant = valid_company_input(
+		"Acme Studios Pty Ltd",
+		member.id,
+		"lead",
+		"",
+		"",
+	)
+	name_matches = CompanyStore.matches!(store, workspace.id, name_variant)
+	expect match name_matches {
+		Ok([{ strength: Company.MatchStrength.Weak, reason: Company.MatchReason.SimilarName, .. }]) => True
 		_ => False
 	}
 

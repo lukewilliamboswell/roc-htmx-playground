@@ -261,7 +261,7 @@ PersonStore :: { db : Sqlite.Db }.{
 				\\LEFT JOIN members previous_owner ON previous_owner.member_id = a.change_from
 				\\LEFT JOIN members next_owner ON next_owner.member_id = a.change_to
 				\\WHERE link.person_id = :id
-				\\ORDER BY a.occurred_at DESC, a.activity_id DESC;
+				\\ORDER BY a.occurred_at DESC, a.activity_sequence DESC;
 				,
 			),
 			params: { id: id.to_str() },

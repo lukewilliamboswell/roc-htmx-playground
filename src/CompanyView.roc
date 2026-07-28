@@ -422,7 +422,7 @@ duplicate_panel = |matches|
 								),
 								Html.p(
 									[Design.secondaryText],
-									[Html.text("${candidate.strength.to_label()}: ${candidate.reason}")],
+									[Html.text("${candidate.strength.to_label()}: ${candidate.reason.to_label()}")],
 								),
 							],
 						),

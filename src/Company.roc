@@ -52,7 +52,7 @@ Company := {
 		to_str = |Name.(value)| value
 
 		match_key : Name -> NameKey
-		match_key = |Name.(value)| NameKey.(value.with_ascii_lowercased())
+		match_key = |Name.(value)| NameKey.(canonical_company_name(value))
 
 		is_eq : _
 	}
@@ -166,10 +166,30 @@ Company := {
 		is_eq : _
 	}
 
+	MatchReason := [SimilarName, SamePhone, SameWebsite].{
+		from_storage : Str -> MatchReason
+		from_storage = |value|
+			match value {
+				"Same phone number" => SamePhone
+				"Same website domain" => SameWebsite
+				_ => SimilarName
+			}
+
+		to_label : MatchReason -> Str
+		to_label = |reason|
+			match reason {
+				SimilarName => "Similar company name"
+				SamePhone => "Same phone number"
+				SameWebsite => "Same website domain"
+			}
+
+		is_eq : _
+	}
+
 	Match := {
 		company : Company,
 		strength : MatchStrength,
-		reason : Str,
+		reason : MatchReason,
 	}
 
 	FindError(err) := [NotFound, StoreFailure(err)]
@@ -257,12 +277,58 @@ Company := {
 		}
 }
 
+canonical_company_name : Str -> Str
+canonical_company_name = |value| {
+	lower = value.with_ascii_lowercased()
+	without_punctuation = replace_punctuation(
+		lower,
+		[".", ",", "'", "\"", "-", "_", "&", "!"],
+	)
+	collapsed = Str.join_with(
+		without_punctuation.split_on(" ").keep_if(|part| !part.is_empty()),
+		" ",
+	)
+	without_legal_suffix = strip_suffixes(
+		collapsed,
+		[" pty ltd", " proprietary limited", " limited", " ltd", " incorporated", " inc", " llc"],
+	)
+	match without_legal_suffix.split_on(" studios") {
+		[base, ""] => "${base} studio"
+		_ => without_legal_suffix
+	}
+}
+
+replace_punctuation : Str, List(Str) -> Str
+replace_punctuation = |value, punctuation|
+	match punctuation {
+		[] => value
+		[item, .. as rest] =>
+			replace_punctuation(Str.join_with(value.split_on(item), " "), rest)
+		}
+
+strip_suffixes : Str, List(Str) -> Str
+strip_suffixes = |value, suffixes|
+	match suffixes {
+		[] => value
+		[suffix, .. as rest] =>
+			match value.split_on(suffix) {
+				[before, ""] => strip_suffixes(before, rest)
+				_ => strip_suffixes(value, rest)
+			}
+		}
+
 expect Company.Name.from_str("  Acme Studio ").is_ok()
 expect Company.Name.from_str(" ").is_err()
 expect {
 	name = Company.Name.from_str("Mixed CASE Company") ?? Company.Name.("")
 	key = name.match_key()
 	name.to_str() == "Mixed CASE Company" and key.to_str() == "mixed case company"
+}
+expect {
+	first = Company.Name.from_str("Acme Studios Pty Ltd") ?? Company.Name.("")
+	second = Company.Name.from_str("Acme, Studio!") ?? Company.Name.("")
+	first.match_key().to_str() == "acme studio"
+		and second.match_key().to_str() == "acme studio"
 }
 expect Company.Lifecycle.from_str("customer") == Ok(Company.Lifecycle.Customer)
 expect Company.normalized_phone("+61 (03) 9000-0000") == "+610390000000"

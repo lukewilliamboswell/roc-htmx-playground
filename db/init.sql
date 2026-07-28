@@ -139,7 +139,8 @@ CREATE TABLE company_revisions (
 );
 
 CREATE TABLE activities (
-    activity_id TEXT PRIMARY KEY,
+    activity_sequence INTEGER PRIMARY KEY AUTOINCREMENT,
+    activity_id TEXT NOT NULL UNIQUE,
     workspace_id TEXT NOT NULL,
     activity_type TEXT NOT NULL,
     occurred_at TEXT NOT NULL,

@@ -1,9 +1,9 @@
 # Demo assets
 
-These files are checked into the repository so the Roc webserver can
-demonstrate its platform-native static file mount without a separate
-static-file server. `init!` exposes this directory at `/assets` with a one-year
-public cache policy.
+These source files are checked into the repository and copied to
+`dist/assets/` by the task runner. The generated stylesheet and vendored htmx
+runtime join them there, giving the Roc webserver one platform-native static
+file mount at `/assets` with a one-year public cache policy.
 
 ## README screenshot
 

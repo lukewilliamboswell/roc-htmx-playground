@@ -30,7 +30,7 @@ HomeView :: [].{
 									[Design.heroLead],
 									[
 										Html.text(
-											"Explore forms, live updates, SQLite data, sessions, and now embedded image assets—all on basic-webserver 0.14.0.",
+											"Explore forms, live updates, SQLite data, sessions, and a production-shaped static asset bundle—all on basic-webserver 0.14.0.",
 										),
 									],
 								),

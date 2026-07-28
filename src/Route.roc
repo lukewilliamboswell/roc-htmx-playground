@@ -149,8 +149,8 @@ Route := [
 		to_src = |asset|
 			match asset {
 				Robots => "/robots.txt"
-				Stylesheet => "/styles.css?v=20260728"
-				Htmx => "/htmx.min.js?v=4.0.0-beta6"
+				Stylesheet => "/assets/styles.css?v=20260728"
+				Htmx => "/assets/htmx.min.js?v=4.0.0-beta6"
 				PlanningDesk => "/assets/planning-desk.webp"
 				PlanningDesk480 => "/assets/planning-desk-480.webp"
 				PlanningDesk640 => "/assets/planning-desk-640.webp"
@@ -232,8 +232,6 @@ Route := [
 				parse_big_task_update(id, BigTask.Field.StatusField)
 
 			(Get, ["", "robots.txt"]) => Ok(Serve(Robots))
-			(Get, ["", "styles.css"]) => Ok(Serve(Stylesheet))
-			(Get, ["", "htmx.min.js"]) => Ok(Serve(Htmx))
 
 			_ => Err(NotFound(target))
 		}

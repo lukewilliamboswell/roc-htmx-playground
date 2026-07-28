@@ -32,6 +32,7 @@ main! = |args|
 			match command {
 				"css" => buildCss!(Bool.False)
 				"css-watch" => buildCss!(Bool.True)
+				"build" => buildDistribution!("speed")
 				"check" => check!()
 				"dev" => dev!()
 				"release" => release!()
@@ -58,8 +59,9 @@ usage! = || {
 		\\Commands:
 		\\  css               Build minified CSS
 		\\  css-watch         Rebuild CSS when the design system changes
+		\\  build             Build a local runtime bundle in dist/
 		\\  check             Build CSS, format-check, type-check, and test
-		\\  dev               Format, validate, build, and serve locally
+		\\  dev               Format, validate, build dist/, and serve it
 		\\  release           Build release binaries for Linux and macOS
 		\\  tailwind-install  Install the pinned standalone Tailwind CLI
 		,
@@ -71,36 +73,26 @@ usage! = || {
 dev! : () => Try({}, _)
 dev! = || {
 	run!("roc", ["fmt", "scripts", "src"])?
-	buildCss!(Bool.False)?
 	run!("roc", ["check", "src/main.roc"])?
 	run!("roc", ["test", "src/main.roc"])?
 	run!("roc", ["src/test.roc"])?
 
-	db_path = ensureDevDatabase!()?
-	binary = ".tools/roc-htmx-playground-dev"
-	run!(
-		"roc",
-		[
-			"build",
-			"--opt=dev",
-			"--output=${binary}",
-			"src/main.roc",
-		],
-	)?
+	buildDistribution!("dev")?
 
-	Stdout.line!("Serving with ${db_path}")?
-	Cmd.new_str(binary)
-		.env_str("DB_PATH", db_path)
+	Stdout.line!("Serving dist/roc-htmx-playground with dist/playground.db")?
+	Cmd.new_str("dist/roc-htmx-playground")
+		.env_str("DB_PATH", "dist/playground.db")
+		.env_str("ASSET_PATH", "dist/assets")
 		.exec_cmd!()
 }
 
 ensureDevDatabase! : () => Try(Str, _)
 ensureDevDatabase! = || {
-	db_path = "test.db"
+	db_path = "dist/playground.db"
 	database = Path.utf8(db_path)
 
 	if !database.is_file!()? {
-		Stdout.line!("Creating ${db_path} from test.sql...")?
+		Stdout.line!("Creating ${db_path} from the sample data in test.sql...")?
 		run!("sqlite3", [db_path, ".read test.sql"])?
 	}
 
@@ -109,14 +101,7 @@ ensureDevDatabase! = || {
 
 check! : () => Try({}, _)
 check! = || {
-	styles : Path
-	styles = "src/site.css"
-	before = styles.read_bytes!()?
 	buildCss!(Bool.False)?
-	after = styles.read_bytes!()?
-	if before != after {
-		return Err(GeneratedCssWasOutOfDate)
-	}
 	run!("roc", ["fmt", "--check", "scripts", "src"])?
 	run!("roc", ["check", "src/main.roc"])?
 	run!("roc", ["test", "src/main.roc"])?
@@ -128,6 +113,7 @@ check! = || {
 release! : () => Try({}, _)
 release! = || {
 	buildCss!(Bool.False)?
+	_ = ensureDevDatabase!()?
 	dist : Path
 	dist = "dist"
 	dist.create_all!()?
@@ -136,6 +122,23 @@ release! = || {
 	checksums : Path
 	checksums = "dist/SHA256SUMS"
 	checksums.write_utf8!("${Str.join_with(checksum_lines, "\n")}\n")?
+
+	Ok({})
+}
+
+buildDistribution! : Str => Try({}, _)
+buildDistribution! = |optimization| {
+	buildCss!(Bool.False)?
+	_ = ensureDevDatabase!()?
+	run!(
+		"roc",
+		[
+			"build",
+			"--opt=${optimization}",
+			"--output=dist/roc-htmx-playground",
+			"src/main.roc",
+		],
+	)?
 
 	Ok({})
 }
@@ -177,11 +180,17 @@ run! = |program, arguments|
 
 buildCss! : Bool => Try({}, _)
 buildCss! = |watch| {
+	assets : Path
+	assets = "dist/assets"
+	assets.create_all!()?
+	run!("cp", ["-R", "assets/.", "dist/assets"])?
+	run!("cp", ["vendor/htmx-4-0-0-beta6.min.js", "dist/assets/htmx.min.js"])?
+
 	tailwind = ensureTailwind!()?
 	arguments = if watch {
-		["-i", "src/tailwind.css", "-o", "src/site.css", "--watch"]
+		["-i", "src/tailwind.css", "-o", "dist/assets/styles.css", "--watch"]
 	} else {
-		["-i", "src/tailwind.css", "-o", "src/site.css", "--minify"]
+		["-i", "src/tailwind.css", "-o", "dist/assets/styles.css", "--minify"]
 	}
 
 	run!(tailwind, arguments)?

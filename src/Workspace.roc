@@ -130,8 +130,8 @@ Workspace := {
 
 	timezone_matches : Workspace, Str -> Bool
 	timezone_matches = |workspace, configured|
-		configured.trim().is_empty()
-			or configured == workspace.timezone.to_str()
+		!configured.trim().is_empty()
+			and configured == workspace.timezone.to_str()
 }
 
 expect Workspace.Currency.from_str("aud") == Ok(Workspace.Currency.("AUD"))

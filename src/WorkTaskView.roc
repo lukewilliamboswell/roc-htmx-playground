@@ -1,0 +1,191 @@
+import pf.Attribute
+import pf.Html
+
+import Actor
+import Design
+import Layout
+import Route
+import Web
+import WorkTask
+
+WorkTaskView := [].{
+	page : Actor, List(WorkTask) -> Html.Node
+	page = |actor, tasks|
+		Layout.page(
+			actor.session,
+			Route.Page.Work,
+			[
+				Html.h1([Design.pageTitle], [Html.text("My Work")]),
+				Html.p(
+					[Design.lead],
+					[
+						Html.text(
+							"Open follow-ups grouped in ${actor.workspace.timezone.to_str()}.",
+						),
+					],
+				),
+				Html.div(
+					[Design.workGrid],
+					[
+						bucket("Overdue", tasks.keep_if(|task| task.bucket == WorkTask.Bucket.Overdue), True),
+						bucket("Due today", tasks.keep_if(|task| task.bucket == WorkTask.Bucket.Today), False),
+						bucket("Upcoming", tasks.keep_if(|task| task.bucket == WorkTask.Bucket.Upcoming), False),
+					],
+				),
+			],
+		)
+
+	related_section : Actor, List(WorkTask), Route.PostAction -> Html.Node
+	related_section = |actor, tasks, create_action|
+		Html.element(
+			"section",
+			[Design.contentSection],
+			[
+				Html.h2([Design.sectionHeading], [Html.text("Open tasks")]),
+				Html.p(
+					[Design.contentSectionText],
+					[Html.text("Due times use ${actor.workspace.timezone.to_str()}.")],
+				),
+				task_list(tasks),
+				task_form(actor, create_action),
+			],
+		)
+}
+
+bucket : Str, List(WorkTask), Bool -> Html.Node
+bucket = |title, tasks, overdue|
+	Html.element(
+		"section",
+		[
+			if overdue {
+				Design.overdueBucket
+			} else {
+				Design.workBucket
+			},
+		],
+		[
+			Html.h2([Design.sectionHeading], [Html.text(title)]),
+			task_list(tasks),
+		],
+	)
+
+task_list : List(WorkTask) -> Html.Node
+task_list = |tasks|
+	Html.ul(
+		[Design.taskList],
+		if tasks.is_empty() {
+			[Html.li([Design.secondaryText], [Html.text("No tasks in this group.")])]
+		} else {
+			tasks.map(task_item)
+		},
+	)
+
+task_item : WorkTask -> Html.Node
+task_item = |task|
+	Html.li(
+		[Design.taskItem],
+		[
+			Html.p([Design.taskSubject], [Html.text(task.subject.to_str())]),
+			Html.p([Design.taskDue], [Html.text(task.dueLocal)]),
+			Html.p([Design.taskRelated], [Html.text(related_label(task))]),
+			Web.post_form(
+				Route.PostAction.CompleteTask(task.id),
+				[Design.taskActions],
+				[
+					Html.button(
+						[
+							Attribute.type("submit"),
+							Design.button(Design.ButtonTone.Success, Design.ButtonSize.Small),
+						],
+						[Html.text("Complete")],
+					),
+				],
+			),
+		],
+	)
+
+task_form : Actor, Route.PostAction -> Html.Node
+task_form = |actor, action|
+	Web.post_form(
+		action,
+		[Design.inlineForm],
+		[
+			field("Subject", Route.TaskInput.Subject, "Follow up"),
+			Html.div(
+				[Design.field],
+				[
+					Html.label(
+						[Attribute.for_(Route.TaskInput.to_name(Route.TaskInput.DueLocal)), Design.label],
+						[Html.text("Due in ${actor.workspace.timezone.to_str()}")],
+					),
+					Html.input([
+						Attribute.id(Route.TaskInput.to_name(Route.TaskInput.DueLocal)),
+						Attribute.name(Route.TaskInput.to_name(Route.TaskInput.DueLocal)),
+						Attribute.type("datetime-local"),
+						Design.input,
+					]),
+				],
+			),
+			Html.div(
+				[Design.field],
+				[
+					Html.label(
+						[Attribute.for_(Route.TaskInput.to_name(Route.TaskInput.TaskType)), Design.label],
+						[Html.text("Task type")],
+					),
+					Html.select(
+						[
+							Attribute.id(Route.TaskInput.to_name(Route.TaskInput.TaskType)),
+							Attribute.name(Route.TaskInput.to_name(Route.TaskInput.TaskType)),
+							Design.select,
+						],
+						[Html.option([Attribute.value("")], [Html.text("Not specified")])].concat(
+							actor.workspace.taskTypes.map(
+								|task_type|
+									Html.option(
+										[Attribute.value(task_type.id.to_str())],
+										[Html.text(task_type.name)],
+									),
+							),
+						),
+					),
+				],
+			),
+			field("Context", Route.TaskInput.Context, "What needs to happen?"),
+			Html.button(
+				[
+					Attribute.type("submit"),
+					Design.button(Design.ButtonTone.Primary, Design.ButtonSize.Regular),
+				],
+				[Html.text("Schedule task")],
+			),
+		],
+	)
+
+field : Str, Route.TaskInput, Str -> Html.Node
+field = |label, input, placeholder|
+	Html.div(
+		[Design.field],
+		[
+			Html.label([Attribute.for_(input.to_name()), Design.label], [Html.text(label)]),
+			Html.input([
+				Attribute.id(input.to_name()),
+				Attribute.name(input.to_name()),
+				attribute("placeholder", placeholder),
+				Design.input,
+			]),
+		],
+	)
+
+related_label : WorkTask -> Str
+related_label = |task|
+	if !task.personName.is_empty() {
+		task.personName
+	} else if !task.companyName.is_empty() {
+		task.companyName
+	} else {
+		"Related CRM record"
+	}
+
+attribute : Str, Str -> Attribute.Attribute
+attribute = |name, value| Attribute.attribute(name, value)

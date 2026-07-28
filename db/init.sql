@@ -243,6 +243,37 @@ CREATE TABLE activity_people (
     FOREIGN KEY (person_id) REFERENCES people(person_id) ON DELETE CASCADE
 );
 
+-- CRM FOLLOW-UP TASKS
+CREATE TABLE crm_tasks (
+    task_id TEXT PRIMARY KEY,
+    workspace_id TEXT NOT NULL,
+    subject TEXT NOT NULL,
+    due_local TEXT NOT NULL,
+    due_at_utc INTEGER NOT NULL,
+    assignee_id TEXT NOT NULL,
+    task_type_id TEXT NOT NULL DEFAULT '',
+    status TEXT NOT NULL CHECK(status IN ('open', 'completed', 'cancelled')),
+    company_id TEXT NOT NULL DEFAULT '',
+    person_id TEXT NOT NULL DEFAULT '',
+    context TEXT NOT NULL DEFAULT '',
+    created_by_id TEXT NOT NULL,
+    completed_by_id TEXT NOT NULL DEFAULT '',
+    created_at TEXT NOT NULL,
+    completed_at TEXT NOT NULL DEFAULT '',
+    version INTEGER NOT NULL DEFAULT 1 CHECK(version > 0),
+    CHECK(company_id <> '' OR person_id <> ''),
+    FOREIGN KEY (workspace_id) REFERENCES workspaces(workspace_id),
+    FOREIGN KEY (assignee_id) REFERENCES members(member_id),
+    FOREIGN KEY (created_by_id) REFERENCES members(member_id)
+);
+
+CREATE INDEX crm_tasks_assignee_due
+    ON crm_tasks(workspace_id, assignee_id, status, due_local);
+CREATE INDEX crm_tasks_company
+    ON crm_tasks(company_id, status, due_local);
+CREATE INDEX crm_tasks_person
+    ON crm_tasks(person_id, status, due_local);
+
 -- TASKS
 CREATE TABLE tasks (
     id INTEGER PRIMARY KEY,

@@ -77,7 +77,7 @@ dev! = || {
 	run!("roc", ["fmt", "scripts", "src"])?
 	run!("roc", ["check", "src/main.roc"])?
 	run!("roc", ["test", "src/main.roc"])?
-	run!("roc", ["src/test.roc"])?
+	runWithTimezone!("roc", ["src/test.roc"])?
 
 	buildDistribution!("dev")?
 
@@ -85,6 +85,7 @@ dev! = || {
 	Cmd.new_str("dist/roc-htmx-playground")
 		.env_str("DB_PATH", "dist/playground.db")
 		.env_str("ASSET_PATH", "dist/assets")
+		.env_str("TZ", "Australia/Melbourne")
 		.exec_cmd!()
 }
 
@@ -122,7 +123,7 @@ check! = || {
 	run!("roc", ["fmt", "--check", "scripts", "src"])?
 	run!("roc", ["check", "src/main.roc"])?
 	run!("roc", ["test", "src/main.roc"])?
-	run!("roc", ["src/test.roc"])?
+	runWithTimezone!("roc", ["src/test.roc"])?
 
 	Ok({})
 }
@@ -193,6 +194,13 @@ run! : Str, List(Str) => Try({}, _)
 run! = |program, arguments|
 	Cmd.new_str(program)
 		.args_str(arguments)
+		.exec_cmd!()
+
+runWithTimezone! : Str, List(Str) => Try({}, _)
+runWithTimezone! = |program, arguments|
+	Cmd.new_str(program)
+		.args_str(arguments)
+		.env_str("TZ", "Australia/Melbourne")
 		.exec_cmd!()
 
 buildCss! : Bool => Try({}, _)

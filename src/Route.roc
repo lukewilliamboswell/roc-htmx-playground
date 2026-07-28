@@ -5,6 +5,7 @@ import BigTask
 import Company
 import Person
 import Todo
+import WorkTask
 
 ## The complete HTTP vocabulary owned by the application.
 ##
@@ -28,6 +29,7 @@ Route := [
 		CompanyNew,
 		People,
 		PersonNew,
+		Work,
 		BigTasks,
 	].{
 		is_eq : _
@@ -45,6 +47,7 @@ Route := [
 				CompanyNew => "New company"
 				People => "People"
 				PersonNew => "New person"
+				Work => "My Work"
 				BigTasks => "BigTask"
 			}
 
@@ -61,6 +64,7 @@ Route := [
 				CompanyNew => "/companies/new"
 				People => "/people"
 				PersonNew => "/people/new"
+				Work => "/work"
 				BigTasks => "/bigTask"
 			}
 	}
@@ -120,6 +124,9 @@ Route := [
 		AddPersonPhone(Person.Id),
 		DeletePersonEmail(Person.Id, Person.ContactId),
 		DeletePersonPhone(Person.Id, Person.ContactId),
+		CreateCompanyTask(Company.Id),
+		CreatePersonTask(Person.Id),
+		CompleteTask(WorkTask.Id),
 	].{
 		to_post_url : PostAction -> Str
 		to_post_url = |action|
@@ -142,7 +149,10 @@ Route := [
 					"/people/${id.to_str()}/emails/${contact_id.to_str()}/delete"
 				DeletePersonPhone(id, contact_id) =>
 					"/people/${id.to_str()}/phones/${contact_id.to_str()}/delete"
-				}
+				CreateCompanyTask(id) => "/companies/${id.to_str()}/tasks"
+				CreatePersonTask(id) => "/people/${id.to_str()}/tasks"
+				CompleteTask(id) => "/tasks/${id.to_str()}/complete"
+			}
 	}
 
 	PutAction := [
@@ -214,6 +224,17 @@ Route := [
 				Label => "label"
 				Value => "value"
 				Primary => "primary"
+			}
+	}
+
+	TaskInput := [Subject, DueLocal, TaskType, Context].{
+		to_name : TaskInput -> Str
+		to_name = |input|
+			match input {
+				Subject => "subject"
+				DueLocal => "dueLocal"
+				TaskType => "taskType"
+				Context => "context"
 			}
 	}
 
@@ -319,6 +340,8 @@ Route := [
 				Ok(Visit(CompanyEdit(Company.Id.from_storage(id))))
 			(Post, ["", "companies", id]) =>
 				Ok(Post(UpdateCompany(Company.Id.from_storage(id))))
+			(Post, ["", "companies", id, "tasks"]) =>
+				Ok(Post(CreateCompanyTask(Company.Id.from_storage(id))))
 			(Get, ["", "companies", id]) =>
 				Ok(Visit(CompanyDetail(Company.Id.from_storage(id))))
 
@@ -344,6 +367,8 @@ Route := [
 				Ok(Visit(PersonEdit(Person.Id.from_storage(id))))
 			(Post, ["", "people", id]) =>
 				Ok(Post(UpdatePerson(Person.Id.from_storage(id))))
+			(Post, ["", "people", id, "tasks"]) =>
+				Ok(Post(CreatePersonTask(Person.Id.from_storage(id))))
 			(Get, ["", "people", id]) =>
 				Ok(Visit(PersonDetail(Person.Id.from_storage(id))))
 			(Post, ["", "people", id, "emails"]) =>
@@ -359,6 +384,10 @@ Route := [
 						),
 					),
 				)
+
+			(Get, ["", "work"]) => Ok(Visit(AtPage(Work)))
+			(Post, ["", "tasks", id, "complete"]) =>
+				Ok(Post(CompleteTask(WorkTask.Id.from_storage(id))))
 			(Post, ["", "people", id, "phones", contact_id, "delete"]) =>
 				Ok(
 					Post(

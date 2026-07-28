@@ -11,6 +11,7 @@ import Http
 import PersonStore
 import Route
 import Web
+import WorkTaskStore
 
 CompanyHandler := [].{
 	page! : CompanyStore, Actor, Company.Filter => Try(Response, AppError)
@@ -27,13 +28,24 @@ CompanyHandler := [].{
 			Err(error) => Err(AppError.from(error))
 		}
 
-	detail! : CompanyStore, PersonStore, Actor, Company.Id => Try(Response, AppError)
-	detail! = |store, people, actor, id|
+	detail! : CompanyStore, PersonStore, WorkTaskStore, Actor, Company.Id => Try(Response, AppError)
+	detail! = |store, people, tasks, actor, id|
 		match CompanyStore.find!(store, id) {
 			Ok(company) =>
 				match PersonStore.list_for_company!(people, id) {
 					Ok(associated) =>
-						Ok(Http.html(200, CompanyView.detail(actor, company, associated), []))
+						{
+							today = WorkTaskStore.today!(tasks) ? AppError.from
+							open_tasks = WorkTaskStore.for_company!(tasks, id.to_str(), today)
+								? AppError.from
+							Ok(
+								Http.html(
+									200,
+									CompanyView.detail(actor, company, associated, open_tasks),
+									[],
+								),
+							)
+						}
 					Err(error) => Err(AppError.from(error))
 				}
 			Err(Company.FindError.NotFound) =>

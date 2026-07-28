@@ -8,6 +8,8 @@ import Layout
 import Person
 import Route
 import Web
+import WorkTask
+import WorkTaskView
 
 CompanyView :: [].{
 	PageModel := {
@@ -72,8 +74,8 @@ CompanyView :: [].{
 	conflict_page = |actor, current, attempted|
 		edit_form_page(actor, current, attempted, "", True)
 
-	detail : Actor, Company, List(Person) -> Html.Node
-	detail = |actor, company, people|
+	detail : Actor, Company, List(Person), List(WorkTask) -> Html.Node
+	detail = |actor, company, people, tasks|
 		Layout.page(
 			actor.session,
 			Route.Page.Companies,
@@ -126,9 +128,10 @@ CompanyView :: [].{
 					],
 				),
 				people_section(company, people),
-				placeholder_section(
-					"Open tasks",
-					"Scheduled follow-up will appear here in the task seam.",
+				WorkTaskView.related_section(
+					actor,
+					tasks,
+					Route.PostAction.CreateCompanyTask(company.id),
 				),
 				placeholder_section(
 					"History",

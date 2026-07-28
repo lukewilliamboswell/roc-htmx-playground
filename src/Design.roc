@@ -266,6 +266,33 @@ Design :: [].{
 	dangerLinkButton : Attribute.Attribute
 	dangerLinkButton = class("text-sm font-medium text-red-700 hover:underline")
 
+	workGrid : Attribute.Attribute
+	workGrid = class("mt-6 grid gap-6 lg:grid-cols-3")
+
+	workBucket : Attribute.Attribute
+	workBucket = class("rounded-xl border border-slate-200 bg-white p-5 shadow-sm")
+
+	overdueBucket : Attribute.Attribute
+	overdueBucket = class("rounded-xl border border-red-200 bg-red-50 p-5 shadow-sm")
+
+	taskList : Attribute.Attribute
+	taskList = class("mt-4 space-y-3")
+
+	taskItem : Attribute.Attribute
+	taskItem = class("rounded-lg border border-slate-200 bg-white p-4")
+
+	taskSubject : Attribute.Attribute
+	taskSubject = class("font-semibold text-slate-950")
+
+	taskDue : Attribute.Attribute
+	taskDue = class("mt-1 text-sm font-medium text-slate-700")
+
+	taskRelated : Attribute.Attribute
+	taskRelated = class("mt-1 text-sm text-slate-500")
+
+	taskActions : Attribute.Attribute
+	taskActions = class("mt-3")
+
 	todoForm : Attribute.Attribute
 	todoForm = class("mt-6 grid gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm md:grid-cols-12")
 

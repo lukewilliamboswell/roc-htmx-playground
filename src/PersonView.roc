@@ -8,6 +8,8 @@ import Layout
 import Person
 import Route
 import Web
+import WorkTask
+import WorkTaskView
 
 PersonView :: [].{
 	Form := {
@@ -52,8 +54,8 @@ PersonView :: [].{
 			],
 		)
 
-	detail : Actor, Person -> Html.Node
-	detail = |actor, person|
+	detail : Actor, Person, List(WorkTask) -> Html.Node
+	detail = |actor, person, tasks|
 		Layout.page(
 			actor.session,
 			Route.Page.People,
@@ -103,6 +105,11 @@ PersonView :: [].{
 				),
 				contact_section(person, Email),
 				contact_section(person, Phone),
+				WorkTaskView.related_section(
+					actor,
+					tasks,
+					Route.PostAction.CreatePersonTask(person.id),
+				),
 			],
 		)
 

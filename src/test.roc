@@ -29,6 +29,8 @@ import User
 import UserStore
 import Workspace
 import WorkspaceStore
+import WorkTask
+import WorkTaskStore
 
 Context := {}
 
@@ -77,6 +79,8 @@ init! = || {
 	Stdout.line!("companies: ok") ? |_| Exit(3)
 	test_people!(db)
 	Stdout.line!("people: ok") ? |_| Exit(3)
+	test_work_tasks!(db)
+	Stdout.line!("work tasks: ok") ? |_| Exit(3)
 	test_sessions_and_users!(db)
 	Stdout.line!("sessions and users: ok") ? |_| Exit(3)
 	test_todos!(db)
@@ -367,6 +371,116 @@ valid_person_input = |name, owner_id, company_id, email, phone|
 		Ok(input) => input
 		Err(_) => {
 			crash "Person test input should be valid."
+		}
+	}
+
+test_work_tasks! : Sqlite.Db => {}
+test_work_tasks! = |db| {
+	store = WorkTaskStore.new(db)
+	workspace = WorkspaceStore.load!(WorkspaceStore.new(db))
+		?? Workspace.from_storage(
+			"workspace-example",
+			"Example CRM",
+			"AUD",
+			"Australia/Melbourne",
+			[],
+			[],
+		)
+	member = Member.from_storage("member-mara", "Mara Singh", "mara@example.com", 1)
+	overdue_input = valid_work_task(
+		"Call Acme",
+		"2026-07-27T16:00",
+		member.id,
+		WorkTask.Related.Company("company-acme"),
+	)
+	overdue = WorkTaskStore.create!(
+		store,
+		workspace.id,
+		member.id,
+		overdue_input,
+		"2026-07-26T06:00:00Z",
+	)
+	today_input = valid_work_task(
+		"Send proposal",
+		"2026-07-28T09:00",
+		member.id,
+		WorkTask.Related.Company("company-acme"),
+	)
+	today_task = WorkTaskStore.create!(
+		store,
+		workspace.id,
+		member.id,
+		today_input,
+		"2026-07-27T23:00:00Z",
+	)
+	upcoming_input = valid_work_task(
+		"Book review",
+		"2026-08-02T11:30",
+		member.id,
+		WorkTask.Related.Person("person-missing"),
+	)
+	upcoming = WorkTaskStore.create!(
+		store,
+		workspace.id,
+		member.id,
+		upcoming_input,
+		"2026-07-28T00:00:00Z",
+	)
+	expect overdue.is_ok() and today_task.is_ok() and upcoming.is_ok()
+
+	work = WorkTaskStore.for_assignee!(
+		store,
+		workspace.id,
+		member.id,
+		"2026-07-28",
+	)
+	expect match work {
+		Ok([first, second, third]) =>
+			first.bucket == WorkTask.Bucket.Overdue
+				and second.bucket == WorkTask.Bucket.Today
+					and third.bucket == WorkTask.Bucket.Upcoming
+		_ => False
+	}
+
+	conversion : { utcValue : Str }
+	conversion = Sqlite.query!({
+		db,
+		query: "SELECT datetime(due_at_utc, 'unixepoch') AS utcValue FROM crm_tasks WHERE subject = 'Send proposal';",
+		params: {},
+		limits: Sqlite.default_query_limits,
+	}) ?? { utcValue: "" }
+	expect conversion.utcValue == "2026-07-27 23:00:00"
+
+	today_id = match today_task {
+		Ok(id) => id
+		Err(_) => WorkTask.Id.from_storage("task-missing")
+	}
+	completed = WorkTaskStore.complete!(
+		store,
+		workspace.id,
+		member.id,
+		today_id,
+		"2026-07-28T01:00:00Z",
+	)
+	expect completed.is_ok()
+	after_completion = WorkTaskStore.for_assignee!(
+		store,
+		workspace.id,
+		member.id,
+		"2026-07-28",
+	)
+	expect match after_completion {
+		Ok(tasks) => tasks.len() == 2
+		Err(_) => False
+	}
+}
+
+valid_work_task : Str, Str, Member.Id, WorkTask.Related -> WorkTask.New
+valid_work_task = |subject, due_local, assignee_id, related|
+	match WorkTask.new(subject, due_local, assignee_id, "follow-up", related, "Test context") {
+		Ok(input) => input
+		Err(_) => {
+			crash "Work task test input should be valid."
 		}
 	}
 

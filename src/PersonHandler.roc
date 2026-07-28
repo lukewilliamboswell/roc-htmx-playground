@@ -12,6 +12,7 @@ import PersonStore
 import PersonView
 import Route
 import Web
+import WorkTaskStore
 
 PersonHandler := [].{
 	page! : PersonStore, Actor, Person.Filter => Try(Response, AppError)
@@ -21,10 +22,15 @@ PersonHandler := [].{
 			Err(error) => Err(AppError.from(error))
 		}
 
-	detail! : PersonStore, Actor, Person.Id => Try(Response, AppError)
-	detail! = |store, actor, id|
+	detail! : PersonStore, WorkTaskStore, Actor, Person.Id => Try(Response, AppError)
+	detail! = |store, tasks, actor, id|
 		match PersonStore.find!(store, id) {
-			Ok(person) => Ok(Http.html(200, PersonView.detail(actor, person), []))
+			Ok(person) => {
+				today = WorkTaskStore.today!(tasks) ? AppError.from
+				open_tasks = WorkTaskStore.for_person!(tasks, id.to_str(), today)
+					? AppError.from
+				Ok(Http.html(200, PersonView.detail(actor, person, open_tasks), []))
+			}
 			Err(Person.FindError.NotFound) => Err(AppError.NotFound("person ${id.to_str()}"))
 			Err(Person.FindError.StoreFailure(error)) => Err(AppError.from(error))
 		}

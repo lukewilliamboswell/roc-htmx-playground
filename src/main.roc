@@ -39,6 +39,9 @@ import UserHandler
 import UserStore
 import Workspace
 import WorkspaceStore
+import WorkTask
+import WorkTaskHandler
+import WorkTaskStore
 
 ## The composition root owns concrete adapter selection. Feature handlers only
 ## receive the stores they actually use.
@@ -51,6 +54,7 @@ Context := {
 	bigTaskStore : BigTaskStore,
 	companyStore : CompanyStore,
 	personStore : PersonStore,
+	workTaskStore : WorkTaskStore,
 }
 
 program = { init!, respond!, shutdown! }
@@ -102,6 +106,7 @@ init! = || {
 			bigTaskStore: BigTaskStore.new(db),
 			companyStore: CompanyStore.new(db),
 			personStore: PersonStore.new(db),
+			workTaskStore: WorkTaskStore.new(db),
 		},
 	})
 }
@@ -208,6 +213,11 @@ visit! = |context, session, location|
 						actor_from_session(session, context.workspace)?,
 						"",
 					)
+				Route.Page.Work =>
+					WorkTaskHandler.page!(
+						context.workTaskStore,
+						actor_from_session(session, context.workspace)?,
+					)
 				Route.Page.BigTasks =>
 					BigTaskHandler.page!(context.bigTaskStore, BigTask.Query.default, session)
 				}
@@ -226,6 +236,7 @@ visit! = |context, session, location|
 			CompanyHandler.detail!(
 				context.companyStore,
 				context.personStore,
+				context.workTaskStore,
 				actor_from_session(session, context.workspace)?,
 				id,
 			)
@@ -244,6 +255,7 @@ visit! = |context, session, location|
 		Route.Location.PersonDetail(id) =>
 			PersonHandler.detail!(
 				context.personStore,
+				context.workTaskStore,
 				actor_from_session(session, context.workspace)?,
 				id,
 			)
@@ -332,6 +344,26 @@ post! = |request, context, session, action|
 			PersonHandler.delete_contact!(context.personStore, id, Email, contact_id)
 		Route.PostAction.DeletePersonPhone(id, contact_id) =>
 			PersonHandler.delete_contact!(context.personStore, id, Phone, contact_id)
+		Route.PostAction.CreateCompanyTask(id) =>
+			WorkTaskHandler.create!(
+				request,
+				context.workTaskStore,
+				actor_from_session(session, context.workspace)?,
+				WorkTask.Related.Company(id.to_str()),
+			)
+		Route.PostAction.CreatePersonTask(id) =>
+			WorkTaskHandler.create!(
+				request,
+				context.workTaskStore,
+				actor_from_session(session, context.workspace)?,
+				WorkTask.Related.Person(id.to_str()),
+			)
+		Route.PostAction.CompleteTask(id) =>
+			WorkTaskHandler.complete!(
+				context.workTaskStore,
+				actor_from_session(session, context.workspace)?,
+				id,
+			)
 		}
 
 put! : Server.Request, Context, Session, Route.PutAction => Try(Response, AppError)

@@ -26,22 +26,23 @@ browser build.
 Install `roc` and `sqlite3`, then run:
 
 ```sh
-sqlite3 test.db < test.sql
-roc build --opt=speed src/main.roc
-DB_PATH=test.db ./main
+roc scripts/tasks.roc build
+DB_PATH=dist/playground.db ./dist/roc-htmx-playground
 ```
 
 Open <http://127.0.0.1:8000>.
 
-The optimized build is the recommended way to run the application. For a
-shorter edit-and-run cycle, use:
+The build command assembles the executable, sample database, generated CSS,
+vendored htmx runtime, images, and icons under `dist/`. For a validated
+edit-and-run cycle, use:
 
 ```sh
-DB_PATH=test.db roc run src/main.roc
+roc scripts/tasks.roc dev
 ```
 
-Delete `test.db` before running the initialization command again if you want a
-fresh copy of the sample data.
+Delete `dist/playground.db` before building if you want a fresh copy of the
+sample data. Set `ASSET_PATH` to override the default `dist/assets` static root
+when embedding the server in another deployment layout.
 
 ## Development
 
@@ -51,6 +52,9 @@ needed:
 ```sh
 # Format, validate, build, and serve a development build
 roc scripts/tasks.roc dev
+
+# Assemble a development binary and all runtime files without serving
+roc scripts/tasks.roc build
 
 # Run the same generated-CSS, formatting, type, unit, and integration checks as CI
 roc scripts/tasks.roc check
@@ -79,10 +83,11 @@ See [architecture.md](architecture.md) for the design, alternatives considered,
 and evidence gathered during the refactor.
 
 The server opens one SQLite connection pool during initialization and shares it
-with request handlers through immutable application context. It also mounts the
-`assets/` directory through basic-webserver's native static-file support,
-including MIME handling, file transfer, and public cache headers. Asset sources
-and licenses are documented in [assets/README.md](assets/README.md).
+with request handlers through immutable application context. It mounts the
+assembled `dist/assets/` directory through basic-webserver's native static-file
+support, including MIME handling, file transfer, and public cache headers.
+Checked-in asset sources and licenses are documented in
+[assets/README.md](assets/README.md).
 
 For production deployment, put the application behind a reverse proxy such as
 Caddy or nginx to add TLS and Brotli or gzip compression.

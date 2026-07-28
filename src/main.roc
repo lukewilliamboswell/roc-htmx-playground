@@ -11,8 +11,6 @@ import pf.Stdout
 import pf.Url
 import pf.Utc
 import http.Response
-import "site.css" as styles_file : List(U8)
-import "../vendor/htmx-4-0-0-beta6.min.js" as htmx_js_file : List(U8)
 
 import AppError
 import AuthHandler
@@ -49,7 +47,11 @@ init! = || {
 		Err(_) => return Err(Exit(2))
 	}
 	db = Sqlite.open!(Sqlite.default_config(db_path)) ? |_| Exit(2)
-	asset_files = Server.file_root({ id: "assets", path: Path.utf8("assets") })
+	asset_path = match Env.var!("ASSET_PATH") {
+		Ok(path) => Path.from_os_str(path)
+		Err(_) => Path.utf8("dist/assets")
+	}
+	asset_files = Server.file_root({ id: "assets", path: asset_path })
 	config_with_files = Server.with_file_roots(Server.default_config, [asset_files])
 	config = Server.with_native_routes(
 		config_with_files,
@@ -90,8 +92,8 @@ respond! = |request, context| {
 }
 
 ## Native `/assets` requests are handled by basic-webserver before this point.
-## App-owned files are dispatched before session lookup. Every application
-## route resolves its session exactly once.
+## The remaining app-owned file is dispatched before session lookup. Every
+## application route resolves its session exactly once.
 route_request! : Server.Request, Context, Url => Response
 route_request! = |request, context, url|
 	match Route.parse(request, url) {
@@ -208,17 +210,11 @@ asset_response : Route.Asset -> Response
 asset_response = |asset|
 	match asset {
 		Route.Asset.Robots => Http.bytes(200, robots_txt, "text/plain; charset=utf-8")
-		Route.Asset.Stylesheet =>
-			Http.cacheable_bytes(200, styles_file, "text/css; charset=utf-8")
-		Route.Asset.Htmx =>
-			Http.cacheable_bytes(
-				200,
-				htmx_js_file,
-				"text/javascript; charset=utf-8",
-			)
 
 		## Native assets never reach `respond!`. Listing them explicitly keeps
 		## this match exhaustive if the asset vocabulary grows.
+		Route.Asset.Stylesheet => Response.from_status(404)
+		Route.Asset.Htmx => Response.from_status(404)
 		Route.Asset.PlanningDesk => Response.from_status(404)
 		Route.Asset.PlanningDesk480 => Response.from_status(404)
 		Route.Asset.PlanningDesk640 => Response.from_status(404)

@@ -4,6 +4,7 @@ app [Context, program] {
 }
 
 import pf.Env
+import pf.OsStr
 import pf.Path
 import pf.Server
 import pf.Sqlite
@@ -29,12 +30,15 @@ import TodoHandler
 import TodoStore
 import UserHandler
 import UserStore
+import Workspace
+import WorkspaceStore
 
 ## The composition root owns concrete adapter selection. Feature handlers only
 ## receive the stores they actually use.
 Context := {
 	sessionStore : SessionStore,
 	memberStore : MemberStore,
+	workspace : Workspace,
 	userStore : UserStore,
 	todoStore : TodoStore,
 	bigTaskStore : BigTaskStore,
@@ -49,6 +53,18 @@ init! = || {
 		Err(_) => return Err(Exit(2))
 	}
 	db = Sqlite.open!(Sqlite.default_config(db_path)) ? |_| Exit(2)
+	workspace_store = WorkspaceStore.new(db)
+	workspace = WorkspaceStore.load!(workspace_store) ? |_| Exit(2)
+	configured_timezone = match Env.var!("TZ") {
+		Ok(value) => OsStr.display(value)
+		Err(_) => ""
+	}
+	if !Workspace.timezone_matches(workspace, configured_timezone) {
+		Stdout.line!(
+			"TZ must match workspace timezone ${workspace.timezone.to_str()}, received ${configured_timezone}",
+		) ? |_| Exit(2)
+		return Err(Exit(2))
+	}
 	asset_path = match Env.var!("ASSET_PATH") {
 		Ok(path) => Path.from_os_str(path)
 		Err(_) => Path.utf8("dist/assets")
@@ -71,6 +87,7 @@ init! = || {
 		context: Context.{
 			sessionStore: SessionStore.new(db),
 			memberStore: MemberStore.new(db),
+			workspace,
 			userStore: UserStore.new(db),
 			todoStore: TodoStore.new(db),
 			bigTaskStore: BigTaskStore.new(db),

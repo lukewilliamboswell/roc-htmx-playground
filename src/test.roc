@@ -23,6 +23,7 @@ import Todo
 import TodoStore
 import User
 import UserStore
+import WorkspaceStore
 
 Context := {}
 
@@ -65,6 +66,8 @@ init! = || {
 		Ok({}) => {}
 	}
 	Stdout.line!("schema: ok") ? |_| Exit(3)
+	test_workspace!(db)
+	Stdout.line!("workspace: ok") ? |_| Exit(3)
 	test_sessions_and_users!(db)
 	Stdout.line!("sessions and users: ok") ? |_| Exit(3)
 	test_todos!(db)
@@ -72,6 +75,20 @@ init! = || {
 	test_big_tasks!(db)
 	Stdout.line!("big tasks: ok") ? |_| Exit(3)
 	Err(Exit(0))
+}
+
+test_workspace! : Sqlite.Db => {}
+test_workspace! = |db| {
+	loaded = WorkspaceStore.load!(WorkspaceStore.new(db))
+	expect match loaded {
+		Ok(workspace) =>
+			workspace.name == "Example CRM"
+				and workspace.currency.to_str() == "AUD"
+					and workspace.timezone.to_str() == "Australia/Melbourne"
+						and workspace.sources.len() == 6
+							and workspace.taskTypes.len() == 5
+		Err(_) => False
+	}
 }
 
 respond! = |_request, _context| Ok(Server.respond(Response.from_status(204)))

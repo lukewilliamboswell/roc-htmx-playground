@@ -13,16 +13,63 @@ INSERT INTO users (name, email) VALUES
 --
 -- These are the CRM actors. The legacy users table remains temporarily for
 -- the hidden Todo tree and user-list demos.
-CREATE TABLE members (
-    member_id TEXT PRIMARY KEY,
-    name TEXT NOT NULL UNIQUE,
-    email TEXT NOT NULL,
-    active INTEGER NOT NULL CHECK(active IN (0, 1))
+CREATE TABLE workspaces (
+    workspace_id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    currency TEXT NOT NULL CHECK(length(currency) = 3),
+    timezone TEXT NOT NULL
 );
 
-INSERT INTO members (member_id, name, email, active) VALUES
-    ('member-mara', 'Mara Singh', 'mara@example.com', 1),
-    ('member-theo', 'Theo Nguyen', 'theo@example.com', 1);
+INSERT INTO workspaces (workspace_id, name, currency, timezone) VALUES
+    ('workspace-example', 'Example CRM', 'AUD', 'Australia/Melbourne');
+
+CREATE TABLE sources (
+    workspace_id TEXT NOT NULL,
+    source_id TEXT NOT NULL,
+    name TEXT NOT NULL,
+    position INTEGER NOT NULL,
+    active INTEGER NOT NULL CHECK(active IN (0, 1)),
+    PRIMARY KEY (workspace_id, source_id),
+    FOREIGN KEY (workspace_id) REFERENCES workspaces(workspace_id)
+);
+
+INSERT INTO sources (workspace_id, source_id, name, position, active) VALUES
+    ('workspace-example', 'referral', 'Referral', 1, 1),
+    ('workspace-example', 'inbound', 'Inbound enquiry', 2, 1),
+    ('workspace-example', 'outbound', 'Outbound prospecting', 3, 1),
+    ('workspace-example', 'event', 'Event', 4, 1),
+    ('workspace-example', 'partner', 'Partner', 5, 1),
+    ('workspace-example', 'other', 'Other', 6, 1);
+
+CREATE TABLE task_types (
+    workspace_id TEXT NOT NULL,
+    task_type_id TEXT NOT NULL,
+    name TEXT NOT NULL,
+    position INTEGER NOT NULL,
+    active INTEGER NOT NULL CHECK(active IN (0, 1)),
+    PRIMARY KEY (workspace_id, task_type_id),
+    FOREIGN KEY (workspace_id) REFERENCES workspaces(workspace_id)
+);
+
+INSERT INTO task_types (workspace_id, task_type_id, name, position, active) VALUES
+    ('workspace-example', 'call', 'Call', 1, 1),
+    ('workspace-example', 'email', 'Email', 2, 1),
+    ('workspace-example', 'meeting', 'Meeting', 3, 1),
+    ('workspace-example', 'follow-up', 'Follow up', 4, 1),
+    ('workspace-example', 'other', 'Other', 5, 1);
+
+CREATE TABLE members (
+    member_id TEXT PRIMARY KEY,
+    workspace_id TEXT NOT NULL,
+    name TEXT NOT NULL UNIQUE,
+    email TEXT NOT NULL,
+    active INTEGER NOT NULL CHECK(active IN (0, 1)),
+    FOREIGN KEY (workspace_id) REFERENCES workspaces(workspace_id)
+);
+
+INSERT INTO members (member_id, workspace_id, name, email, active) VALUES
+    ('member-mara', 'workspace-example', 'Mara Singh', 'mara@example.com', 1),
+    ('member-theo', 'workspace-example', 'Theo Nguyen', 'theo@example.com', 1);
 
 -- SESSIONS
 CREATE TABLE sessions (

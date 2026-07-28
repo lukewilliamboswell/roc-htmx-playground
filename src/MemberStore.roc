@@ -21,8 +21,15 @@ MemberStore :: { db : Sqlite.Db }.{
 			Sqlite.execute!({
 				db: store.db,
 				query: (
-					\\INSERT INTO members (member_id, name, email, active)
-					\\VALUES ('member-' || lower(hex(randomblob(16))), :name, :email, 1);
+					\\INSERT INTO members (member_id, workspace_id, name, email, active)
+					\\SELECT
+					\\    'member-' || lower(hex(randomblob(16))),
+					\\    workspace_id,
+					\\    :name,
+					\\    :email,
+					\\    1
+					\\FROM workspaces
+					\\LIMIT 1;
 					,
 				),
 				params: {

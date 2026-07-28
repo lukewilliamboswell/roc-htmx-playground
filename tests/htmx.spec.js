@@ -88,4 +88,32 @@ test.describe("HTMX interactions", () => {
       .toBeVisible();
     await expect(page.getByText("Page 1 of 4 · 100 total rows")).toBeVisible();
   });
+
+  test("retains navigation and filter behavior without JavaScript", async ({
+    browser,
+  }) => {
+    const context = await browser.newContext({ javaScriptEnabled: false });
+    const page = await context.newPage();
+
+    await page.goto("/task");
+    await page.getByLabel("Filter tasks").fill("council");
+    await page.getByLabel("Filter tasks").press("Enter");
+
+    await expect(page).toHaveURL("/task?filterTasks=council");
+    await expect(page.getByText("Confirm the council permit")).toBeVisible();
+    await expect(
+      page.getByText("Launch the neighbourhood garden"),
+    ).toHaveCount(0);
+
+    await loginAsMara(page);
+    await page.goto("/bigTask");
+    await page.getByRole("link", { name: "Reference", exact: true }).click();
+
+    await expect(page).toHaveURL(/sortBy=ReferenceID/);
+    await expect(
+      page.getByRole("columnheader", { name: "Reference" }),
+    ).toHaveAttribute("aria-sort", "ascending");
+
+    await context.close();
+  });
 });

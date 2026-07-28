@@ -530,6 +530,17 @@ fallback.
 This is why BigTask sort and pagination controls are links, even though HTMX
 normally handles their activation.
 
+The no-JavaScript browser journey exercises the actual application rather than
+only inspecting generated attributes: Todo filtering submits its GET form and
+BigTask sorting follows its anchor to the same canonical states with scripting
+disabled.
+
+Do not introduce a shared `hx_nav` helper that silently chooses a global target
+and swap strategy. `Web` owns typed protocol primitives; the feature view
+composes target, selection, and swap attributes beside the region whose
+ownership it understands. Ordinary links do not need HTMX enhancement when a
+full navigation already serves the task well.
+
 ### A swap target owns one coherent state
 
 Target the smallest stable region that completely owns the state changed by an

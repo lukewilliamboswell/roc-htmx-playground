@@ -34,6 +34,7 @@ TodoView :: [].{
 				Web.get_form(
 					Route.Page.Todos,
 					[
+						attribute("role", "search"),
 						Web.hx_get(Route.Page.Todos),
 						attribute("hx-trigger", "input delay:250ms"),
 						Web.hx_sync_latest,
@@ -47,6 +48,7 @@ TodoView :: [].{
 						Html.input([
 							Attribute.id(filter_name),
 							Attribute.name(filter_name),
+							Attribute.type("search"),
 							Attribute.value(model.filter.to_str()),
 							Design.searchInput,
 							attribute("placeholder", "Filter tasks"),

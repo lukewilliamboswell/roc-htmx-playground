@@ -451,7 +451,7 @@ match_panel = |matches|
 								),
 								Html.p(
 									[Design.warningText],
-									[Html.text("${candidate.strength.to_label()}: ${candidate.reason}")],
+									[Html.text("${candidate.strength.to_label()}: ${candidate.reason.to_label()}")],
 								),
 							],
 						),

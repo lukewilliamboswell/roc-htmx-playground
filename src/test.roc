@@ -365,7 +365,7 @@ test_people! = |db| {
 	)
 	matches = PersonStore.matches!(store, workspace.id, duplicate)
 	expect match matches {
-		Ok([{ strength: Person.MatchStrength.Strong, reason: "Same email address", .. }]) => True
+		Ok([{ strength: Person.MatchStrength.Strong, reason: Person.MatchReason.SameEmail, .. }]) => True
 		_ => False
 	}
 	blocked = PersonStore.create!(

@@ -103,10 +103,30 @@ Person := {
 			}
 	}
 
+	MatchReason := [SameEmail, SamePhone, SameName].{
+		from_storage : Str -> MatchReason
+		from_storage = |value|
+			match value {
+				"Same email address" => SameEmail
+				"Same phone number" => SamePhone
+				_ => SameName
+			}
+
+		to_label : MatchReason -> Str
+		to_label = |reason|
+			match reason {
+				SameEmail => "Same email address"
+				SamePhone => "Same phone number"
+				SameName => "Same name"
+			}
+
+		is_eq : _
+	}
+
 	Match := {
 		person : Person,
 		strength : MatchStrength,
-		reason : Str,
+		reason : MatchReason,
 	}
 
 	FindError(err) := [NotFound, StoreFailure(err)]

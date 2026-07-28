@@ -647,7 +647,7 @@ load_matches! = |store, rows, loaded|
 								} else {
 									Person.MatchStrength.Weak
 								},
-								reason: row.reason,
+								reason: Person.MatchReason.from_storage(row.reason),
 							},
 						),
 					)

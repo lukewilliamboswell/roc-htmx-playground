@@ -1,275 +1,483 @@
-app [Model, init!, respond!] {
-    pf: platform "https://github.com/roc-lang/basic-webserver/releases/download/0.13.0/fSNqJj3-twTrb0jJKHreMimVWD7mebDOj0mnslMm2GM.tar.br",
-    html: "https://github.com/Hasnep/roc-html/releases/download/v0.8.0/GCTX3ckGRXs29XkLh0rhp0a6l0IrUe5RgAFj83hwN3Q.tar.br",
+app [Context, program] {
+	pf: platform "https://github.com/roc-lang/basic-webserver/releases/download/0.14.0/9mrSfhWKEXsrPUW2oHdZZGov1oMRryvvACDT8p7E97PY.tar.zst",
+	http: "https://github.com/roc-lang/http/releases/download/1.0.0/6ZUwqYhCS8PU9Mo6MF7oV82ET2o7KYb57CLKDq4cq4sS.tar.zst",
 }
 
-import html.Html
-
-import pf.Stdout
-import pf.Stderr
-import pf.Http exposing [Request, Response]
-import pf.MultipartFormData
 import pf.Env
-import pf.Utc
+import pf.Html
+import pf.MultipartFormData
+import pf.Path
+import pf.Server
+import pf.Sqlite
+import pf.Stderr
+import pf.Stdout
 import pf.Url
-import "site.css" as styles_file : List U8
-import "site.js" as site_file : List U8
-import "../vendor/bootstrap.bundle-5-3-2.min.js" as bootstrap_js_file : List U8
-import "../vendor/bootstrap-5-3-2.min.css" as bootstrap_css_file : List U8
-import "../vendor/htmx-2-0-3.min.js" as htmx_js_file : List U8
-import Helpers
-import Sql.Todo
-import Sql.Session
-import Sql.User
-import Models.Session exposing [Session]
-import Models.Todo exposing [Todo]
-import Views.Home
-import Views.Unauthorised
-import Views.Login
-import Views.Register
-import Views.Todo
-import Views.UserList
-import Views.TreeView
-import Controllers.BigTask
+import pf.Utc
+import http.Response
+import "site.css" as styles_file : List(U8)
+import "site.js" as site_file : List(U8)
+import "../vendor/bootstrap.bundle-5-3-2.min.js" as bootstrap_js_file : List(U8)
+import "../vendor/bootstrap-5-3-2.min.css" as bootstrap_css_file : List(U8)
+import "../vendor/htmx-2-0-3.min.js" as htmx_js_file : List(U8)
 
-Model : {}
+import Db
+import Models
+import Pages
 
-init! : {} => Result Model []
-init! = \{} -> Ok {}
+Context : { db : Sqlite.Db }
 
-respond! : Request, Model => Result Response [ServerErr Str]
-respond! = \req, _ ->
-    when handle_req! req is
-        Ok response -> Ok response
-        Err err ->
-            when err is
-                BadRequest inner ->
-                    _ = Stderr.line! (Inspect.to_str err)
-                    Ok {
-                        status: 400,
-                        headers: [],
-                        body: Str.to_utf8 (Inspect.to_str inner),
-                    }
+AppError : [NewSession(I64), Unauthorized, BadRequest(Str), NotFound(Str), AppErr(Str)]
 
-                Unauthorized ->
-                    Ok (Views.Unauthorised.page {} |> to_html_response [])
+program = { init!, respond!, shutdown! }
 
-                NewSession session_id ->
-                    Ok {
-                        status: 303,
-                        headers: [
-                            { name: "Set-Cookie", value: "sessionId=$(Num.to_str session_id)" },
-                            { name: "Location", value: req.uri },
-                        ],
-                        body: [],
-                    }
+init! : () => Try({ config : Server.Config, context : Context }, [Exit(I64), ..])
+init! = || {
+	db_path = match Env.var!("DB_PATH") {
+		Ok(path) => Path.from_os_str(path)
+		Err(_) => return Err(Exit(2))
+	}
+	db = Sqlite.open!(Sqlite.default_config(db_path)) ? |_| Exit(2)
 
-                URLNotFound url ->
-                    _ = Stderr.line! (Str.join_with ["404 NotFound", url] " ")
-                    Ok {
-                        status: 404,
-                        headers: [],
-                        body: [],
-                    }
+	Ok({
+		config: Server.default_config,
+		context: { db: db },
+	})
+}
 
-                _ ->
-                    _ = Stderr.line! (Str.join_with ["SERVER ERROR", Inspect.to_str err] " ")
-                    Ok {
-                        status: 500,
-                        headers: [],
-                        body: [],
-                    }
+respond! : Server.Request, Context => Try(Server.Outcome, [ServerErr(Str), ..])
+respond! = |request, { db }| {
+	logRequest!(request) ? |err| ServerErr(Str.inspect(err))
 
-handle_req! : Request => Result Response _
-handle_req! = \req ->
-    log_request! req
+	response = match handleRequest!(request, db) {
+		Ok(value) => value
+		Err(NewSession(id)) =>
+			redirectWithHeaders(
+				request.target(),
+				[{ name: "Set-Cookie", value: "sessionId=${id.to_str()}; Path=/; HttpOnly; SameSite=Lax" }],
+			)
+		Err(Unauthorized) => htmlResponse(401, Pages.unauthorized, [])
+		Err(BadRequest(message)) => textResponse(400, message)
+		Err(NotFound(target)) => {
+			Stderr.line!("404 Not Found ${target}") ?? {}
+			textResponse(404, "Not Found")
+		}
+		Err(err) => {
+			Stderr.line!("SERVER ERROR ${Str.inspect(err)}") ?? {}
+			textResponse(500, "Internal Server Error")
+		}
+	}
 
-    db_path = try (Env.var! "DB_PATH" |> Result.map_err UnableToReadDbPATH)
+	Ok(Server.respond(response))
+}
 
-    session = try get_session! req db_path
+shutdown! : Server.ShutdownReason, Context => Try({}, [Exit(I64), ..])
+shutdown! = |_reason, _context| Ok({})
 
-    url_segments =
-        req.uri
-        |> Url.from_str
-        |> Url.path
-        |> Str.split_on "/"
-        |> List.drop_first 1
+handleRequest! : Server.Request, Sqlite.Db => Try(Response, AppError)
+handleRequest! = |request, db| {
+	url = Url.resolve(appOrigin, request.target()) ? |_| BadRequest("Invalid request target")
+	segments = Str.split_on(Url.path(url), "/")
 
-    when (req.method, url_segments) is
-        (GET, [""]) -> Ok (Views.Home.page { session } |> to_html_response [])
-        (GET, ["robots.txt"]) -> Ok (respond_static robots_txt)
-        (GET, ["styles.css"]) -> Ok (respond_static styles_file)
-        (GET, ["site.js"]) -> Ok (respond_static site_file)
-        (GET, ["bootstrap.bundle.min.js"]) -> Ok (respond_static bootstrap_js_file)
-        (GET, ["bootstrap.min.css"]) -> Ok (respond_static bootstrap_css_file)
-        (GET, ["htmx.min.js"]) -> Ok (respond_static htmx_js_file)
-        (GET, ["register"]) ->
-            Ok (Views.Register.page { user: Fresh, email: Valid } |> to_html_response [])
+	match (request.method(), segments) {
+		(GET, ["", ""]) => {
+			session = getSession!(request, db)?
+			Ok(htmlResponse(200, Pages.home(session), []))
+		}
+		(GET, ["", "robots.txt"]) => Ok(bytesResponse(200, robots_txt, "text/plain; charset=utf-8"))
+		(GET, ["", "styles.css"]) => Ok(bytesResponse(200, styles_file, "text/css; charset=utf-8"))
+		(GET, ["", "site.js"]) => Ok(bytesResponse(200, site_file, "text/javascript; charset=utf-8"))
+		(GET, ["", "bootstrap.bundle.min.js"]) =>
+			Ok(bytesResponse(200, bootstrap_js_file, "text/javascript; charset=utf-8"))
+		(GET, ["", "bootstrap.min.css"]) =>
+			Ok(bytesResponse(200, bootstrap_css_file, "text/css; charset=utf-8"))
+		(GET, ["", "htmx.min.js"]) =>
+			Ok(bytesResponse(200, htmx_js_file, "text/javascript; charset=utf-8"))
 
-        (POST, ["register"]) ->
-            params = MultipartFormData.parse_form_url_encoded req.body |> Result.with_default (Dict.empty {})
+		(GET, ["", "register"]) => Ok(htmlResponse(200, Pages.register("", "", ""), []))
+		(POST, ["", "register"]) => register!(request, db)
 
-            when (Dict.get params "user", Dict.get params "email") is
-                (Ok username, Ok email) ->
-                    when Sql.User.register! { path: db_path, name: username, email } is
-                        Ok {} -> Helpers.respond_redirect "/login"
-                        Err UserAlreadyExists -> Ok (Views.Register.page { user: UserAlreadyExists username, email: Valid } |> to_html_response [])
-                        Err err -> Err (ErrRegisteringUser (Inspect.to_str err))
+		(GET, ["", "login"]) => {
+			session = getSession!(request, db)?
+			Ok(htmlResponse(200, Pages.login(session, "", ""), []))
+		}
+		(POST, ["", "login"]) => login!(request, db)
+		(POST, ["", "logout"]) => logout!(db)
 
-                _ ->
-                    Ok (Views.Register.page { user: UserNotProvided, email: NotProvided } |> to_html_response [])
+		(GET, ["", "task", "new"]) => Ok(redirect("/task"))
+		(GET, ["", "task"]) => todoPage!(request, db)
+		(GET, ["", "task", "list"]) => todoList!(db, "")
+		(POST, ["", "task", "search"]) => searchTodos!(request, db)
+		(POST, ["", "task", "new"]) => createTodo!(request, db)
+		(POST, ["", "task", id, "delete"]) => deleteTodo!(db, id)
+		(PUT, ["", "task", id, "complete"]) => updateTodo!(db, id, "Completed")
+		(PUT, ["", "task", id, "in-progress"]) => updateTodo!(db, id, "In-Progress")
 
-        (GET, ["login"]) ->
-            Ok (Views.Login.page { session, user: Fresh } |> to_html_response [])
+		(GET, ["", "treeview"]) => treePage!(request, db)
+		(GET, ["", "user"]) => usersPage!(request, db)
 
-        (POST, ["login"]) ->
-            params = MultipartFormData.parse_form_url_encoded req.body |> Result.with_default (Dict.empty {})
+		(GET, ["", "bigTask"]) => bigTaskPage!(request, db, url)
+		(GET, ["", "bigTask", "downloadCsv"]) => Ok(csvResponse())
+		(PUT, ["", "bigTask", "customerId", id]) => updateBigTaskCustomer!(request, db, id)
+		(PUT, ["", "bigTask", "dateCreated", id]) => updateBigTaskDate!(request, db, id)
+		(PUT, ["", "bigTask", "status", id]) => updateBigTaskStatus!(request, db, id)
 
-            when Dict.get params "user" is
-                Err _ -> Ok (Views.Login.page { session, user: UserNotProvided } |> to_html_response [])
-                Ok username ->
-                    when Sql.User.login! db_path session.id username is
-                        Ok {} -> Helpers.respond_redirect "/"
-                        Err (UserNotFound _) -> Ok (Views.Login.page { session, user: UserNotFound username } |> to_html_response [])
-                        Err err -> Err (ErrUserLogin (Inspect.to_str err))
+		_ => Err(NotFound(request.target()))
+	}
+}
 
-        (POST, ["logout"]) ->
-            id = try Sql.Session.new! db_path
+register! : Server.Request, Sqlite.Db => Try(Response, AppError)
+register! = |request, db| {
+	form = readForm!(request)?
+	username = Dict.get(form, "user") ?? ""
+	email = Dict.get(form, "email") ?? ""
 
-            Ok {
-                status: 303,
-                headers: [
-                    { name: "Set-Cookie", value: "sessionId=$(Num.to_str id)" },
-                    { name: "Location", value: "/" },
-                ],
-                body: [],
-            }
+	if Str.is_empty(Str.trim(username)) or Str.is_empty(Str.trim(email)) {
+		Ok(htmlResponse(400, Pages.register(username, email, "Username and email are required."), []))
+	} else {
+		match Db.registerUser!(db, username, email) {
+			Ok({}) => Ok(redirect("/login"))
+			Err(UserAlreadyExists) =>
+				Ok(htmlResponse(409, Pages.register(username, email, "That username is already registered."), []))
+			Err(err) => Err(AppErr(Str.inspect(err)))
+		}
+	}
+}
 
-        (GET, ["task", "new"]) -> Helpers.respond_redirect "/task"
-        (POST, ["task", id_str, "delete"]) ->
-            try Sql.Todo.delete! { path: db_path, user_id: id_str }
+login! : Server.Request, Sqlite.Db => Try(Response, AppError)
+login! = |request, db| {
+	session = getSession!(request, db)?
+	form = readForm!(request)?
+	username = Dict.get(form, "user") ?? ""
 
-            tasks = try Sql.Todo.list! { path: db_path, filter_query: "" }
+	if Str.is_empty(Str.trim(username)) {
+		Ok(htmlResponse(400, Pages.login(session, username, "Username is required."), []))
+	} else {
+		match Db.login!(db, session.id, username) {
+			Ok({}) => Ok(redirect("/"))
+			Err(UserNotFound) =>
+				Ok(htmlResponse(404, Pages.login(session, username, "No user with that name was found."), []))
+			Err(err) => Err(AppErr(Str.inspect(err)))
+		}
+	}
+}
 
-            Ok (Views.Todo.list_todo_view { todos: tasks, filter_query: "" } |> to_html_response [])
+logout! : Sqlite.Db => Try(Response, AppError)
+logout! = |db| {
+	id = Db.newSession!(db) ? |err| AppErr(Str.inspect(err))
+	Ok(
+		redirectWithHeaders(
+			"/",
+			[{ name: "Set-Cookie", value: "sessionId=${id.to_str()}; Path=/; HttpOnly; SameSite=Lax" }],
+		),
+	)
+}
 
-        (POST, ["task", "search"]) ->
-            params = MultipartFormData.parse_form_url_encoded req.body |> Result.with_default (Dict.empty {})
+todoPage! : Server.Request, Sqlite.Db => Try(Response, AppError)
+todoPage! = |request, db| {
+	session = getSession!(request, db)?
+	todos = Db.listTodos!(db, "") ? |err| AppErr(Str.inspect(err))
+	Ok(htmlResponse(200, Pages.todos(session, todos, ""), []))
+}
 
-            filter_query = Dict.get params "filterTasks" |> Result.with_default ""
+todoList! : Sqlite.Db, Str => Try(Response, AppError)
+todoList! = |db, filter| {
+	todos = Db.listTodos!(db, filter) ? |err| AppErr(Str.inspect(err))
+	Ok(htmlResponse(200, Pages.todoList(todos, filter), []))
+}
 
-            tasks = try Sql.Todo.list! { path: db_path, filter_query }
+searchTodos! : Server.Request, Sqlite.Db => Try(Response, AppError)
+searchTodos! = |request, db| {
+	form = readForm!(request)?
+	filter = Dict.get(form, "filterTasks") ?? ""
+	todoList!(db, filter)
+}
 
-            Ok (Views.Todo.list_todo_view { todos: tasks, filter_query } |> to_html_response [])
+createTodo! : Server.Request, Sqlite.Db => Try(Response, AppError)
+createTodo! = |request, db| {
+	form = readForm!(request)?
+	task = Dict.get(form, "task") ?? ""
+	status = Dict.get(form, "status") ?? "Not Started"
 
-        (POST, ["task", "new"]) ->
-            new_todo = try parse_todo req.body
+	match Db.createTodo!(db, task, status) {
+		Ok({}) => Ok(redirect("/task"))
+		Err(TaskWasEmpty) => Ok(redirect("/task"))
+		Err(err) => Err(AppErr(Str.inspect(err)))
+	}
+}
 
-            when Sql.Todo.create! { path: db_path, new_todo } is
-                Ok {} -> Helpers.respond_redirect "/task"
-                Err TaskWasEmpty -> Helpers.respond_redirect "/task"
-                Err err -> Err (ErrTodoCreate (Inspect.to_str err))
+deleteTodo! : Sqlite.Db, Str => Try(Response, AppError)
+deleteTodo! = |db, idText| {
+	id = parseId(idText)?
+	Db.deleteTodo!(db, id) ? |err| AppErr(Str.inspect(err))
+	todoList!(db, "")
+}
 
-        (PUT, ["task", task_id_str, "complete"]) ->
-            try Sql.Todo.update! { path: db_path, task_id_str, action: Completed }
+updateTodo! : Sqlite.Db, Str, Str => Try(Response, AppError)
+updateTodo! = |db, idText, status| {
+	id = parseId(idText)?
+	Db.updateTodo!(db, id, status) ? |err| AppErr(Str.inspect(err))
+	Ok(
+		Response.from_status(200)
+			.with_headers([{ name: "HX-Trigger", value: "todosUpdated" }]),
+	)
+}
 
-            Ok (respond_hx_trigger "todosUpdated")
+treePage! : Server.Request, Sqlite.Db => Try(Response, AppError)
+treePage! = |request, db| {
+	session = getSession!(request, db)?
+	tree = Db.todoTree!(db, 1) ? |err| AppErr(Str.inspect(err))
+	Ok(htmlResponse(200, Pages.tree(session, tree), []))
+}
 
-        (PUT, ["task", task_id_str, "in-progress"]) ->
-            try Sql.Todo.update! { path: db_path, task_id_str, action: InProgress }
+usersPage! : Server.Request, Sqlite.Db => Try(Response, AppError)
+usersPage! = |request, db| {
+	session = getSession!(request, db)?
+	users = Db.listUsers!(db) ? |err| AppErr(Str.inspect(err))
+	Ok(htmlResponse(200, Pages.users(session, users), []))
+}
 
-            Ok (respond_hx_trigger "todosUpdated")
+bigTaskPage! : Server.Request, Sqlite.Db, Url => Try(Response, AppError)
+bigTaskPage! = |request, db, url| {
+	session = getSession!(request, db)?
+	requireLogin(session)?
+	params = Dict.from_list(Url.query_pairs(url))
+	page = positiveParam(params, "page", 1)
+	items = positiveParam(params, "updateItemsPerPage", positiveParam(params, "items", 25))
+	sortBy = Dict.get(params, "sortBy") ?? "ID"
+	sortDirection = match Str.with_ascii_lowercased(Dict.get(params, "sortDirection") ?? "asc") {
+		"desc" => Descending
+		_ => Ascending
+	}
+	tasks = Db.listBigTasks!(db, page, items, sortBy, sortDirection) ? |err| AppErr(Str.inspect(err))
+	total = Db.totalBigTasks!(db) ? |err| AppErr(Str.inspect(err))
+	directionText = match sortDirection {
+		Ascending => "asc"
+		Descending => "desc"
+	}
+	pushUrl = "/bigTask?page=${page.to_str()}&items=${items.to_str()}&sortBy=${sortBy}&sortDirection=${directionText}"
 
-        (GET, ["task", "list"]) ->
-            tasks = try Sql.Todo.list! { path: db_path, filter_query: "" }
+	Ok(
+		htmlResponse(
+			200,
+			Pages.bigTasks({ session, tasks, page, items, total, sortBy, sortDirection }),
+			[{ name: "HX-Push-Url", value: pushUrl }],
+		),
+	)
+}
 
-            Ok (Views.Todo.list_todo_view { todos: tasks, filter_query: "" } |> to_html_response [])
+updateBigTaskCustomer! : Server.Request, Sqlite.Db, Str => Try(Response, AppError)
+updateBigTaskCustomer! = |request, db, idText| {
+	session = getSession!(request, db)?
+	requireLogin(session)?
+	id = parseId(idText)?
+	form = readForm!(request)?
+	value = Dict.get(form, "CustomerReferenceID") ?? ""
+	valid = match I64.from_str(value) {
+		Ok(number) => number > 0 and number < 100_000
+		Err(_) => False
+	}
 
-        (GET, ["task"]) ->
-            tasks = try Sql.Todo.list! { path: db_path, filter_query: "" }
+	if valid {
+		Db.updateBigTask!(db, id, CustomerReferenceId(value)) ? |err| AppErr(Str.inspect(err))
+		Ok(htmlResponse(200, Pages.bigTaskInput("/bigTask/customerId/${idText}", "CustomerReferenceID", "text", value, ""), []))
+	} else {
+		Ok(
+			htmlResponse(
+				422,
+				Pages.bigTaskInput(
+					"/bigTask/customerId/${idText}",
+					"CustomerReferenceID",
+					"text",
+					value,
+					"Must be a number between 0 and 100,000.",
+				),
+				[],
+			),
+		)
+	}
+}
 
-            Ok (Views.Todo.page { todos: tasks, filter_query: "", session } |> to_html_response [])
+updateBigTaskDate! : Server.Request, Sqlite.Db, Str => Try(Response, AppError)
+updateBigTaskDate! = |request, db, idText| {
+	session = getSession!(request, db)?
+	requireLogin(session)?
+	id = parseId(idText)?
+	form = readForm!(request)?
+	value = Dict.get(form, "DateCreated") ?? ""
 
-        (GET, ["treeview"]) ->
-            nodes = try Sql.Todo.tree! { path: db_path, user_id: 1 }
+	if validDate(value) {
+		Db.updateBigTask!(db, id, DateCreated(value)) ? |err| AppErr(Str.inspect(err))
+		Ok(htmlResponse(200, Pages.bigTaskInput("/bigTask/dateCreated/${idText}", "DateCreated", "date", value, ""), []))
+	} else {
+		Ok(
+			htmlResponse(
+				422,
+				Pages.bigTaskInput(
+					"/bigTask/dateCreated/${idText}",
+					"DateCreated",
+					"date",
+					value,
+					"Must use date format yyyy-mm-dd.",
+				),
+				[],
+			),
+		)
+	}
+}
 
-            Ok (Views.TreeView.page { session, nodes } |> to_html_response [])
+updateBigTaskStatus! : Server.Request, Sqlite.Db, Str => Try(Response, AppError)
+updateBigTaskStatus! = |request, db, idText| {
+	session = getSession!(request, db)?
+	requireLogin(session)?
+	id = parseId(idText)?
+	form = readForm!(request)?
+	value = Dict.get(form, "Status") ?? ""
+	valid = ["Raised", "Completed", "Deferred", "Approved", "In-Progress"].contains(value)
 
-        (GET, ["user"]) ->
-            users = try Sql.User.list! db_path
+	if valid {
+		Db.updateBigTask!(db, id, Status(value)) ? |err| AppErr(Str.inspect(err))
+		Ok(htmlResponse(200, Pages.bigTaskStatus("/bigTask/status/${idText}", value, ""), []))
+	} else {
+		Ok(
+			htmlResponse(
+				422,
+				Pages.bigTaskStatus("/bigTask/status/${idText}", value, "Choose a valid status."),
+				[],
+			),
+		)
+	}
+}
 
-            Ok (Views.UserList.page { users, session } |> to_html_response [])
+getSession! : Server.Request, Sqlite.Db => Try(Models.Session, AppError)
+getSession! = |request, db|
+	match sessionId(request) {
+		Ok(id) =>
+			match Db.getSession!(db, id) {
+				Ok(session) => Ok(session)
+				Err(SessionNotFound) => {
+					newId = Db.newSession!(db) ? |err| AppErr(Str.inspect(err))
+					Err(NewSession(newId))
+				}
+				Err(err) => Err(AppErr(Str.inspect(err)))
+			}
+		Err(_) => {
+			id = Db.newSession!(db) ? |err| AppErr(Str.inspect(err))
+			Err(NewSession(id))
+		}
+	}
 
-        (_, ["bigTask", ..]) ->
-            Controllers.BigTask.respond! { req, url_segments: List.drop_first url_segments 1, db_path, session }
+sessionId : Server.Request -> Try(I64, [InvalidSessionCookie])
+sessionId = |request| {
+	header = request.headers()
+		.find_first(|item| Str.with_ascii_lowercased(item.name) == "cookie")
+		.map_err(|_| InvalidSessionCookie)?
+	cookie = Str.split_on(header.value, ";")
+		.find_first(|item| Str.starts_with(Str.trim(item), "sessionId="))
+		.map_err(|_| InvalidSessionCookie)?
+	parts = Str.split_on(Str.trim(cookie), "=")
+	match parts {
+		["sessionId", value] => I64.from_str(value).map_err(|_| InvalidSessionCookie)
+		_ => Err(InvalidSessionCookie)
+	}
+}
 
-        _ -> Err (URLNotFound req.uri)
+requireLogin : Models.Session -> Try({}, AppError)
+requireLogin = |session|
+	match session.user {
+		Guest => Err(Unauthorized)
+		LoggedIn(_) => Ok({})
+	}
 
-get_session! : Request, Str => Result Session _
-get_session! = \req, db_path ->
-    when Sql.Session.parse req is
-        Ok id ->
-            when Sql.Session.get! id db_path is
-                Ok session -> Ok session
-                Err SessionNotFound ->
-                    id2 = try Sql.Session.new! db_path
-                    Err (NewSession id2)
-                Err err -> Err err
-        Err NoSessionCookie ->
-            id = try Sql.Session.new! db_path
-            Err (NewSession id)
-        Err err -> Err err
+readForm! : Server.Request => Try(Dict(Str, Str), AppError)
+readForm! = |request| {
+	body = request.body().with_limit(64 * 1024).read_all!()
+		? |err| BadRequest("Unable to read form body: ${Str.inspect(err)}")
+	MultipartFormData.parse_form_url_encoded(body)
+		.map_err(|_| BadRequest("Malformed URL-encoded form data"))
+}
 
-parse_todo : List U8 -> Result Todo _
-parse_todo = \bytes ->
-    dict = MultipartFormData.parse_form_url_encoded bytes |> Result.with_default (Dict.empty {})
+parseId : Str -> Try(I64, AppError)
+parseId = |value|
+	I64.from_str(value).map_err(|_| BadRequest("Expected a valid numeric id"))
 
-    when (Dict.get dict "task", Dict.get dict "status") is
-        (Ok task, Ok status) -> Ok { id: 0, task, status }
-        _ -> Err (UnableToParseBodyTask bytes)
+positiveParam : Dict(Str, Str), Str, I64 -> I64
+positiveParam = |params, name, fallback|
+	match Dict.get(params, name) {
+		Ok(value) =>
+			match I64.from_str(value) {
+				Ok(number) if number > 0 => number
+				_ => fallback
+			}
+		Err(_) => fallback
+	}
 
-respond_hx_trigger : Str -> Response
-respond_hx_trigger = \trigger ->
-    {
-        status: 200,
-        headers: [
-            { name: "HX-Trigger", value: trigger },
-        ],
-        body: [],
-    }
+validDate : Str -> Bool
+validDate = |value|
+	match Str.split_on(value, "-") {
+		[year, month, day] =>
+			Str.to_utf8(year).len() == 4
+				and Str.to_utf8(month).len() == 2
+					and Str.to_utf8(day).len() == 2
+						and I64.from_str(year).is_ok()
+							and I64.from_str(month).is_ok()
+								and I64.from_str(day).is_ok()
+		_ => False
+	}
 
-respond_static : List U8 -> Response
-respond_static = \bytes ->
-    {
-        status: 200,
-        headers: [
-            { name: "Cache-Control", value: "max-age=120" },
-        ],
-        body: bytes,
-    }
+htmlResponse = |status, node, extraHeaders|
+	Response.from_status(status)
+		.with_headers(
+			[{ name: "Content-Type", value: "text/html; charset=utf-8" }].concat(extraHeaders),
+		)
+		.with_body(Str.to_utf8(Html.render(node)))
 
-to_html_response : Html.Node, List { name : Str, value : Str } -> Response
-to_html_response = \node, other_headers ->
-    {
-        status: 200,
-        headers: [{ name: "Content-Type", value: "text/html; charset=utf-8" }]
-            |> List.concat other_headers,
-        body: Str.to_utf8 (Html.render node),
-    }
+textResponse = |status, body|
+	Response.from_status(status)
+		.with_headers([{ name: "Content-Type", value: "text/plain; charset=utf-8" }])
+		.with_body(Str.to_utf8(body))
 
-log_request! : Request => {}
-log_request! = \req ->
-    date = Utc.now! {} |> Utc.to_iso_8601
-    method = Inspect.to_str req.method
-    url = req.uri
-    body = req.body |> Str.from_utf8 |> Result.with_default "<invalid utf8 body>"
-    _ = Stdout.line! "$(date) $(method) $(url) $(body)"
-    {}
+bytesResponse = |status, body, contentType|
+	Response.from_status(status)
+		.with_headers([
+			{ name: "Content-Type", value: contentType },
+			{ name: "Cache-Control", value: "max-age=120" },
+		])
+		.with_body(body)
 
-robots_txt : List U8
-robots_txt =
-    """
-    User-agent: *
-    Disallow: /
-    """
-    |> Str.to_utf8
+redirect = |location| redirectWithHeaders(location, [])
+
+redirectWithHeaders = |location, headers|
+	Response.from_status(303)
+		.with_headers([{ name: "Location", value: location }].concat(headers))
+
+csvResponse = || {
+	body = Str.to_utf8(
+		\\ID,CustomerReferenceID,DateCreated,Status
+		\\1,12345,2021-01-01,Raised
+		\\2,67890,2021-01-02,Completed
+		\\3,54321,2021-01-03,Deferred
+		,
+	)
+	Response.from_status(200)
+		.with_headers([
+			{ name: "Content-Type", value: "text/csv; charset=utf-8" },
+			{ name: "Content-Disposition", value: "attachment; filename=table.csv" },
+			{ name: "Content-Length", value: body.len().to_str() },
+		])
+		.with_body(body)
+}
+
+logRequest! = |request| {
+	date = Utc.to_iso_8601(Utc.now!())
+	Stdout.line!("${date} ${Str.inspect(request.method())} ${request.target()}")
+}
+
+appOrigin : Url
+appOrigin = "http://localhost"
+
+robots_txt : List(U8)
+robots_txt = Str.to_utf8(
+	\\User-agent: *
+	\\Disallow: /
+	,
+)

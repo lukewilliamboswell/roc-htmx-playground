@@ -15,6 +15,8 @@ import "../db/test-fixtures.sql" as test_fixtures : Str
 
 import BigTask
 import BigTaskStore
+import Member
+import MemberStore
 import Session
 import SessionStore
 import Todo
@@ -94,6 +96,7 @@ load_schema! = |db, statements|
 test_sessions_and_users! : Sqlite.Db => {}
 test_sessions_and_users! = |db| {
 	sessions = SessionStore.new(db)
+	members = MemberStore.new(db)
 	users = UserStore.new(db)
 
 	created = SessionStore.create!(sessions)
@@ -109,49 +112,78 @@ test_sessions_and_users! = |db| {
 		Err(_) => False
 	}
 
-	registration = User.register("Ada", "ada@example.com")
+	registration = Member.register("Ada", "ada@example.com")
 	registered = match registration {
-		Ok(value) => UserStore.register!(users, value)
-		Err(_) => Err(UserAlreadyExists)
+		Ok(value) => MemberStore.register!(members, value)
+		Err(_) => Err(MemberAlreadyExists)
 	}
 	expect registered.is_ok()
 
-	duplicate_registration = User.register("Ada", "other@example.com")
+	duplicate_registration = Member.register("Ada", "other@example.com")
 	duplicate = match duplicate_registration {
-		Ok(value) => UserStore.register!(users, value)
-		Err(_) => Err(UserAlreadyExists)
+		Ok(value) => MemberStore.register!(members, value)
+		Err(_) => Err(MemberAlreadyExists)
 	}
 	expect match duplicate {
-		Err(UserAlreadyExists) => True
+		Err(MemberAlreadyExists) => True
 		_ => False
 	}
 
-	listed = UserStore.list!(users)
+	listed = MemberStore.list_active!(members)
 	expect match listed {
-		Ok([_, _, user]) =>
-			user.name.to_str() == "Ada"
-				and user.email.to_str() == "ada@example.com"
+		Ok([member1, member2, member3]) =>
+			[member1, member2, member3].any(
+				|member|
+					member.name.to_str() == "Ada"
+						and member.email.to_str() == "ada@example.com",
+			)
+		_ => False
+	}
+
+	legacy_users = UserStore.list!(users)
+	expect match legacy_users {
+		Ok([_, _]) => True
 		_ => False
 	}
 
 	logged_in = match registration {
-		Ok(value) => UserStore.login!(users, session_id, value.name)
-		Err(_) => Err(UserNotFound)
+		Ok(value) => MemberStore.login!(members, session_id, value.name)
+		Err(_) => Err(MemberNotFound)
 	}
 	expect logged_in.is_ok()
 	resolved = SessionStore.find!(sessions, session_id)
 	expect match resolved {
 		Ok(session) =>
 			match session.user {
-				Session.Auth.LoggedIn("Ada") => True
+				Session.Auth.LoggedIn(member) => member.name.to_str() == "Ada"
 				_ => False
 			}
 		Err(_) => False
 	}
 
+	ada_id = match resolved {
+		Ok(session) =>
+			match session.user {
+				Session.Auth.LoggedIn(member) => member.id.to_str()
+				_ => ""
+			}
+		Err(_) => ""
+	}
+	deactivated = Sqlite.execute!({
+		db,
+		query: "UPDATE members SET active = 0 WHERE member_id = :memberId;",
+		params: { memberId: ada_id },
+	})
+	expect deactivated.is_ok()
+	inactive_session = SessionStore.find!(sessions, session_id)
+	expect match inactive_session {
+		Err(Session.FindError.Inactive) => True
+		_ => False
+	}
+
 	missing = SessionStore.find!(sessions, Session.Id.from_i64(999))
 	expect match missing {
-		Err(SessionNotFound) => True
+		Err(Session.FindError.NotFound) => True
 		_ => False
 	}
 }

@@ -127,12 +127,12 @@ auth_controls = |session|
 					),
 				],
 			)
-		Session.Auth.LoggedIn(name) =>
+		Session.Auth.LoggedIn(member) =>
 			Web.post_form(
 				Route.PostAction.Logout,
 				[Design.auth],
 				[
-					Html.span([Design.userName], [Html.text(name)]),
+					Html.span([Design.userName], [Html.text(member.name.to_str())]),
 					Html.button(
 						[
 							Attribute.type("submit"),

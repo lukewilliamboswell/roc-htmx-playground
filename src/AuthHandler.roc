@@ -4,11 +4,11 @@ import http.Response
 import AppError
 import AuthView
 import Http
+import Member
+import MemberStore
 import Route
 import Session
 import SessionStore
-import User
-import UserStore
 import Web
 
 RegistrationForm := {
@@ -40,7 +40,7 @@ AuthHandler := [].{
 			[],
 		)
 
-	register! : Server.Request, UserStore, Session => Try(Response, AppError)
+	register! : Server.Request, MemberStore, Session => Try(Response, AppError)
 	register! = |request, store, session| {
 		form = Http.read_form!(request)?
 		AuthHandler.register_form!(form, store, session)
@@ -48,12 +48,16 @@ AuthHandler := [].{
 
 	register_form! : Dict(Str, Str), store, Session => Try(Response, AppError)
 		where [
-			store.register! : store, User.Registration => Try({}, [UserAlreadyExists, ..err]),
+			store.register! : store, Member.Registration => Try({}, [MemberAlreadyExists, ..err]),
 		]
 	register_form! = |form, store, session| {
+		Store : store
 		input = AuthHandler.registration_form(form)
 
-		result = User.register!(store, input.username, input.email)
+		result = match Member.register(input.username, input.email) {
+			Err(_) => Err(Member.RegisterError.InvalidRegistration)
+			Ok(registration) => Member.complete_registration(Store.register!(store, registration))
+		}
 		AuthHandler.registration_response(session, input, result)
 	}
 
@@ -63,10 +67,10 @@ AuthHandler := [].{
 		email: form.get(Route.AuthInput.to_name(Route.AuthInput.Email)) ?? "",
 	}
 
-	registration_response : Session, RegistrationForm, Try({}, User.RegisterError([UserAlreadyExists, ..err])) -> Try(Response, AppError)
+	registration_response : Session, RegistrationForm, Try({}, Member.RegisterError([MemberAlreadyExists, ..err])) -> Try(Response, AppError)
 	registration_response = |session, input, result|
 		match result {
-			Err(User.RegisterError.InvalidRegistration) =>
+			Err(Member.RegisterError.InvalidRegistration) =>
 				Ok(
 					Http.html(
 						400,
@@ -82,7 +86,7 @@ AuthHandler := [].{
 					),
 				)
 			Ok({}) => Ok(Web.redirect(Route.Page.Login))
-			Err(User.RegisterError.StoreFailure(UserAlreadyExists)) =>
+			Err(Member.RegisterError.StoreFailure(MemberAlreadyExists)) =>
 				Ok(
 					Http.html(
 						409,
@@ -97,10 +101,10 @@ AuthHandler := [].{
 						[],
 					),
 				)
-			Err(User.RegisterError.StoreFailure(err)) => Err(AppError.from(err))
+			Err(Member.RegisterError.StoreFailure(err)) => Err(AppError.from(err))
 		}
 
-	login! : Server.Request, UserStore, Session => Try(Response, AppError)
+	login! : Server.Request, MemberStore, Session => Try(Response, AppError)
 	login! = |request, store, session| {
 		form = Http.read_form!(request)?
 		AuthHandler.login_form!(form, store, session)
@@ -108,12 +112,16 @@ AuthHandler := [].{
 
 	login_form! : Dict(Str, Str), store, Session => Try(Response, AppError)
 		where [
-			store.login! : store, Session.Id, User.Name => Try({}, [UserNotFound, ..err]),
+			store.login! : store, Session.Id, Member.Name => Try({}, [MemberNotFound, InactiveMember, ..err]),
 		]
 	login_form! = |form, store, session| {
+		Store : store
 		input = AuthHandler.login_form(form)
 
-		result = User.login!(store, session.id, input.username)
+		result = match Member.Name.from_str(input.username) {
+			Err(_) => Err(Member.LoginError.InvalidName)
+			Ok(name) => Member.complete_login(Store.login!(store, session.id, name))
+		}
 		AuthHandler.login_response(session, input, result)
 	}
 
@@ -122,10 +130,10 @@ AuthHandler := [].{
 		username: form.get(Route.AuthInput.to_name(Route.AuthInput.Username)) ?? "",
 	}
 
-	login_response : Session, LoginForm, Try({}, User.LoginError([UserNotFound, ..err])) -> Try(Response, AppError)
+	login_response : Session, LoginForm, Try({}, Member.LoginError([MemberNotFound, InactiveMember, ..err])) -> Try(Response, AppError)
 	login_response = |session, input, result|
 		match result {
-			Err(User.LoginError.InvalidName) =>
+			Err(Member.LoginError.InvalidName) =>
 				Ok(
 					Http.html(
 						400,
@@ -140,7 +148,7 @@ AuthHandler := [].{
 					),
 				)
 			Ok({}) => Ok(Web.redirect(Route.Page.Home))
-			Err(User.LoginError.StoreFailure(UserNotFound)) =>
+			Err(Member.LoginError.StoreFailure(MemberNotFound)) =>
 				Ok(
 					Http.html(
 						404,
@@ -154,7 +162,21 @@ AuthHandler := [].{
 						[],
 					),
 				)
-			Err(User.LoginError.StoreFailure(err)) => Err(AppError.from(err))
+			Err(Member.LoginError.StoreFailure(InactiveMember)) =>
+				Ok(
+					Http.html(
+						401,
+						AuthView.login(
+							session,
+							AuthView.LoginModel.{
+								username: input.username,
+								error: "That member is inactive.",
+							},
+						),
+						[],
+					),
+				)
+			Err(Member.LoginError.StoreFailure(err)) => Err(AppError.from(err))
 		}
 
 	logout! : store => Try(Response, AppError)
@@ -186,7 +208,7 @@ expect {
 	result = AuthHandler.registration_response(
 		session,
 		RegistrationForm.{ username: "", email: "" },
-		Err(User.RegisterError.InvalidRegistration),
+		Err(Member.RegisterError.InvalidRegistration),
 	)
 	match result {
 		Ok(response) =>
@@ -202,7 +224,7 @@ expect {
 	result = AuthHandler.registration_response(
 		session,
 		RegistrationForm.{ username: "Ada", email: "ada@example.com" },
-		Err(User.RegisterError.StoreFailure(UserAlreadyExists)),
+		Err(Member.RegisterError.StoreFailure(MemberAlreadyExists)),
 	)
 	match result {
 		Ok(response) =>
@@ -234,7 +256,7 @@ expect {
 	result = AuthHandler.login_response(
 		session,
 		LoginForm.{ username: "Missing" },
-		Err(User.LoginError.StoreFailure(UserNotFound)),
+		Err(Member.LoginError.StoreFailure(MemberNotFound)),
 	)
 	match result {
 		Ok(response) =>

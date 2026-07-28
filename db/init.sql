@@ -9,15 +9,36 @@ INSERT INTO users (name, email) VALUES
     ('Mara Singh', 'mara@example.com'),
     ('Theo Nguyen', 'theo@example.com');
 
+-- WORKSPACE MEMBERS
+--
+-- These are the CRM actors. The legacy users table remains temporarily for
+-- the hidden Todo tree and user-list demos.
+CREATE TABLE members (
+    member_id TEXT PRIMARY KEY,
+    name TEXT NOT NULL UNIQUE,
+    email TEXT NOT NULL,
+    active INTEGER NOT NULL CHECK(active IN (0, 1))
+);
+
+INSERT INTO members (member_id, name, email, active) VALUES
+    ('member-mara', 'Mara Singh', 'mara@example.com', 1),
+    ('member-theo', 'Theo Nguyen', 'theo@example.com', 1);
+
 -- SESSIONS
 CREATE TABLE sessions (
     session_id INTEGER PRIMARY KEY,
     user_id INTEGER NULL,
+    member_id TEXT NULL,
 
     CONSTRAINT fk_column
         FOREIGN KEY (user_id)
         REFERENCES users (user_id)
-        ON DELETE CASCADE
+        ON DELETE CASCADE,
+
+    CONSTRAINT fk_session_member
+        FOREIGN KEY (member_id)
+        REFERENCES members (member_id)
+        ON DELETE SET NULL
 );
 
 -- TASKS

@@ -19,6 +19,7 @@ import BigTaskHandler
 import BigTaskStore
 import HomeView
 import Http
+import MemberStore
 import Route
 import Session
 import SessionHandler
@@ -33,6 +34,7 @@ import UserStore
 ## receive the stores they actually use.
 Context := {
 	sessionStore : SessionStore,
+	memberStore : MemberStore,
 	userStore : UserStore,
 	todoStore : TodoStore,
 	bigTaskStore : BigTaskStore,
@@ -68,6 +70,7 @@ init! = || {
 		config,
 		context: Context.{
 			sessionStore: SessionStore.new(db),
+			memberStore: MemberStore.new(db),
 			userStore: UserStore.new(db),
 			todoStore: TodoStore.new(db),
 			bigTaskStore: BigTaskStore.new(db),
@@ -167,9 +170,9 @@ post! : Server.Request, Context, Session, Route.PostAction => Try(Response, AppE
 post! = |request, context, session, action|
 	match action {
 		Route.PostAction.Register =>
-			AuthHandler.register!(request, context.userStore, session)
+			AuthHandler.register!(request, context.memberStore, session)
 		Route.PostAction.Login =>
-			AuthHandler.login!(request, context.userStore, session)
+			AuthHandler.login!(request, context.memberStore, session)
 		Route.PostAction.Logout => AuthHandler.logout!(context.sessionStore)
 		Route.PostAction.SearchTodos =>
 			TodoHandler.search!(request, context.todoStore)

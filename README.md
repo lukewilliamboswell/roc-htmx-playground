@@ -49,9 +49,7 @@ Tailwind utility strings live in `src/Design.roc`; views consume its typed,
 semantic attributes instead of assembling class names directly. No npm or Make
 installation is needed.
 
-## Publishing
+## Continuous integration
 
-Push a `v*` tag, or run the **Publish** workflow with a release tag. The workflow
-uses the Roc task runner to validate the project and builds static Linux and
-macOS binaries for x64 and ARM64, plus a `SHA256SUMS` file, before creating the
-GitHub release.
+Pull requests run `roc scripts/tasks.roc check` to verify generated CSS,
+formatting, type-checking, and tests.

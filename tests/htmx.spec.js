@@ -116,4 +116,37 @@ test.describe("HTMX interactions", () => {
 
     await context.close();
   });
+
+  test("keeps inline validation associated and focused", async ({ page }) => {
+    await loginAsMara(page);
+    await page.goto("/bigTask");
+
+    const editor = page.locator("#big-task-0-customerId-control");
+
+    await editor.fill("not-a-number");
+
+    const error = page.getByText(
+      "Must be a number between 0 and 100,000.",
+      { exact: true },
+    );
+    await expect(error).toBeVisible();
+    await expect(editor).toBeFocused();
+    await expect(editor).toHaveAttribute("aria-invalid", "true");
+
+    const errorId = await editor.getAttribute("aria-describedby");
+    expect(errorId).toBeTruthy();
+    await expect(page.locator(`#${errorId}`)).toHaveText(
+      "Must be a number between 0 and 100,000.",
+    );
+    await expect(page.locator(`#${errorId}`)).toHaveAttribute(
+      "aria-live",
+      "polite",
+    );
+
+    await editor.fill("789");
+
+    await expect(editor).toBeFocused();
+    await expect(editor).toHaveAttribute("aria-invalid", "false");
+    await expect(page.locator(`#${errorId}`)).toBeEmpty();
+  });
 });

@@ -582,6 +582,31 @@ Do not apply latest-wins to operations where every request matters or where
 the first accepted mutation must run exactly once. Those require separately
 named policies and evidence before they are added to `Web`.
 
+### Form fragments own validation and focus
+
+When a form or field editor replaces itself, its response must contain the
+submitted value, validation state, and accessible relationship between the
+control and its message. Controls use stable IDs so HTMX can restore focus
+after replacement. `aria-invalid` reflects the rendered validation state and
+`aria-describedby` points to a stable `aria-live="polite"` message region.
+
+Inline validation and autosave are latest-wins interactions: an older
+validation response must not overwrite a newer value. The BigTask browser
+journey submits an invalid value, observes the associated `422` fragment,
+corrects it, and verifies that focus and the accessible state survive both
+swaps.
+
+BigTask is a legacy validation fixture scheduled for removal as the CRM slice
+replaces playground features. Its value here is evidence for the generic
+fragment contract; do not expand its domain or persistence design merely to
+retain this example. New CRM field editors should apply the contract directly.
+
+HTMX 4 swaps error responses by default, unlike HTMX 2. A validation response
+may therefore use `422` only when its HTML is shaped for the declared target.
+Unexpected server errors must not be allowed to replace a local editor with a
+full-page error representation; the application-wide failure-feedback seam
+owns that policy.
+
 ## Suggested module dependency direction
 
 Roc intentionally disallows cyclic imports. We therefore design dependencies

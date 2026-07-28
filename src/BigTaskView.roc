@@ -281,14 +281,17 @@ input_editor = |model, kind|
 	Html.form(
 		editor_attributes(model),
 		[
-			Html.input([
-				Attribute.name(model.field.form_name()),
-				Attribute.type(kind),
-				Attribute.value(model.value),
-				attribute("aria-label", model.label),
-				Design.input,
-			]),
-			error_message(model.validation),
+			Html.input(
+				[
+					Attribute.id(editor_control_id(model)),
+					Attribute.name(model.field.form_name()),
+					Attribute.type(kind),
+					Attribute.value(model.value),
+					attribute("aria-label", model.label),
+					Design.input,
+				].concat(validation_attributes(model)),
+			),
+			error_message(model),
 		],
 	)
 
@@ -299,10 +302,11 @@ status_editor = |model|
 		[
 			Html.select(
 				[
+					Attribute.id(editor_control_id(model)),
 					Attribute.name(model.field.form_name()),
 					attribute("aria-label", model.label),
 					Design.select,
-				],
+				].concat(validation_attributes(model)),
 				[
 					status_option(BigTask.Status.Raised, model.value),
 					status_option(BigTask.Status.Completed, model.value),
@@ -311,7 +315,7 @@ status_editor = |model|
 					status_option(BigTask.Status.InProgress, model.value),
 				],
 			),
-			error_message(model.validation),
+			error_message(model),
 		],
 	)
 
@@ -319,6 +323,7 @@ editor_attributes : BigTaskView.EditorModel -> List(Attribute.Attribute)
 editor_attributes = |model|
 	[
 		Web.hx_put(Route.PutAction.UpdateBigTask(model.id, model.field)),
+		Web.hx_sync_latest,
 		attribute(
 			"hx-trigger",
 			match model.field {
@@ -342,13 +347,50 @@ status_option = |status, selected| {
 	)
 }
 
-error_message : Str -> Html.Node
-error_message = |message|
-	if message.is_empty() {
-		Html.div([], [])
+validation_attributes : BigTaskView.EditorModel -> List(Attribute.Attribute)
+validation_attributes = |model|
+	[
+		attribute("aria-describedby", editor_error_id(model)),
+		attribute(
+			"aria-invalid",
+			if model.validation.is_empty() {
+				"false"
+			} else {
+				"true"
+			},
+		),
+	]
+
+error_message : BigTaskView.EditorModel -> Html.Node
+error_message = |model|
+	if model.validation.is_empty() {
+		Html.div(
+			[
+				Attribute.id(editor_error_id(model)),
+				attribute("aria-live", "polite"),
+			],
+			[],
+		)
 	} else {
-		Html.div([Design.validation], [Html.text(message)])
+		Html.div(
+			[
+				Attribute.id(editor_error_id(model)),
+				attribute("aria-live", "polite"),
+				Design.validation,
+			],
+			[Html.text(model.validation)],
+		)
 	}
+
+editor_control_id : BigTaskView.EditorModel -> Str
+editor_control_id = |model| "${editor_id_prefix(model)}-control"
+
+editor_error_id : BigTaskView.EditorModel -> Str
+editor_error_id = |model| "${editor_id_prefix(model)}-error"
+
+editor_id_prefix : BigTaskView.EditorModel -> Str
+editor_id_prefix = |model|
+	"big-task-${BigTask.Id.to_str(model.id)}-${BigTask.Field.to_url_segment(model.field)}"
 
 empty_row : () -> Html.Node
 empty_row = ||

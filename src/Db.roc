@@ -2,7 +2,7 @@ import pf.Sqlite
 
 import Models
 
-Db := [].{
+Db :: [].{
 	newSession! : Sqlite.Db => Try(I64, Sqlite.QueryError)
 	newSession! = |db| {
 		row : { id : I64 }
@@ -28,10 +28,10 @@ Db := [].{
 		match rows {
 			[] => Err(SessionNotFound)
 			[row, ..] =>
-				if Str.is_empty(row.username) {
-					Ok({ id: row.id, user: Guest })
+				if row.username.is_empty() {
+					Ok(Models.Session.{ id: row.id, user: Guest })
 				} else {
-					Ok({ id: row.id, user: LoggedIn(row.username) })
+					Ok(Models.Session.{ id: row.id, user: LoggedIn(row.username) })
 				}
 			}
 	}
@@ -103,7 +103,7 @@ Db := [].{
 
 	createTodo! : Sqlite.Db, Str, Str => Try({}, [TaskWasEmpty, DbErr(Sqlite.QueryError)])
 	createTodo! = |db, task, status|
-		if Str.is_empty(Str.trim(task)) {
+		if task.trim().is_empty() {
 			Err(TaskWasEmpty)
 		} else {
 			Sqlite.execute!({
@@ -141,7 +141,7 @@ Db := [].{
 		})?
 
 		nested = rows.map(
-			|row| {
+			|row| Models.NestedSetItem.{
 				value: { id: row.id, task: row.task, status: row.status },
 				left: row.left,
 				right: row.right,
@@ -150,17 +150,12 @@ Db := [].{
 		Ok(Models.nestedSetToTree(nested))
 	}
 
-	listBigTasks! : Sqlite.Db, I64, I64, Str, Models.SortDirection => Try(List(Models.BigTask), Sqlite.QueryError)
+	listBigTasks! : Sqlite.Db, I64, I64, Models.SortColumn, Models.SortDirection => Try(List(Models.BigTask), Sqlite.QueryError)
 	listBigTasks! = |db, page, items, sortBy, sortDirection| {
-		column = allowedSortColumn(sortBy)
-		direction = 
-			match sortDirection {
-				Ascending => "ASC"
-				Descending => "DESC"
-			}
+		column = sortBy.to_str()
+		direction = sortDirection.to_str()
 		offset = (page - 1) * items
-		query = 
-			"SELECT ID AS id, ReferenceID AS referenceId, CustomerReferenceID AS customerReferenceId, IFNULL(DateCreated, '') AS dateCreated, IFNULL(DateModified, '') AS dateModified, IFNULL(Title, '') AS title, IFNULL(Description, '') AS description, IFNULL(Status, '') AS status, IFNULL(Priority, '') AS priority, IFNULL(ScheduledStartDate, '') AS scheduledStartDate, IFNULL(ScheduledEndDate, '') AS scheduledEndDate, IFNULL(ActualStartDate, '') AS actualStartDate, IFNULL(ActualEndDate, '') AS actualEndDate, IFNULL(SystemName, '') AS systemName, IFNULL(Location, '') AS location, IFNULL(FileReference, '') AS fileReference, IFNULL(Comments, '') AS comments FROM BigTask ORDER BY ${column} ${direction} LIMIT :items OFFSET :offset;"
+		query = "SELECT ID AS id, ReferenceID AS referenceId, CustomerReferenceID AS customerReferenceId, IFNULL(DateCreated, '') AS dateCreated, IFNULL(DateModified, '') AS dateModified, IFNULL(Title, '') AS title, IFNULL(Description, '') AS description, IFNULL(Status, '') AS status, IFNULL(Priority, '') AS priority, IFNULL(ScheduledStartDate, '') AS scheduledStartDate, IFNULL(ScheduledEndDate, '') AS scheduledEndDate, IFNULL(ActualStartDate, '') AS actualStartDate, IFNULL(ActualEndDate, '') AS actualEndDate, IFNULL(SystemName, '') AS systemName, IFNULL(Location, '') AS location, IFNULL(FileReference, '') AS fileReference, IFNULL(Comments, '') AS comments FROM BigTask ORDER BY ${column} ${direction} LIMIT :items OFFSET :offset;"
 
 		Sqlite.query_many!({
 			db,
@@ -182,7 +177,7 @@ Db := [].{
 		Ok(row.total)
 	}
 
-	updateBigTask! : Sqlite.Db, I64, [CustomerReferenceId(Str), DateCreated(Str), Status(Str)] => Try({}, Sqlite.QueryError)
+	updateBigTask! : Sqlite.Db, I64, Models.BigTaskUpdate => Try({}, Sqlite.QueryError)
 	updateBigTask! = |db, id, update|
 		match update {
 			CustomerReferenceId(value) =>
@@ -205,25 +200,3 @@ Db := [].{
 				})
 			}
 }
-
-allowedSortColumn = |column|
-	match column {
-		"ID" => "ID"
-		"ReferenceID" => "ReferenceID"
-		"CustomerReferenceID" => "CustomerReferenceID"
-		"DateCreated" => "DateCreated"
-		"DateModified" => "DateModified"
-		"Title" => "Title"
-		"Description" => "Description"
-		"Status" => "Status"
-		"Priority" => "Priority"
-		"ScheduledStartDate" => "ScheduledStartDate"
-		"ScheduledEndDate" => "ScheduledEndDate"
-		"ActualStartDate" => "ActualStartDate"
-		"ActualEndDate" => "ActualEndDate"
-		"SystemName" => "SystemName"
-		"Location" => "Location"
-		"FileReference" => "FileReference"
-		"Comments" => "Comments"
-		_ => "ID"
-	}

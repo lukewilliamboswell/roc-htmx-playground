@@ -3,7 +3,31 @@ import pf.Html
 
 import Models
 
-Pages := [].{
+Pages :: [].{
+	BigTaskPage : {
+		session : Models.Session,
+		tasks : List(Models.BigTask),
+		page : I64,
+		items : I64,
+		total : I64,
+		sortBy : Models.SortColumn,
+		sortDirection : Models.SortDirection,
+	}
+
+	EditInput : {
+		updateUrl : Str,
+		name : Str,
+		kind : Str,
+		value : Str,
+		validation : Str,
+	}
+
+	StatusInput : {
+		updateUrl : Str,
+		value : Str,
+		validation : Str,
+	}
+
 	home : Models.Session -> Html.Node
 	home = |session|
 		simplePage(
@@ -134,15 +158,7 @@ Pages := [].{
 	unauthorized : Html.Node
 	unauthorized = simplePage(Models.anonymousSession, "Unauthorized", [Html.h1([], [Html.text("Unauthorized")])])
 
-	bigTasks : {
-		session : Models.Session,
-		tasks : List(Models.BigTask),
-		page : I64,
-		items : I64,
-		total : I64,
-		sortBy : Str,
-		sortDirection : Models.SortDirection,
-	} -> Html.Node
+	bigTasks : BigTaskPage -> Html.Node
 	bigTasks = |model|
 		simplePage(
 			model.session,
@@ -169,12 +185,11 @@ Pages := [].{
 			],
 		)
 
-	bigTaskInput : Str, Str, Str, Str, Str -> Html.Node
-	bigTaskInput = |updateUrl, name, kind, value, validation|
-		editInput(updateUrl, name, kind, value, validation)
+	bigTaskInput : EditInput -> Html.Node
+	bigTaskInput = |model| editInput(model)
 
-	bigTaskStatus : Str, Str, Str -> Html.Node
-	bigTaskStatus = |updateUrl, value, validation| editStatus(updateUrl, value, validation)
+	bigTaskStatus : StatusInput -> Html.Node
+	bigTaskStatus = |model| editStatus(model)
 }
 
 simplePage : Models.Session, Str, List(Html.Node) -> Html.Node
@@ -276,7 +291,7 @@ textInput = |label, name, kind, value|
 
 errorMessage : Str -> Html.Node
 errorMessage = |message|
-	if Str.is_empty(message) {
+	if message.is_empty() {
 		Html.div([], [])
 	} else {
 		Html.div([Attribute.class("alert alert-danger")], [Html.text(message)])
@@ -395,7 +410,7 @@ renderTree = |taskTree|
 			)
 		}
 
-bigTaskTable : List(Models.BigTask), Str, Models.SortDirection -> Html.Node
+bigTaskTable : List(Models.BigTask), Models.SortColumn, Models.SortDirection -> Html.Node
 bigTaskTable = |taskRows, sortBy, direction|
 	Html.div(
 		[Attribute.class("table-responsive")],
@@ -409,12 +424,12 @@ bigTaskTable = |taskRows, sortBy, direction|
 							Html.tr(
 								[],
 								[
-									sortHeader("Reference", "ReferenceID", sortBy, direction),
-									sortHeader("Customer", "CustomerReferenceID", sortBy, direction),
-									sortHeader("Created", "DateCreated", sortBy, direction),
-									sortHeader("Title", "Title", sortBy, direction),
-									sortHeader("Status", "Status", sortBy, direction),
-									sortHeader("Priority", "Priority", sortBy, direction),
+									sortHeader("Reference", ByReferenceId, sortBy, direction),
+									sortHeader("Customer", ByCustomerReferenceId, sortBy, direction),
+									sortHeader("Created", ByDateCreated, sortBy, direction),
+									sortHeader("Title", ByTitle, sortBy, direction),
+									sortHeader("Status", ByStatus, sortBy, direction),
+									sortHeader("Priority", ByPriority, sortBy, direction),
 									headerCell("Description"),
 								],
 							),
@@ -426,17 +441,16 @@ bigTaskTable = |taskRows, sortBy, direction|
 		],
 	)
 
-sortHeader : Str, Str, Str, Models.SortDirection -> Html.Node
+sortHeader : Str, Models.SortColumn, Models.SortColumn, Models.SortDirection -> Html.Node
 sortHeader = |label, column, selected, direction| {
-	next = 
-		if selected == column and direction == Ascending {
-			"desc"
-		} else {
-			"asc"
-		}
+	next = if selected == column and direction == Ascending {
+		"desc"
+	} else {
+		"asc"
+	}
 	Html.th(
 		[
-			attribute("hx-get", "/bigTask?sortBy=${column}&sortDirection=${next}"),
+			attribute("hx-get", "/bigTask?sortBy=${column.to_str()}&sortDirection=${next}"),
 			attribute("hx-target", "body"),
 			Attribute.style("cursor:pointer;"),
 		],
@@ -451,18 +465,49 @@ bigTaskRow = |task| {
 		[],
 		[
 			tableCell(task.referenceId),
-			Html.td([], [editInput("/bigTask/customerId/${id}", "CustomerReferenceID", "text", task.customerReferenceId, "")]),
-			Html.td([], [editInput("/bigTask/dateCreated/${id}", "DateCreated", "date", task.dateCreated, "")]),
+			Html.td(
+				[],
+				[
+					editInput({
+						updateUrl: "/bigTask/customerId/${id}",
+						name: "CustomerReferenceID",
+						kind: "text",
+						value: task.customerReferenceId,
+						validation: "",
+					}),
+				],
+			),
+			Html.td(
+				[],
+				[
+					editInput({
+						updateUrl: "/bigTask/dateCreated/${id}",
+						name: "DateCreated",
+						kind: "date",
+						value: task.dateCreated,
+						validation: "",
+					}),
+				],
+			),
 			tableCell(task.title),
-			Html.td([], [editStatus("/bigTask/status/${id}", task.status, "")]),
+			Html.td(
+				[],
+				[
+					editStatus({
+						updateUrl: "/bigTask/status/${id}",
+						value: task.status,
+						validation: "",
+					}),
+				],
+			),
 			tableCell(task.priority),
 			tableCell(task.description),
 		],
 	)
 }
 
-editInput : Str, Str, Str, Str, Str -> Html.Node
-editInput = |updateUrl, name, kind, value, validation|
+editInput : Pages.EditInput -> Html.Node
+editInput = |{ updateUrl, name, kind, value, validation }|
 	Html.form(
 		[
 			attribute("hx-put", updateUrl),
@@ -480,8 +525,8 @@ editInput = |updateUrl, name, kind, value, validation|
 		],
 	)
 
-editStatus : Str, Str, Str -> Html.Node
-editStatus = |updateUrl, selected, validation|
+editStatus : Pages.StatusInput -> Html.Node
+editStatus = |{ updateUrl, value: selected, validation }|
 	Html.form(
 		[
 			attribute("hx-put", updateUrl),

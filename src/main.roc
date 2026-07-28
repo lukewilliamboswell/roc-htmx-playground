@@ -24,9 +24,78 @@ import Db
 import Models
 import Pages
 
-Context : { db : Sqlite.Db }
+Context := { db : Sqlite.Db }
 
-AppError : [NewSession(I64), Unauthorized, BadRequest(Str), NotFound(Str), AppErr(Str)]
+AppError := [NewSession(I64), Unauthorized, BadRequest(Str), NotFound(Str), AppErr(Str)]
+
+Header : { name : Str, value : Str }
+
+BigTaskField := [CustomerReferenceField, CreatedDateField, StatusField].{
+	form_name : BigTaskField -> Str
+	form_name = |field|
+		match field {
+			CustomerReferenceField => "CustomerReferenceID"
+			CreatedDateField => "DateCreated"
+			StatusField => "Status"
+		}
+
+	validate : BigTaskField, Str -> Try({}, Str)
+	validate = |field, value|
+		match field {
+			CustomerReferenceField =>
+				match I64.from_str(value) {
+					Ok(number) if number > 0 and number < 100_000 => Ok({})
+					_ => Err("Must be a number between 0 and 100,000.")
+				}
+			CreatedDateField =>
+				if validDate(value) {
+					Ok({})
+				} else {
+					Err("Must use date format yyyy-mm-dd.")
+				}
+			StatusField =>
+				if ["Raised", "Completed", "Deferred", "Approved", "In-Progress"].contains(value) {
+					Ok({})
+				} else {
+					Err("Choose a valid status.")
+				}
+			}
+
+	to_update : BigTaskField, Str -> Models.BigTaskUpdate
+	to_update = |field, value|
+		match field {
+			CustomerReferenceField => CustomerReferenceId(value)
+			CreatedDateField => DateCreated(value)
+			StatusField => Status(value)
+		}
+
+	editor : BigTaskField, { idText : Str, value : Str, validation : Str } -> Html.Node
+	editor = |field, { idText, value, validation }|
+		match field {
+			CustomerReferenceField =>
+				Pages.bigTaskInput({
+					updateUrl: "/bigTask/customerId/${idText}",
+					name: "CustomerReferenceID",
+					kind: "text",
+					value,
+					validation,
+				})
+			CreatedDateField =>
+				Pages.bigTaskInput({
+					updateUrl: "/bigTask/dateCreated/${idText}",
+					name: "DateCreated",
+					kind: "date",
+					value,
+					validation,
+				})
+			StatusField =>
+				Pages.bigTaskStatus({
+					updateUrl: "/bigTask/status/${idText}",
+					value,
+					validation,
+				})
+			}
+}
 
 program = { init!, respond!, shutdown! }
 
@@ -40,7 +109,7 @@ init! = || {
 
 	Ok({
 		config: Server.default_config,
-		context: { db: db },
+		context: Context.{ db: db },
 	})
 }
 
@@ -76,7 +145,7 @@ shutdown! = |_reason, _context| Ok({})
 handleRequest! : Server.Request, Sqlite.Db => Try(Response, AppError)
 handleRequest! = |request, db| {
 	url = Url.resolve(appOrigin, request.target()) ? |_| BadRequest("Invalid request target")
-	segments = Str.split_on(Url.path(url), "/")
+	segments = Url.path(url).split_on("/")
 
 	match (request.method(), segments) {
 		(GET, ["", ""]) => {
@@ -117,9 +186,9 @@ handleRequest! = |request, db| {
 
 		(GET, ["", "bigTask"]) => bigTaskPage!(request, db, url)
 		(GET, ["", "bigTask", "downloadCsv"]) => Ok(csvResponse())
-		(PUT, ["", "bigTask", "customerId", id]) => updateBigTaskCustomer!(request, db, id)
-		(PUT, ["", "bigTask", "dateCreated", id]) => updateBigTaskDate!(request, db, id)
-		(PUT, ["", "bigTask", "status", id]) => updateBigTaskStatus!(request, db, id)
+		(PUT, ["", "bigTask", "customerId", id]) => updateBigTask!(request, db, id, CustomerReferenceField)
+		(PUT, ["", "bigTask", "dateCreated", id]) => updateBigTask!(request, db, id, CreatedDateField)
+		(PUT, ["", "bigTask", "status", id]) => updateBigTask!(request, db, id, StatusField)
 
 		_ => Err(NotFound(request.target()))
 	}
@@ -128,17 +197,17 @@ handleRequest! = |request, db| {
 register! : Server.Request, Sqlite.Db => Try(Response, AppError)
 register! = |request, db| {
 	form = readForm!(request)?
-	username = Dict.get(form, "user") ?? ""
-	email = Dict.get(form, "email") ?? ""
+	username = form.get("user") ?? ""
+	email = form.get("email") ?? ""
 
-	if Str.is_empty(Str.trim(username)) or Str.is_empty(Str.trim(email)) {
+	if username.trim().is_empty() or email.trim().is_empty() {
 		Ok(htmlResponse(400, Pages.register(username, email, "Username and email are required."), []))
 	} else {
 		match Db.registerUser!(db, username, email) {
 			Ok({}) => Ok(redirect("/login"))
 			Err(UserAlreadyExists) =>
 				Ok(htmlResponse(409, Pages.register(username, email, "That username is already registered."), []))
-			Err(err) => Err(AppErr(Str.inspect(err)))
+			Err(err) => Err(appError(err))
 		}
 	}
 }
@@ -147,23 +216,23 @@ login! : Server.Request, Sqlite.Db => Try(Response, AppError)
 login! = |request, db| {
 	session = getSession!(request, db)?
 	form = readForm!(request)?
-	username = Dict.get(form, "user") ?? ""
+	username = form.get("user") ?? ""
 
-	if Str.is_empty(Str.trim(username)) {
+	if username.trim().is_empty() {
 		Ok(htmlResponse(400, Pages.login(session, username, "Username is required."), []))
 	} else {
 		match Db.login!(db, session.id, username) {
 			Ok({}) => Ok(redirect("/"))
 			Err(UserNotFound) =>
 				Ok(htmlResponse(404, Pages.login(session, username, "No user with that name was found."), []))
-			Err(err) => Err(AppErr(Str.inspect(err)))
+			Err(err) => Err(appError(err))
 		}
 	}
 }
 
 logout! : Sqlite.Db => Try(Response, AppError)
 logout! = |db| {
-	id = Db.newSession!(db) ? |err| AppErr(Str.inspect(err))
+	id = Db.newSession!(db) ? appError
 	Ok(
 		redirectWithHeaders(
 			"/",
@@ -175,47 +244,47 @@ logout! = |db| {
 todoPage! : Server.Request, Sqlite.Db => Try(Response, AppError)
 todoPage! = |request, db| {
 	session = getSession!(request, db)?
-	todos = Db.listTodos!(db, "") ? |err| AppErr(Str.inspect(err))
+	todos = Db.listTodos!(db, "") ? appError
 	Ok(htmlResponse(200, Pages.todos(session, todos, ""), []))
 }
 
 todoList! : Sqlite.Db, Str => Try(Response, AppError)
 todoList! = |db, filter| {
-	todos = Db.listTodos!(db, filter) ? |err| AppErr(Str.inspect(err))
+	todos = Db.listTodos!(db, filter) ? appError
 	Ok(htmlResponse(200, Pages.todoList(todos, filter), []))
 }
 
 searchTodos! : Server.Request, Sqlite.Db => Try(Response, AppError)
 searchTodos! = |request, db| {
 	form = readForm!(request)?
-	filter = Dict.get(form, "filterTasks") ?? ""
+	filter = form.get("filterTasks") ?? ""
 	todoList!(db, filter)
 }
 
 createTodo! : Server.Request, Sqlite.Db => Try(Response, AppError)
 createTodo! = |request, db| {
 	form = readForm!(request)?
-	task = Dict.get(form, "task") ?? ""
-	status = Dict.get(form, "status") ?? "Not Started"
+	task = form.get("task") ?? ""
+	status = form.get("status") ?? "Not Started"
 
 	match Db.createTodo!(db, task, status) {
 		Ok({}) => Ok(redirect("/task"))
 		Err(TaskWasEmpty) => Ok(redirect("/task"))
-		Err(err) => Err(AppErr(Str.inspect(err)))
+		Err(err) => Err(appError(err))
 	}
 }
 
 deleteTodo! : Sqlite.Db, Str => Try(Response, AppError)
 deleteTodo! = |db, idText| {
 	id = parseId(idText)?
-	Db.deleteTodo!(db, id) ? |err| AppErr(Str.inspect(err))
+	Db.deleteTodo!(db, id) ? appError
 	todoList!(db, "")
 }
 
 updateTodo! : Sqlite.Db, Str, Str => Try(Response, AppError)
 updateTodo! = |db, idText, status| {
 	id = parseId(idText)?
-	Db.updateTodo!(db, id, status) ? |err| AppErr(Str.inspect(err))
+	Db.updateTodo!(db, id, status) ? appError
 	Ok(
 		Response.from_status(200)
 			.with_headers([{ name: "HX-Trigger", value: "todosUpdated" }]),
@@ -225,14 +294,14 @@ updateTodo! = |db, idText, status| {
 treePage! : Server.Request, Sqlite.Db => Try(Response, AppError)
 treePage! = |request, db| {
 	session = getSession!(request, db)?
-	tree = Db.todoTree!(db, 1) ? |err| AppErr(Str.inspect(err))
+	tree = Db.todoTree!(db, 1) ? appError
 	Ok(htmlResponse(200, Pages.tree(session, tree), []))
 }
 
 usersPage! : Server.Request, Sqlite.Db => Try(Response, AppError)
 usersPage! = |request, db| {
 	session = getSession!(request, db)?
-	users = Db.listUsers!(db) ? |err| AppErr(Str.inspect(err))
+	users = Db.listUsers!(db) ? appError
 	Ok(htmlResponse(200, Pages.users(session, users), []))
 }
 
@@ -243,18 +312,11 @@ bigTaskPage! = |request, db, url| {
 	params = Dict.from_list(Url.query_pairs(url))
 	page = positiveParam(params, "page", 1)
 	items = positiveParam(params, "updateItemsPerPage", positiveParam(params, "items", 25))
-	sortBy = Dict.get(params, "sortBy") ?? "ID"
-	sortDirection = match Str.with_ascii_lowercased(Dict.get(params, "sortDirection") ?? "asc") {
-		"desc" => Descending
-		_ => Ascending
-	}
-	tasks = Db.listBigTasks!(db, page, items, sortBy, sortDirection) ? |err| AppErr(Str.inspect(err))
-	total = Db.totalBigTasks!(db) ? |err| AppErr(Str.inspect(err))
-	directionText = match sortDirection {
-		Ascending => "asc"
-		Descending => "desc"
-	}
-	pushUrl = "/bigTask?page=${page.to_str()}&items=${items.to_str()}&sortBy=${sortBy}&sortDirection=${directionText}"
+	sortBy = Models.SortColumn.from_str(params.get("sortBy") ?? "ID")
+	sortDirection = Models.SortDirection.from_str(params.get("sortDirection") ?? "asc")
+	tasks = Db.listBigTasks!(db, page, items, sortBy, sortDirection) ? appError
+	total = Db.totalBigTasks!(db) ? appError
+	pushUrl = "/bigTask?page=${page.to_str()}&items=${items.to_str()}&sortBy=${sortBy.to_str()}&sortDirection=${sortDirection.to_str()}"
 
 	Ok(
 		htmlResponse(
@@ -265,86 +327,30 @@ bigTaskPage! = |request, db, url| {
 	)
 }
 
-updateBigTaskCustomer! : Server.Request, Sqlite.Db, Str => Try(Response, AppError)
-updateBigTaskCustomer! = |request, db, idText| {
+updateBigTask! : Server.Request, Sqlite.Db, Str, BigTaskField => Try(Response, AppError)
+updateBigTask! = |request, db, idText, field| {
 	session = getSession!(request, db)?
 	requireLogin(session)?
 	id = parseId(idText)?
 	form = readForm!(request)?
-	value = Dict.get(form, "CustomerReferenceID") ?? ""
-	valid = match I64.from_str(value) {
-		Ok(number) => number > 0 and number < 100_000
-		Err(_) => False
-	}
+	value = form.get(field.form_name()) ?? ""
 
-	if valid {
-		Db.updateBigTask!(db, id, CustomerReferenceId(value)) ? |err| AppErr(Str.inspect(err))
-		Ok(htmlResponse(200, Pages.bigTaskInput("/bigTask/customerId/${idText}", "CustomerReferenceID", "text", value, ""), []))
-	} else {
-		Ok(
-			htmlResponse(
-				422,
-				Pages.bigTaskInput(
-					"/bigTask/customerId/${idText}",
-					"CustomerReferenceID",
-					"text",
-					value,
-					"Must be a number between 0 and 100,000.",
+	match field.validate(value) {
+		Ok({}) => {
+			Db.updateBigTask!(db, id, field.to_update(value)) ? appError
+			editor = field.editor({ idText, value, validation: "" })
+			Ok(htmlResponse(200, editor, []))
+		}
+		Err(validation) => {
+			editor = field.editor({ idText, value, validation })
+			Ok(
+				htmlResponse(
+					422,
+					editor,
+					[],
 				),
-				[],
-			),
-		)
-	}
-}
-
-updateBigTaskDate! : Server.Request, Sqlite.Db, Str => Try(Response, AppError)
-updateBigTaskDate! = |request, db, idText| {
-	session = getSession!(request, db)?
-	requireLogin(session)?
-	id = parseId(idText)?
-	form = readForm!(request)?
-	value = Dict.get(form, "DateCreated") ?? ""
-
-	if validDate(value) {
-		Db.updateBigTask!(db, id, DateCreated(value)) ? |err| AppErr(Str.inspect(err))
-		Ok(htmlResponse(200, Pages.bigTaskInput("/bigTask/dateCreated/${idText}", "DateCreated", "date", value, ""), []))
-	} else {
-		Ok(
-			htmlResponse(
-				422,
-				Pages.bigTaskInput(
-					"/bigTask/dateCreated/${idText}",
-					"DateCreated",
-					"date",
-					value,
-					"Must use date format yyyy-mm-dd.",
-				),
-				[],
-			),
-		)
-	}
-}
-
-updateBigTaskStatus! : Server.Request, Sqlite.Db, Str => Try(Response, AppError)
-updateBigTaskStatus! = |request, db, idText| {
-	session = getSession!(request, db)?
-	requireLogin(session)?
-	id = parseId(idText)?
-	form = readForm!(request)?
-	value = Dict.get(form, "Status") ?? ""
-	valid = ["Raised", "Completed", "Deferred", "Approved", "In-Progress"].contains(value)
-
-	if valid {
-		Db.updateBigTask!(db, id, Status(value)) ? |err| AppErr(Str.inspect(err))
-		Ok(htmlResponse(200, Pages.bigTaskStatus("/bigTask/status/${idText}", value, ""), []))
-	} else {
-		Ok(
-			htmlResponse(
-				422,
-				Pages.bigTaskStatus("/bigTask/status/${idText}", value, "Choose a valid status."),
-				[],
-			),
-		)
+			)
+		}
 	}
 }
 
@@ -355,13 +361,13 @@ getSession! = |request, db|
 			match Db.getSession!(db, id) {
 				Ok(session) => Ok(session)
 				Err(SessionNotFound) => {
-					newId = Db.newSession!(db) ? |err| AppErr(Str.inspect(err))
+					newId = Db.newSession!(db) ? appError
 					Err(NewSession(newId))
 				}
-				Err(err) => Err(AppErr(Str.inspect(err)))
+				Err(err) => Err(appError(err))
 			}
 		Err(_) => {
-			id = Db.newSession!(db) ? |err| AppErr(Str.inspect(err))
+			id = Db.newSession!(db) ? appError
 			Err(NewSession(id))
 		}
 	}
@@ -369,12 +375,12 @@ getSession! = |request, db|
 sessionId : Server.Request -> Try(I64, [InvalidSessionCookie])
 sessionId = |request| {
 	header = request.headers()
-		.find_first(|item| Str.with_ascii_lowercased(item.name) == "cookie")
+		.find_first(|item| item.name.with_ascii_lowercased() == "cookie")
 		.map_err(|_| InvalidSessionCookie)?
-	cookie = Str.split_on(header.value, ";")
-		.find_first(|item| Str.starts_with(Str.trim(item), "sessionId="))
+	cookie = header.value.split_on(";")
+		.find_first(|item| item.trim().starts_with("sessionId="))
 		.map_err(|_| InvalidSessionCookie)?
-	parts = Str.split_on(Str.trim(cookie), "=")
+	parts = cookie.trim().split_on("=")
 	match parts {
 		["sessionId", value] => I64.from_str(value).map_err(|_| InvalidSessionCookie)
 		_ => Err(InvalidSessionCookie)
@@ -402,7 +408,7 @@ parseId = |value|
 
 positiveParam : Dict(Str, Str), Str, I64 -> I64
 positiveParam = |params, name, fallback|
-	match Dict.get(params, name) {
+	match params.get(name) {
 		Ok(value) =>
 			match I64.from_str(value) {
 				Ok(number) if number > 0 => number
@@ -413,29 +419,35 @@ positiveParam = |params, name, fallback|
 
 validDate : Str -> Bool
 validDate = |value|
-	match Str.split_on(value, "-") {
+	match value.split_on("-") {
 		[year, month, day] =>
-			Str.to_utf8(year).len() == 4
-				and Str.to_utf8(month).len() == 2
-					and Str.to_utf8(day).len() == 2
+			year.to_utf8().len() == 4
+				and month.to_utf8().len() == 2
+					and day.to_utf8().len() == 2
 						and I64.from_str(year).is_ok()
 							and I64.from_str(month).is_ok()
 								and I64.from_str(day).is_ok()
 		_ => False
 	}
 
+appError : err -> AppError
+appError = |err| AppErr(Str.inspect(err))
+
+htmlResponse : U16, Html.Node, List(Header) -> Response
 htmlResponse = |status, node, extraHeaders|
 	Response.from_status(status)
 		.with_headers(
 			[{ name: "Content-Type", value: "text/html; charset=utf-8" }].concat(extraHeaders),
 		)
-		.with_body(Str.to_utf8(Html.render(node)))
+		.with_body(Html.render(node).to_utf8())
 
+textResponse : U16, Str -> Response
 textResponse = |status, body|
 	Response.from_status(status)
 		.with_headers([{ name: "Content-Type", value: "text/plain; charset=utf-8" }])
-		.with_body(Str.to_utf8(body))
+		.with_body(body.to_utf8())
 
+bytesResponse : U16, List(U8), Str -> Response
 bytesResponse = |status, body, contentType|
 	Response.from_status(status)
 		.with_headers([
@@ -444,20 +456,23 @@ bytesResponse = |status, body, contentType|
 		])
 		.with_body(body)
 
+redirect : Str -> Response
 redirect = |location| redirectWithHeaders(location, [])
 
+redirectWithHeaders : Str, List(Header) -> Response
 redirectWithHeaders = |location, headers|
 	Response.from_status(303)
 		.with_headers([{ name: "Location", value: location }].concat(headers))
 
+csvResponse : () -> Response
 csvResponse = || {
-	body = Str.to_utf8(
+	body = (
 		\\ID,CustomerReferenceID,DateCreated,Status
 		\\1,12345,2021-01-01,Raised
 		\\2,67890,2021-01-02,Completed
 		\\3,54321,2021-01-03,Deferred
 		,
-	)
+	).to_utf8()
 	Response.from_status(200)
 		.with_headers([
 			{ name: "Content-Type", value: "text/csv; charset=utf-8" },
@@ -467,6 +482,7 @@ csvResponse = || {
 		.with_body(body)
 }
 
+logRequest! : Server.Request => Try({}, _)
 logRequest! = |request| {
 	date = Utc.to_iso_8601(Utc.now!())
 	Stdout.line!("${date} ${Str.inspect(request.method())} ${request.target()}")
@@ -476,8 +492,8 @@ appOrigin : Url
 appOrigin = "http://localhost"
 
 robots_txt : List(U8)
-robots_txt = Str.to_utf8(
+robots_txt = (
 	\\User-agent: *
 	\\Disallow: /
 	,
-)
+).to_utf8()

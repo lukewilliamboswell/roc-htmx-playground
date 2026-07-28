@@ -31,10 +31,10 @@ Ensure `sqlite3` and `roc` are on your `PATH`.
 
 **create test.db** `rm -rf test.db && sqlite3 test.db < test.sql`
 
-**start server** `DB_PATH=test.db roc platform/main.roc`
+**start server** `DB_PATH=test.db roc src/main.roc`
 
 **change port** Set `ROC_BASIC_WEBSERVER_PORT` to run on a different port, e.g.
-`DB_PATH=test.db ROC_BASIC_WEBSERVER_PORT=8080 roc platform/main.roc`
+`DB_PATH=test.db ROC_BASIC_WEBSERVER_PORT=8080 roc src/main.roc`
 
 The server opens the SQLite connection pool once during `init!` and shares it
 with request handlers through immutable application context.
@@ -61,7 +61,7 @@ CI.
 The Roc task runner uses
 [basic-cli 0.21.0](https://github.com/roc-lang/basic-cli/releases/tag/0.21.0)
 to download and verify the pinned standalone Tailwind CLI under `.tools/`.
-Tailwind utility strings live in `platform/Design.roc`; views consume its typed,
+Tailwind utility strings live in `src/Design.roc`; views consume its typed,
 semantic attributes instead of assembling class names directly. No npm or Make
 installation is needed.
 

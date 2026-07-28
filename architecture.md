@@ -242,7 +242,7 @@ Not every feature needs five files. A small feature can begin in one or two
 modules and be split when separate responsibilities become difficult to
 navigate or test.
 
-In this repository, Roc application modules live together under `platform/`.
+In this repository, Roc application modules live together under `src/`.
 Roc type modules imported directly by an app share that app's platform
 dependencies, while reusable packages are not allowed to depend on a platform.
 Co-locating `main.roc`, `test.roc`, stores, handlers, views, and their domain
@@ -809,7 +809,7 @@ Tests should follow the same boundaries:
 - Handler decision functions accept typed success or failure values, allowing
   inline tests to cover authorization, status codes, redirects, cookies, and
   validation responses without performing I/O.
-- `platform/test.roc` is the single effectful test application. It embeds the
+- `src/test.roc` is the single effectful test application. It embeds the
   canonical `test.sql`, creates an isolated temporary SQLite database, invokes
   the real stores, and exits. It uses `basic-webserver`, not `basic-cli`,
   because the two platforms currently expose different SQLite APIs and the
@@ -824,8 +824,8 @@ app is justified only when the code must execute hosted effects. Run the two
 layers with:
 
 ```text
-roc test platform/main.roc
-roc platform/test.roc
+roc test src/main.roc
+roc src/test.roc
 ```
 
 ## Patterns to avoid
@@ -906,7 +906,7 @@ use exactly these modules.
 | Static-dispatch ergonomics | Are `where` clauses small and caller-local, without broad trait-like contracts or forwarding wrappers? | Review each generic signature and list why substitution is useful | **Validated with a constraint.** `Todo.create!` asks only for effectful `insert!`; generic `Web` helpers ask for one URL/selector method each. Static dispatch clarified capability boundaries, but did not replace the functional-core testing seam. Closed errors needed explicit nominal wrappers such as `Todo.CreateError(err)`. |
 | Effect clarity | Are pure rules separate from effectful adapter and handler methods? | Audit of `->`, `=>`, and `!` at use-case boundaries | **Validated.** Route/query parsing, validation, tree construction, effect-result classification, and response decisions are pure. HTTP reads and store operations use `=>` and `!`. Roc's lack of effect polymorphism is handled by testing typed outcomes purely and the concrete interpreter separately. |
 | Runtime choices | Are values known only at runtime represented by data and explicit matches rather than misusing static dispatch? | Review routing and any configurable adapter selection | **Validated.** Requests parse to the closed `Route` union and dispatch through matches. Static dispatch is limited to compile-time-known helper and adapter types. |
-| Test value | Can important decisions be tested without effects while real SQLite paths retain integration coverage? | Test list, failures caught, and setup complexity | **Validated.** The app suite runs 251 inline expectations, including typed success/failure simulations and HTTP response decisions. The single `platform/test.roc` runner loads `test.sql` and covers session creation/lookup, registration/login, Todo CRUD/filter/tree/invalid-row decoding, and BigTask count/pagination/update through the real stores. |
+| Test value | Can important decisions be tested without effects while real SQLite paths retain integration coverage? | Test list, failures caught, and setup complexity | **Validated.** The app suite runs 251 inline expectations, including typed success/failure simulations and HTTP response decisions. The single `src/test.roc` runner loads `test.sql` and covers session creation/lookup, registration/login, Todo CRUD/filter/tree/invalid-row decoding, and BigTask count/pagination/update through the real stores. |
 | Navigation cost | Can a contributor follow a request from route to response without excessive jumping or hidden indirection? | Short walkthrough by someone who did not perform the refactor | **Partially validated.** The path is consistently `Route -> main dispatch -> Handler -> Store/View`; however, no independent contributor walkthrough has been recorded yet. |
 | Duplication | Did feature slicing or small contracts introduce repeated parsing, mapping, or rendering that should have one owner? | Duplicate-code review with decisions to keep or extract | **Validated.** Route parsing/printing, HTTP forms/responses, layout, and typed link generation each have one owner. Small feature-specific validation messages remain deliberately local. |
 | Build feedback | Do acyclic, focused modules preserve useful compiler caching and acceptable check/test times? | Before-and-after clean and incremental timings | **Validated for the current size.** The current suite runs 251 pure expectations plus one effectful SQLite runner. Exact timings vary by machine and compiler cache state; no controlled before/after clean benchmark was recorded. |

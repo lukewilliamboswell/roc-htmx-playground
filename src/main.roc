@@ -11,7 +11,7 @@ import pf.Stdout
 import pf.Url
 import pf.Utc
 import http.Response
-import "../src/site.css" as styles_file : List(U8)
+import "site.css" as styles_file : List(U8)
 import "../vendor/htmx-4-0-0-beta6.min.js" as htmx_js_file : List(U8)
 
 import AppError

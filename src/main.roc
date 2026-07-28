@@ -1,275 +1,250 @@
-app [Model, init!, respond!] {
-    pf: platform "https://github.com/roc-lang/basic-webserver/releases/download/0.13.0/fSNqJj3-twTrb0jJKHreMimVWD7mebDOj0mnslMm2GM.tar.br",
-    html: "https://github.com/Hasnep/roc-html/releases/download/v0.8.0/GCTX3ckGRXs29XkLh0rhp0a6l0IrUe5RgAFj83hwN3Q.tar.br",
+app [Context, program] {
+	pf: platform "https://github.com/roc-lang/basic-webserver/releases/download/0.14.0/9mrSfhWKEXsrPUW2oHdZZGov1oMRryvvACDT8p7E97PY.tar.zst",
+	http: "https://github.com/roc-lang/http/releases/download/1.0.0/6ZUwqYhCS8PU9Mo6MF7oV82ET2o7KYb57CLKDq4cq4sS.tar.zst",
 }
 
-import html.Html
-
-import pf.Stdout
-import pf.Stderr
-import pf.Http exposing [Request, Response]
-import pf.MultipartFormData
 import pf.Env
-import pf.Utc
+import pf.Path
+import pf.Server
+import pf.Sqlite
+import pf.Stdout
 import pf.Url
-import "site.css" as styles_file : List U8
-import "site.js" as site_file : List U8
-import "../vendor/bootstrap.bundle-5-3-2.min.js" as bootstrap_js_file : List U8
-import "../vendor/bootstrap-5-3-2.min.css" as bootstrap_css_file : List U8
-import "../vendor/htmx-2-0-3.min.js" as htmx_js_file : List U8
-import Helpers
-import Sql.Todo
-import Sql.Session
-import Sql.User
-import Models.Session exposing [Session]
-import Models.Todo exposing [Todo]
-import Views.Home
-import Views.Unauthorised
-import Views.Login
-import Views.Register
-import Views.Todo
-import Views.UserList
-import Views.TreeView
-import Controllers.BigTask
+import pf.Utc
+import http.Response
+import "site.css" as styles_file : List(U8)
+import "../vendor/htmx-4-0-0-beta6.min.js" as htmx_js_file : List(U8)
 
-Model : {}
+import AppError
+import AuthHandler
+import BigTask
+import BigTaskHandler
+import BigTaskStore
+import HomeView
+import Http
+import Route
+import Session
+import SessionHandler
+import SessionStore
+import Todo
+import TodoHandler
+import TodoStore
+import UserHandler
+import UserStore
 
-init! : {} => Result Model []
-init! = \{} -> Ok {}
+## The composition root owns concrete adapter selection. Feature handlers only
+## receive the stores they actually use.
+Context := {
+	sessionStore : SessionStore,
+	userStore : UserStore,
+	todoStore : TodoStore,
+	bigTaskStore : BigTaskStore,
+}
 
-respond! : Request, Model => Result Response [ServerErr Str]
-respond! = \req, _ ->
-    when handle_req! req is
-        Ok response -> Ok response
-        Err err ->
-            when err is
-                BadRequest inner ->
-                    _ = Stderr.line! (Inspect.to_str err)
-                    Ok {
-                        status: 400,
-                        headers: [],
-                        body: Str.to_utf8 (Inspect.to_str inner),
-                    }
+program = { init!, respond!, shutdown! }
 
-                Unauthorized ->
-                    Ok (Views.Unauthorised.page {} |> to_html_response [])
+init! : () => Try({ config : Server.Config, context : Context }, [Exit(I64), ..])
+init! = || {
+	db_path = match Env.var!("DB_PATH") {
+		Ok(path) => Path.from_os_str(path)
+		Err(_) => return Err(Exit(2))
+	}
+	db = Sqlite.open!(Sqlite.default_config(db_path)) ? |_| Exit(2)
+	asset_files = Server.file_root({ id: "assets", path: Path.utf8("assets") })
+	config_with_files = Server.with_file_roots(Server.default_config, [asset_files])
+	config = Server.with_native_routes(
+		config_with_files,
+		[
+			Server.static_mount_with_cache({
+				at: "/assets",
+				files: asset_files,
+				cache: Server.public_for(31_536_000),
+			}),
+		],
+	)
 
-                NewSession session_id ->
-                    Ok {
-                        status: 303,
-                        headers: [
-                            { name: "Set-Cookie", value: "sessionId=$(Num.to_str session_id)" },
-                            { name: "Location", value: req.uri },
-                        ],
-                        body: [],
-                    }
+	Ok({
+		config,
+		context: Context.{
+			sessionStore: SessionStore.new(db),
+			userStore: UserStore.new(db),
+			todoStore: TodoStore.new(db),
+			bigTaskStore: BigTaskStore.new(db),
+		},
+	})
+}
 
-                URLNotFound url ->
-                    _ = Stderr.line! (Str.join_with ["404 NotFound", url] " ")
-                    Ok {
-                        status: 404,
-                        headers: [],
-                        body: [],
-                    }
+respond! : Server.Request, Context => Try(Server.Outcome, [ServerErr(Str), ..])
+respond! = |request, context| {
+	log_request!(request) ? |err| ServerErr(Str.inspect(err))
 
-                _ ->
-                    _ = Stderr.line! (Str.join_with ["SERVER ERROR", Inspect.to_str err] " ")
-                    Ok {
-                        status: 500,
-                        headers: [],
-                        body: [],
-                    }
+	response = match Url.resolve(app_origin, request.target()) {
+		Ok(url) => route_request!(request, context, url)
+		Err(_) =>
+			Http.error_response!(
+				Session.anonymous,
+				AppError.BadRequest("Invalid request target"),
+			)
+		}
 
-handle_req! : Request => Result Response _
-handle_req! = \req ->
-    log_request! req
+	Ok(Server.respond(response))
+}
 
-    db_path = try (Env.var! "DB_PATH" |> Result.map_err UnableToReadDbPATH)
+## Native `/assets` requests are handled by basic-webserver before this point.
+## App-owned files are dispatched before session lookup. Every application
+## route resolves its session exactly once.
+route_request! : Server.Request, Context, Url => Response
+route_request! = |request, context, url|
+	match Route.parse(request, url) {
+		Ok(Route.Serve(asset)) => asset_response(asset)
+		Ok(route) => route_with_session!(request, context, route)
+		Err(parse_error) =>
+			error_with_session!(
+				request,
+				context.sessionStore,
+				parse_error_to_app_error(parse_error),
+			)
+		}
 
-    session = try get_session! req db_path
+route_with_session! : Server.Request, Context, Route => Response
+route_with_session! = |request, context, route|
+	match SessionHandler.resolve!(request, context.sessionStore) {
+		Err(error) => Http.error_response!(Session.anonymous, error)
+		Ok({ session, setCookie }) => {
+			response = match dispatch!(request, context, session, route) {
+				Ok(value) => value
+				Err(error) => Http.error_response!(session, error)
+			}
 
-    url_segments =
-        req.uri
-        |> Url.from_str
-        |> Url.path
-        |> Str.split_on "/"
-        |> List.drop_first 1
+			if setCookie {
+				cookie = Http.session_cookie(session.id)
+				Response.add_header(response, cookie.name, cookie.value)
+			} else {
+				response
+			}
+		}
+	}
 
-    when (req.method, url_segments) is
-        (GET, [""]) -> Ok (Views.Home.page { session } |> to_html_response [])
-        (GET, ["robots.txt"]) -> Ok (respond_static robots_txt)
-        (GET, ["styles.css"]) -> Ok (respond_static styles_file)
-        (GET, ["site.js"]) -> Ok (respond_static site_file)
-        (GET, ["bootstrap.bundle.min.js"]) -> Ok (respond_static bootstrap_js_file)
-        (GET, ["bootstrap.min.css"]) -> Ok (respond_static bootstrap_css_file)
-        (GET, ["htmx.min.js"]) -> Ok (respond_static htmx_js_file)
-        (GET, ["register"]) ->
-            Ok (Views.Register.page { user: Fresh, email: Valid } |> to_html_response [])
+error_with_session! : Server.Request, SessionStore, AppError => Response
+error_with_session! = |request, store, error|
+	match SessionHandler.resolve!(request, store) {
+		Ok({ session, .. }) => Http.error_response!(session, error)
+		Err(session_error) => Http.error_response!(Session.anonymous, session_error)
+	}
 
-        (POST, ["register"]) ->
-            params = MultipartFormData.parse_form_url_encoded req.body |> Result.with_default (Dict.empty {})
+dispatch! : Server.Request, Context, Session, Route => Try(Response, AppError)
+dispatch! = |request, context, session, route|
+	match route {
+		Route.Visit(location) => visit!(context, session, location)
+		Route.Post(action) => post!(request, context, session, action)
+		Route.Put(action) => put!(request, context, session, action)
+		Route.Serve(asset) => Ok(asset_response(asset))
+	}
 
-            when (Dict.get params "user", Dict.get params "email") is
-                (Ok username, Ok email) ->
-                    when Sql.User.register! { path: db_path, name: username, email } is
-                        Ok {} -> Helpers.respond_redirect "/login"
-                        Err UserAlreadyExists -> Ok (Views.Register.page { user: UserAlreadyExists username, email: Valid } |> to_html_response [])
-                        Err err -> Err (ErrRegisteringUser (Inspect.to_str err))
+visit! : Context, Session, Route.Location => Try(Response, AppError)
+visit! = |context, session, location|
+	match location {
+		Route.Location.AtPage(page) =>
+			match page {
+				Route.Page.Home => Ok(Http.html(200, HomeView.page(session), []))
+				Route.Page.Register => Ok(AuthHandler.register_page(session))
+				Route.Page.Login => Ok(AuthHandler.login_page(session))
+				Route.Page.Todos => TodoHandler.page!(context.todoStore, session)
+				Route.Page.TodoTree => TodoHandler.tree_page!(context.todoStore, session)
+				Route.Page.Users => UserHandler.page!(context.userStore, session)
+				Route.Page.BigTasks =>
+					BigTaskHandler.page!(context.bigTaskStore, BigTask.Query.default, session)
+				}
+		Route.Location.TodoList => TodoHandler.list!(context.todoStore, Todo.Filter.empty)
+		Route.Location.TodoNewCompatibility => Ok(TodoHandler.new_compatibility())
+		Route.Location.BigTasks(query) =>
+			BigTaskHandler.page!(context.bigTaskStore, query, session)
+		Route.Location.BigTaskCsv => Ok(BigTaskHandler.csv())
+	}
 
-                _ ->
-                    Ok (Views.Register.page { user: UserNotProvided, email: NotProvided } |> to_html_response [])
+post! : Server.Request, Context, Session, Route.PostAction => Try(Response, AppError)
+post! = |request, context, session, action|
+	match action {
+		Route.PostAction.Register =>
+			AuthHandler.register!(request, context.userStore, session)
+		Route.PostAction.Login =>
+			AuthHandler.login!(request, context.userStore, session)
+		Route.PostAction.Logout => AuthHandler.logout!(context.sessionStore)
+		Route.PostAction.SearchTodos =>
+			TodoHandler.search!(request, context.todoStore)
+		Route.PostAction.CreateTodo =>
+			TodoHandler.create!(request, context.todoStore)
+		Route.PostAction.DeleteTodo(id) =>
+			TodoHandler.delete!(context.todoStore, id)
+		}
 
-        (GET, ["login"]) ->
-            Ok (Views.Login.page { session, user: Fresh } |> to_html_response [])
+put! : Server.Request, Context, Session, Route.PutAction => Try(Response, AppError)
+put! = |request, context, session, action|
+	match action {
+		Route.PutAction.CompleteTodo(id) =>
+			TodoHandler.update!(context.todoStore, id, Todo.Status.Completed)
+		Route.PutAction.StartTodo(id) =>
+			TodoHandler.update!(context.todoStore, id, Todo.Status.InProgress)
+		Route.PutAction.UpdateBigTask(id, field) =>
+			BigTaskHandler.update!(
+				request,
+				context.bigTaskStore,
+				session,
+				id,
+				field,
+			)
+		}
 
-        (POST, ["login"]) ->
-            params = MultipartFormData.parse_form_url_encoded req.body |> Result.with_default (Dict.empty {})
+parse_error_to_app_error : Route.ParseError -> AppError
+parse_error_to_app_error = |error|
+	match error {
+		Route.ParseError.InvalidTodoId(value) =>
+			AppError.BadRequest("Expected a valid task id, received ${value}")
+		Route.ParseError.InvalidBigTaskId(value) =>
+			AppError.BadRequest("Expected a valid BigTask id, received ${value}")
+		Route.ParseError.NotFound(target) => AppError.NotFound(target)
+	}
 
-            when Dict.get params "user" is
-                Err _ -> Ok (Views.Login.page { session, user: UserNotProvided } |> to_html_response [])
-                Ok username ->
-                    when Sql.User.login! db_path session.id username is
-                        Ok {} -> Helpers.respond_redirect "/"
-                        Err (UserNotFound _) -> Ok (Views.Login.page { session, user: UserNotFound username } |> to_html_response [])
-                        Err err -> Err (ErrUserLogin (Inspect.to_str err))
+asset_response : Route.Asset -> Response
+asset_response = |asset|
+	match asset {
+		Route.Asset.Robots => Http.bytes(200, robots_txt, "text/plain; charset=utf-8")
+		Route.Asset.Stylesheet =>
+			Http.cacheable_bytes(200, styles_file, "text/css; charset=utf-8")
+		Route.Asset.Htmx =>
+			Http.cacheable_bytes(
+				200,
+				htmx_js_file,
+				"text/javascript; charset=utf-8",
+			)
 
-        (POST, ["logout"]) ->
-            id = try Sql.Session.new! db_path
+		## Native assets never reach `respond!`. Listing them explicitly keeps
+		## this match exhaustive if the asset vocabulary grows.
+		Route.Asset.PlanningDesk => Response.from_status(404)
+		Route.Asset.PlanningDesk480 => Response.from_status(404)
+		Route.Asset.PlanningDesk640 => Response.from_status(404)
+		Route.Asset.PlanningDesk720 => Response.from_status(404)
+		Route.Asset.PlanningDesk960 => Response.from_status(404)
+		Route.Asset.TasksIcon => Response.from_status(404)
+		Route.Asset.UsersIcon => Response.from_status(404)
+		Route.Asset.TreeIcon => Response.from_status(404)
+		Route.Asset.TableIcon => Response.from_status(404)
+	}
 
-            Ok {
-                status: 303,
-                headers: [
-                    { name: "Set-Cookie", value: "sessionId=$(Num.to_str id)" },
-                    { name: "Location", value: "/" },
-                ],
-                body: [],
-            }
+shutdown! : Server.ShutdownReason, Context => Try({}, [Exit(I64), ..])
+shutdown! = |_reason, _context| Ok({})
 
-        (GET, ["task", "new"]) -> Helpers.respond_redirect "/task"
-        (POST, ["task", id_str, "delete"]) ->
-            try Sql.Todo.delete! { path: db_path, user_id: id_str }
+log_request! : Server.Request => Try({}, _)
+log_request! = |request| {
+	date = Utc.to_iso_8601(Utc.now!())
+	Stdout.line!("${date} ${Str.inspect(request.method())} ${request.target()}")
+}
 
-            tasks = try Sql.Todo.list! { path: db_path, filter_query: "" }
+app_origin : Url
+app_origin = "http://localhost"
 
-            Ok (Views.Todo.list_todo_view { todos: tasks, filter_query: "" } |> to_html_response [])
-
-        (POST, ["task", "search"]) ->
-            params = MultipartFormData.parse_form_url_encoded req.body |> Result.with_default (Dict.empty {})
-
-            filter_query = Dict.get params "filterTasks" |> Result.with_default ""
-
-            tasks = try Sql.Todo.list! { path: db_path, filter_query }
-
-            Ok (Views.Todo.list_todo_view { todos: tasks, filter_query } |> to_html_response [])
-
-        (POST, ["task", "new"]) ->
-            new_todo = try parse_todo req.body
-
-            when Sql.Todo.create! { path: db_path, new_todo } is
-                Ok {} -> Helpers.respond_redirect "/task"
-                Err TaskWasEmpty -> Helpers.respond_redirect "/task"
-                Err err -> Err (ErrTodoCreate (Inspect.to_str err))
-
-        (PUT, ["task", task_id_str, "complete"]) ->
-            try Sql.Todo.update! { path: db_path, task_id_str, action: Completed }
-
-            Ok (respond_hx_trigger "todosUpdated")
-
-        (PUT, ["task", task_id_str, "in-progress"]) ->
-            try Sql.Todo.update! { path: db_path, task_id_str, action: InProgress }
-
-            Ok (respond_hx_trigger "todosUpdated")
-
-        (GET, ["task", "list"]) ->
-            tasks = try Sql.Todo.list! { path: db_path, filter_query: "" }
-
-            Ok (Views.Todo.list_todo_view { todos: tasks, filter_query: "" } |> to_html_response [])
-
-        (GET, ["task"]) ->
-            tasks = try Sql.Todo.list! { path: db_path, filter_query: "" }
-
-            Ok (Views.Todo.page { todos: tasks, filter_query: "", session } |> to_html_response [])
-
-        (GET, ["treeview"]) ->
-            nodes = try Sql.Todo.tree! { path: db_path, user_id: 1 }
-
-            Ok (Views.TreeView.page { session, nodes } |> to_html_response [])
-
-        (GET, ["user"]) ->
-            users = try Sql.User.list! db_path
-
-            Ok (Views.UserList.page { users, session } |> to_html_response [])
-
-        (_, ["bigTask", ..]) ->
-            Controllers.BigTask.respond! { req, url_segments: List.drop_first url_segments 1, db_path, session }
-
-        _ -> Err (URLNotFound req.uri)
-
-get_session! : Request, Str => Result Session _
-get_session! = \req, db_path ->
-    when Sql.Session.parse req is
-        Ok id ->
-            when Sql.Session.get! id db_path is
-                Ok session -> Ok session
-                Err SessionNotFound ->
-                    id2 = try Sql.Session.new! db_path
-                    Err (NewSession id2)
-                Err err -> Err err
-        Err NoSessionCookie ->
-            id = try Sql.Session.new! db_path
-            Err (NewSession id)
-        Err err -> Err err
-
-parse_todo : List U8 -> Result Todo _
-parse_todo = \bytes ->
-    dict = MultipartFormData.parse_form_url_encoded bytes |> Result.with_default (Dict.empty {})
-
-    when (Dict.get dict "task", Dict.get dict "status") is
-        (Ok task, Ok status) -> Ok { id: 0, task, status }
-        _ -> Err (UnableToParseBodyTask bytes)
-
-respond_hx_trigger : Str -> Response
-respond_hx_trigger = \trigger ->
-    {
-        status: 200,
-        headers: [
-            { name: "HX-Trigger", value: trigger },
-        ],
-        body: [],
-    }
-
-respond_static : List U8 -> Response
-respond_static = \bytes ->
-    {
-        status: 200,
-        headers: [
-            { name: "Cache-Control", value: "max-age=120" },
-        ],
-        body: bytes,
-    }
-
-to_html_response : Html.Node, List { name : Str, value : Str } -> Response
-to_html_response = \node, other_headers ->
-    {
-        status: 200,
-        headers: [{ name: "Content-Type", value: "text/html; charset=utf-8" }]
-            |> List.concat other_headers,
-        body: Str.to_utf8 (Html.render node),
-    }
-
-log_request! : Request => {}
-log_request! = \req ->
-    date = Utc.now! {} |> Utc.to_iso_8601
-    method = Inspect.to_str req.method
-    url = req.uri
-    body = req.body |> Str.from_utf8 |> Result.with_default "<invalid utf8 body>"
-    _ = Stdout.line! "$(date) $(method) $(url) $(body)"
-    {}
-
-robots_txt : List U8
-robots_txt =
-    """
-    User-agent: *
-    Disallow: /
-    """
-    |> Str.to_utf8
+robots_txt : List(U8)
+robots_txt = (
+	\\User-agent: *
+	\\Allow: /
+	,
+).to_utf8()

@@ -8,16 +8,18 @@ SessionStore :: { db : Sqlite.Db }.{
 	new : Sqlite.Db -> SessionStore
 	new = |db| SessionStore.{ db }
 
+	## TODO(codec-upgrade): Return and bind `Session.Id` directly once nominal
+	## `parser_for`/`encoder_for` works reliably with SQLite's generic codecs.
 	create! : SessionStore => Try(Session.Id, Sqlite.QueryError)
 	create! = |store| {
-		row : { id : I64 }
-		row = Sqlite.query!({
+		id : I64
+		id = Sqlite.query!({
 			db: store.db,
 			query: "INSERT INTO sessions (user_id) VALUES (NULL) RETURNING session_id AS id;",
 			params: {},
 			limits: Sqlite.default_query_limits,
 		})?
-		Ok(Session.Id.from_i64(row.id))
+		Ok(Session.Id.from_i64(id))
 	}
 
 	find! : SessionStore, Session.Id => Try(Session, [SessionNotFound, DbErr(Sqlite.QueryError)])

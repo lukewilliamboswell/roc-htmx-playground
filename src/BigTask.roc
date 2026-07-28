@@ -52,6 +52,10 @@ BigTask := {
 	}
 
 	Date :: Str.{
+
+		## TODO(literal-conversion): Add `from_quote` if validated Date literals
+		## become common in fixtures or configuration. Dynamic HTTP and database
+		## values must still follow their runtime parsing paths.
 		from_str : Str -> Try(Date, [InvalidDate(Str)])
 		from_str = |value|
 			if valid_date(value) {
@@ -67,6 +71,10 @@ BigTask := {
 	}
 
 	Status := [Raised, Completed, Deferred, Approved, InProgress].{
+
+		## TODO(codec-upgrade): Implement custom string-backed `parser_for` and
+		## `encoder_for` using `from_str`/`to_str`; derived tag encoding would not
+		## match the persisted labels.
 		from_str : Str -> Try(Status, [InvalidBigTaskStatus(Str)])
 		from_str = |value|
 			match value {

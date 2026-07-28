@@ -24,6 +24,10 @@ Todo := {
 	}
 
 	Description :: Str.{
+
+		## TODO(literal-conversion): Consider `from_quote` when validated task
+		## literals become common in fixtures or configuration. Runtime form
+		## input must continue to use `from_str`.
 		from_str : Str -> Try(Description, [TaskWasEmpty])
 		from_str = |value|
 			if value.trim().is_empty() {
@@ -39,6 +43,10 @@ Todo := {
 	}
 
 	Status := [NotStarted, InProgress, Completed].{
+
+		## TODO(codec-upgrade): Implement custom string-backed `parser_for` and
+		## `encoder_for` using `from_str`/`to_str`; derived tag encoding would not
+		## match the existing persisted labels.
 		from_str : Str -> Try(Status, [InvalidTodoStatus(Str)])
 		from_str = |value|
 			match value {
@@ -71,6 +79,19 @@ Todo := {
 				Completed => Ok("complete")
 				NotStarted => Err(TodoStatusHasNoUpdateRoute)
 			}
+
+		is_eq : _
+	}
+
+	Filter :: Str.{
+		from_str : Str -> Filter
+		from_str = |value| Filter.(value)
+
+		empty : Filter
+		empty = Filter.("")
+
+		to_str : Filter -> Str
+		to_str = |Filter.(value)| value
 
 		is_eq : _
 	}

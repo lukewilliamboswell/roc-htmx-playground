@@ -10,14 +10,12 @@ UserStore :: { db : Sqlite.Db }.{
 
 	register! : UserStore, User.Registration => Try({}, [UserAlreadyExists, DbErr(Sqlite.QueryError)])
 	register! = |store, registration| {
-		name = registration.name.to_str()
-		email = registration.email.to_str()
-		existing : List({ id : I64 })
+		existing : List(I64)
 		existing = Sqlite.query_many!({
 			db: store.db,
 			query: "SELECT user_id AS id FROM users WHERE name = :name;",
 			params: {
-				name: name,
+				name: registration.name.to_str(),
 			},
 			limits: Sqlite.default_query_limits,
 		}) ? DbErr
@@ -26,7 +24,7 @@ UserStore :: { db : Sqlite.Db }.{
 			Sqlite.execute!({
 				db: store.db,
 				query: "INSERT INTO users (name, email) VALUES (:name, :email);",
-				params: { name: name, email: email },
+				params: { name: registration.name.to_str(), email: registration.email.to_str() },
 			}) ? DbErr
 			Ok({})
 		} else {
@@ -36,13 +34,12 @@ UserStore :: { db : Sqlite.Db }.{
 
 	login! : UserStore, Session.Id, User.Name => Try({}, [UserNotFound, DbErr(Sqlite.QueryError)])
 	login! = |store, session_id, username| {
-		name = username.to_str()
-		users : List({ id : I64 })
+		users : List(I64)
 		users = Sqlite.query_many!({
 			db: store.db,
 			query: "SELECT user_id AS id FROM users WHERE name = :name;",
 			params: {
-				name: name,
+				name: username.to_str(),
 			},
 			limits: Sqlite.default_query_limits,
 		}) ? DbErr
@@ -53,13 +50,16 @@ UserStore :: { db : Sqlite.Db }.{
 				Sqlite.execute!({
 					db: store.db,
 					query: "UPDATE sessions SET user_id = :userId WHERE session_id = :sessionId;",
-					params: { userId: user.id, sessionId: session_id.to_i64() },
+					params: { userId: user, sessionId: session_id.to_i64() },
 				}) ? DbErr
 				Ok({})
 			}
 		}
 	}
 
+	## TODO(codec-upgrade): Query and bind `User.Id`, `User.Name`, and
+	## `User.Email` directly once nominal parser/encoder specialization is
+	## stable. A derived `User.parser_for` can then remove this storage mapping.
 	list! : UserStore => Try(List(User), Sqlite.QueryError)
 	list! = |store| {
 		rows : List({ id : I64, name : Str, email : Str })
@@ -69,6 +69,8 @@ UserStore :: { db : Sqlite.Db }.{
 			params: {},
 			limits: Sqlite.default_query_limits,
 		})?
-		Ok(rows.map(|row| User.from_storage(row.id, row.name, row.email)))
+		Ok(
+			rows.map(|row| User.from_storage(row.id, row.name, row.email)),
+		)
 	}
 }

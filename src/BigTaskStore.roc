@@ -52,16 +52,13 @@ BigTaskStore :: { db : Sqlite.Db }.{
 	}
 
 	total! : BigTaskStore => Try(I64, Sqlite.QueryError)
-	total! = |store| {
-		row : { total : I64 }
-		row = Sqlite.query!({
+	total! = |store|
+		Sqlite.query!({
 			db: store.db,
 			query: "SELECT COUNT(*) AS total FROM BigTask;",
 			params: {},
 			limits: Sqlite.default_query_limits,
-		})?
-		Ok(row.total)
-	}
+		})
 
 	update! : BigTaskStore, BigTask.Id, BigTask.Update => Try({}, Sqlite.QueryError)
 	update! = |store, id, update|
@@ -87,6 +84,10 @@ BigTaskStore :: { db : Sqlite.Db }.{
 			}
 }
 
+## TODO(codec-upgrade): Give the scalar BigTask wrappers stable SQLite codecs,
+## add a custom string codec for `BigTask.Status`, and query `BigTask` directly.
+## The raw status remains intentional for now because it preserves the invalid
+## stored value in `InvalidStoredStatus`.
 RawBigTask : {
 	id : I64,
 	referenceId : Str,
@@ -109,15 +110,10 @@ RawBigTask : {
 
 decode_rows : List(RawBigTask) -> Try(List(BigTask), [InvalidStoredStatus(Str), ..])
 decode_rows = |rows|
-	match rows {
-		[] => Ok([])
-		[row, .. as rest] =>
+	rows.map_try(
+		|row|
 			match BigTask.from_storage(row) {
 				Err(InvalidBigTaskStatus(status)) => Err(InvalidStoredStatus(status))
-				Ok(task) =>
-					match decode_rows(rest) {
-						Err(err) => Err(err)
-						Ok(tasks) => Ok(tasks.prepend(task))
-					}
-				}
-		}
+				Ok(task) => Ok(task)
+			},
+	)

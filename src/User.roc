@@ -26,6 +26,9 @@ User := {
 	}
 
 	Name :: Str.{
+
+		## TODO(literal-conversion): Consider `from_quote` together with Email
+		## when validated user literals become common outside runtime forms.
 		from_str : Str -> Try(Name, [NameWasEmpty])
 		from_str = |value| {
 			trimmed = value.trim()

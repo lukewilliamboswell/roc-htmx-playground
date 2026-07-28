@@ -154,7 +154,7 @@ visit! = |context, session, location|
 				Route.Page.BigTasks =>
 					BigTaskHandler.page!(context.bigTaskStore, BigTask.Query.default, session)
 				}
-		Route.Location.TodoList => TodoHandler.list!(context.todoStore, "")
+		Route.Location.TodoList => TodoHandler.list!(context.todoStore, Todo.Filter.empty)
 		Route.Location.TodoNewCompatibility => Ok(TodoHandler.new_compatibility())
 		Route.Location.BigTasks(query) =>
 			BigTaskHandler.page!(context.bigTaskStore, query, session)

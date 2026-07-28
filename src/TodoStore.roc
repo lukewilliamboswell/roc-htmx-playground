@@ -9,9 +9,9 @@ TodoStore :: { db : Sqlite.Db }.{
 	new : Sqlite.Db -> TodoStore
 	new = |db| TodoStore.{ db }
 
-	list! : TodoStore, Str => Try(List(Todo), [InvalidStoredStatus(Str), DbErr(Sqlite.QueryError)])
+	list! : TodoStore, Todo.Filter => Try(List(Todo), [InvalidStoredStatus(Str), DbErr(Sqlite.QueryError)])
 	list! = |store, filter| {
-		pattern = "%${filter}%"
+		pattern = "%${filter.to_str()}%"
 		result = Sqlite.query_many!({
 			db: store.db,
 			query: "SELECT id, task, status FROM tasks WHERE task LIKE :pattern ORDER BY id;",
@@ -82,41 +82,35 @@ TodoStore :: { db : Sqlite.Db }.{
 
 }
 
+## TODO(codec-upgrade): Parse `Todo.Id` and `Todo.Description` directly and
+## encode those nominal values as SQLite parameters once nominal
+## `parser_for`/`encoder_for` specialization is stable. Keep `status` as raw
+## text until a custom `Todo.Status.parser_for` can preserve useful invalid-row
+## diagnostics. At that point these adapters can shrink further or query
+## `Todo` directly.
 decode_rows : List({ id : I64, task : Str, status : Str }) -> Try(List(Todo), [InvalidStoredStatus(Str), ..])
 decode_rows = |rows|
-	match rows {
-		[] => Ok([])
-		[row, .. as rest] =>
+	rows.map_try(
+		|row|
 			match Todo.from_storage(row.id, row.task, row.status) {
 				Err(InvalidTodoStatus(status)) => Err(InvalidStoredStatus(status))
-				Ok(todo) =>
-					match decode_rows(rest) {
-						Err(err) => Err(err)
-						Ok(todos) => Ok(todos.prepend(todo))
-					}
-				}
-		}
+				Ok(todo) => Ok(todo)
+			},
+	)
 
 decode_nested_rows : List({ id : I64, task : Str, status : Str, left : I64, right : I64 }) -> Try(List(Todo.NestedSetItem(Todo)), [InvalidStoredStatus(Str), ..])
 decode_nested_rows = |rows|
-	match rows {
-		[] => Ok([])
-		[row, .. as rest] =>
+	rows.map_try(
+		|row|
 			match Todo.from_storage(row.id, row.task, row.status) {
 				Err(InvalidTodoStatus(status)) => Err(InvalidStoredStatus(status))
 				Ok(todo) =>
-					match decode_nested_rows(rest) {
-						Err(err) => Err(err)
-						Ok(items) =>
-							Ok(
-								items.prepend(
-									Todo.NestedSetItem.{
-										value: todo,
-										left: row.left,
-										right: row.right,
-									},
-								),
-							)
-						}
-				}
-		}
+					Ok(
+						Todo.NestedSetItem.{
+							value: todo,
+							left: row.left,
+							right: row.right,
+						},
+					)
+				},
+	)

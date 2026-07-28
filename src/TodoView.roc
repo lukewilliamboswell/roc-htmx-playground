@@ -20,7 +20,7 @@ TodoView :: [].{
 	PageModel := {
 		session : Session,
 		todos : List(Todo),
-		filter : Str,
+		filter : Todo.Filter,
 	}
 
 	page : PageModel -> Html.Node
@@ -43,7 +43,7 @@ TodoView :: [].{
 						Html.input([
 							Attribute.id(filter_name),
 							Attribute.name(filter_name),
-							Attribute.value(model.filter),
+							Attribute.value(model.filter.to_str()),
 							Design.searchInput,
 							attribute("placeholder", "Filter tasks"),
 						]),

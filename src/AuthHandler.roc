@@ -11,12 +11,34 @@ import User
 import UserStore
 import Web
 
+RegistrationForm := {
+	username : Str,
+	email : Str,
+}
+
+LoginForm := {
+	username : Str,
+}
+
 AuthHandler := [].{
 	login_page : Session -> Response
-	login_page = |session| Http.html(200, AuthView.login(session, "", ""), [])
+	login_page = |session|
+		Http.html(
+			200,
+			AuthView.login(session, AuthView.LoginModel.{ username: "", error: "" }),
+			[],
+		)
 
 	register_page : Session -> Response
-	register_page = |session| Http.html(200, AuthView.register(session, "", "", ""), [])
+	register_page = |session|
+		Http.html(
+			200,
+			AuthView.register(
+				session,
+				AuthView.RegistrationModel.{ username: "", email: "", error: "" },
+			),
+			[],
+		)
 
 	register! : Server.Request, UserStore, Session => Try(Response, AppError)
 	register! = |request, store, session| {
@@ -29,15 +51,20 @@ AuthHandler := [].{
 			store.register! : store, User.Registration => Try({}, [UserAlreadyExists, ..err]),
 		]
 	register_form! = |form, store, session| {
-		username = form.get(Route.AuthInput.to_name(Route.AuthInput.Username)) ?? ""
-		email = form.get(Route.AuthInput.to_name(Route.AuthInput.Email)) ?? ""
+		input = AuthHandler.registration_form(form)
 
-		result = User.register!(store, username, email)
-		AuthHandler.registration_response(session, username, email, result)
+		result = User.register!(store, input.username, input.email)
+		AuthHandler.registration_response(session, input, result)
 	}
 
-	registration_response : Session, Str, Str, Try({}, User.RegisterError([UserAlreadyExists, ..err])) -> Try(Response, AppError)
-	registration_response = |session, username, email, result|
+	registration_form : Dict(Str, Str) -> RegistrationForm
+	registration_form = |form| RegistrationForm.{
+		username: form.get(Route.AuthInput.to_name(Route.AuthInput.Username)) ?? "",
+		email: form.get(Route.AuthInput.to_name(Route.AuthInput.Email)) ?? "",
+	}
+
+	registration_response : Session, RegistrationForm, Try({}, User.RegisterError([UserAlreadyExists, ..err])) -> Try(Response, AppError)
+	registration_response = |session, input, result|
 		match result {
 			Err(User.RegisterError.InvalidRegistration) =>
 				Ok(
@@ -45,9 +72,11 @@ AuthHandler := [].{
 						400,
 						AuthView.register(
 							session,
-							username,
-							email,
-							"Username and email are required.",
+							AuthView.RegistrationModel.{
+								username: input.username,
+								email: input.email,
+								error: "Username and email are required.",
+							},
 						),
 						[],
 					),
@@ -59,9 +88,11 @@ AuthHandler := [].{
 						409,
 						AuthView.register(
 							session,
-							username,
-							email,
-							"That username is already registered.",
+							AuthView.RegistrationModel.{
+								username: input.username,
+								email: input.email,
+								error: "That username is already registered.",
+							},
 						),
 						[],
 					),
@@ -80,20 +111,31 @@ AuthHandler := [].{
 			store.login! : store, Session.Id, User.Name => Try({}, [UserNotFound, ..err]),
 		]
 	login_form! = |form, store, session| {
-		username = form.get(Route.AuthInput.to_name(Route.AuthInput.Username)) ?? ""
+		input = AuthHandler.login_form(form)
 
-		result = User.login!(store, session.id, username)
-		AuthHandler.login_response(session, username, result)
+		result = User.login!(store, session.id, input.username)
+		AuthHandler.login_response(session, input, result)
 	}
 
-	login_response : Session, Str, Try({}, User.LoginError([UserNotFound, ..err])) -> Try(Response, AppError)
-	login_response = |session, username, result|
+	login_form : Dict(Str, Str) -> LoginForm
+	login_form = |form| LoginForm.{
+		username: form.get(Route.AuthInput.to_name(Route.AuthInput.Username)) ?? "",
+	}
+
+	login_response : Session, LoginForm, Try({}, User.LoginError([UserNotFound, ..err])) -> Try(Response, AppError)
+	login_response = |session, input, result|
 		match result {
 			Err(User.LoginError.InvalidName) =>
 				Ok(
 					Http.html(
 						400,
-						AuthView.login(session, username, "Username is required."),
+						AuthView.login(
+							session,
+							AuthView.LoginModel.{
+								username: input.username,
+								error: "Username is required.",
+							},
+						),
 						[],
 					),
 				)
@@ -104,8 +146,10 @@ AuthHandler := [].{
 						404,
 						AuthView.login(
 							session,
-							username,
-							"No user with that name was found.",
+							AuthView.LoginModel.{
+								username: input.username,
+								error: "No user with that name was found.",
+							},
 						),
 						[],
 					),
@@ -141,8 +185,7 @@ expect {
 	session = Session.guest(Session.Id.from_i64(1))
 	result = AuthHandler.registration_response(
 		session,
-		"",
-		"",
+		RegistrationForm.{ username: "", email: "" },
 		Err(User.RegisterError.InvalidRegistration),
 	)
 	match result {
@@ -158,8 +201,7 @@ expect {
 	session = Session.guest(Session.Id.from_i64(1))
 	result = AuthHandler.registration_response(
 		session,
-		"Ada",
-		"ada@example.com",
+		RegistrationForm.{ username: "Ada", email: "ada@example.com" },
 		Err(User.RegisterError.StoreFailure(UserAlreadyExists)),
 	)
 	match result {
@@ -173,7 +215,11 @@ expect {
 
 expect {
 	session = Session.guest(Session.Id.from_i64(1))
-	result = AuthHandler.registration_response(session, "Ada", "ada@example.com", Ok({}))
+	result = AuthHandler.registration_response(
+		session,
+		RegistrationForm.{ username: "Ada", email: "ada@example.com" },
+		Ok({}),
+	)
 	match result {
 		Ok(response) =>
 			Response.status(response) == 303
@@ -187,7 +233,7 @@ expect {
 	session = Session.guest(Session.Id.from_i64(1))
 	result = AuthHandler.login_response(
 		session,
-		"Missing",
+		LoginForm.{ username: "Missing" },
 		Err(User.LoginError.StoreFailure(UserNotFound)),
 	)
 	match result {

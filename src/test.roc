@@ -157,13 +157,13 @@ test_todos! = |db| {
 	beta_created = Todo.create!(store, "Beta task", Todo.Status.InProgress)
 	expect beta_created.is_ok()
 
-	alpha = TodoStore.list!(store, "Alpha")
+	alpha = TodoStore.list!(store, Todo.Filter.from_str("Alpha"))
 	expect match alpha {
 		Ok([todo]) => todo.task.to_str() == "Alpha task"
 		_ => False
 	}
 
-	beta = TodoStore.list!(store, "Beta")
+	beta = TodoStore.list!(store, Todo.Filter.from_str("Beta"))
 	expect match beta {
 		Ok([todo]) => todo.task.to_str() == "Beta task"
 		_ => False
@@ -180,7 +180,7 @@ test_todos! = |db| {
 
 	status_updated = TodoStore.update_status!(store, first_id, Todo.Status.Completed)
 	expect status_updated.is_ok()
-	updated = TodoStore.list!(store, "Alpha")
+	updated = TodoStore.list!(store, Todo.Filter.from_str("Alpha"))
 	expect match updated {
 		Ok([todo]) => todo.status == Todo.Status.Completed
 		_ => False
@@ -206,7 +206,7 @@ test_todos! = |db| {
 
 	deleted = TodoStore.delete!(store, second_id)
 	expect deleted.is_ok()
-	after_delete = TodoStore.list!(store, "Beta")
+	after_delete = TodoStore.list!(store, Todo.Filter.from_str("Beta"))
 	expect match after_delete {
 		Ok([]) => True
 		_ => False
@@ -218,7 +218,7 @@ test_todos! = |db| {
 		params: {},
 	})
 	expect invalid_insert.is_ok()
-	invalid_row = TodoStore.list!(store, "Invalid")
+	invalid_row = TodoStore.list!(store, Todo.Filter.from_str("Invalid"))
 	expect match invalid_row {
 		Err(InvalidStoredStatus("Unknown")) => True
 		_ => False

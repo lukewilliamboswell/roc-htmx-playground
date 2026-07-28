@@ -629,6 +629,17 @@ Be explicit at serialization boundaries even when Roc accepts shorthand.
 With the current SQLite package, `params: { pattern }` type-checks but is
 encoded as a scalar at runtime. Write `params: { pattern: pattern }`.
 
+> **TODO — nominal codec upgrade:** SQLite already uses compiler-derived
+> `parser_for` for structural result records and `encoder_for` for structural
+> parameter records. Revisit direct nominal row parsing and parameter encoding
+> after compiler specialization is stable. With compiler
+> `release-fast-f4b3c607`, exercising derived codecs on opaque nominal leaves
+> caused monomorphization panics or segmentation faults; an explicit nominal
+> encoder compiled but did not bind the expected runtime value. The intended
+> end state is derived codecs for transparent scalar wrappers, custom
+> string-backed codecs for statuses, and direct typed rows where doing so does
+> not discard useful invalid-storage diagnostics.
+
 ## View modules
 
 A view converts typed data into `Html.Node`. It does not query the database or

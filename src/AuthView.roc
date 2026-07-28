@@ -8,19 +8,30 @@ import Session
 import Web
 
 AuthView :: [].{
-	login : Session, Str, Str -> Html.Node
-	login = |session, username, error|
+	LoginModel := {
+		username : Str,
+		error : Str,
+	}
+
+	RegistrationModel := {
+		username : Str,
+		email : Str,
+		error : Str,
+	}
+
+	login : Session, LoginModel -> Html.Node
+	login = |session, model|
 		Layout.page(
 			session,
 			Route.Page.Login,
 			[
 				Html.h1([Design.pageTitle], [Html.text("Login")]),
-				error_message(error),
+				error_message(model.error),
 				Web.post_form(
 					Route.PostAction.Login,
 					[Design.form],
 					[
-						text_input("Username", Route.AuthInput.Username, "text", username),
+						text_input("Username", Route.AuthInput.Username, "text", model.username),
 						Html.button(
 							[
 								Attribute.type("submit"),
@@ -33,20 +44,20 @@ AuthView :: [].{
 			],
 		)
 
-	register : Session, Str, Str, Str -> Html.Node
-	register = |session, username, email, error|
+	register : Session, RegistrationModel -> Html.Node
+	register = |session, model|
 		Layout.page(
 			session,
 			Route.Page.Register,
 			[
 				Html.h1([Design.pageTitle], [Html.text("Register")]),
-				error_message(error),
+				error_message(model.error),
 				Web.post_form(
 					Route.PostAction.Register,
 					[Design.form],
 					[
-						text_input("Username", Route.AuthInput.Username, "text", username),
-						text_input("Email", Route.AuthInput.Email, "email", email),
+						text_input("Username", Route.AuthInput.Username, "text", model.username),
+						text_input("Email", Route.AuthInput.Email, "email", model.email),
 						Html.button(
 							[
 								Attribute.type("submit"),

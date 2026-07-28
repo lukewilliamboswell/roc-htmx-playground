@@ -15,7 +15,12 @@ You are welcome to play with this and if you have something to share then please
 
 ## Getting Started
 
-Ensure `sqlite3` and `roc` are on your `PATH`
+Ensure `sqlite3` and `roc` are on your `PATH`.
+
+**format, validate, build, and serve the app** `roc scripts/tasks.roc dev`
+
+**download the standalone Tailwind CLI and build CSS**
+`roc scripts/tasks.roc css`
 
 **create test.db** `rm -rf test.db && sqlite3 test.db < test.sql`
 
@@ -26,3 +31,24 @@ Ensure `sqlite3` and `roc` are on your `PATH`
 
 The server opens the SQLite connection pool once during `init!` and shares it
 with request handlers through immutable application context.
+
+The `dev` command manages `test.db` automatically and initializes it from
+`test.sql` when it does not exist, so it needs no environment setup.
+
+Run `roc scripts/tasks.roc css-watch` in another terminal while changing the
+design system. Run `roc scripts/tasks.roc check` for the same CSS, formatting,
+type-checking, and test validation used by CI.
+
+The Roc task runner uses
+[basic-cli 0.21.0](https://github.com/roc-lang/basic-cli/releases/tag/0.21.0)
+to download and verify the pinned standalone Tailwind CLI under `.tools/`.
+Tailwind utility strings live in `src/Design.roc`; views consume its typed,
+semantic attributes instead of assembling class names directly. No npm or Make
+installation is needed.
+
+## Publishing
+
+Push a `v*` tag, or run the **Publish** workflow with a release tag. The workflow
+uses the Roc task runner to validate the project and builds static Linux and
+macOS binaries for x64 and ARM64, plus a `SHA256SUMS` file, before creating the
+GitHub release.

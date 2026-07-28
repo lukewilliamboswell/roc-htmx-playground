@@ -15,9 +15,6 @@ import pf.Url
 import pf.Utc
 import http.Response
 import "site.css" as styles_file : List(U8)
-import "site.js" as site_file : List(U8)
-import "../vendor/bootstrap.bundle-5-3-2.min.js" as bootstrap_js_file : List(U8)
-import "../vendor/bootstrap-5-3-2.min.css" as bootstrap_css_file : List(U8)
 import "../vendor/htmx-2-0-3.min.js" as htmx_js_file : List(U8)
 
 import Db
@@ -154,11 +151,6 @@ handleRequest! = |request, db| {
 		}
 		(GET, ["", "robots.txt"]) => Ok(bytesResponse(200, robots_txt, "text/plain; charset=utf-8"))
 		(GET, ["", "styles.css"]) => Ok(bytesResponse(200, styles_file, "text/css; charset=utf-8"))
-		(GET, ["", "site.js"]) => Ok(bytesResponse(200, site_file, "text/javascript; charset=utf-8"))
-		(GET, ["", "bootstrap.bundle.min.js"]) =>
-			Ok(bytesResponse(200, bootstrap_js_file, "text/javascript; charset=utf-8"))
-		(GET, ["", "bootstrap.min.css"]) =>
-			Ok(bytesResponse(200, bootstrap_css_file, "text/css; charset=utf-8"))
 		(GET, ["", "htmx.min.js"]) =>
 			Ok(bytesResponse(200, htmx_js_file, "text/javascript; charset=utf-8"))
 

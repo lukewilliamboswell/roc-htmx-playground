@@ -1,13 +1,16 @@
 main
-kingfisher
 roc_nightly-*/
+dist/
 sql_snippets.sql
 
 *.db
+*.db-shm
+*.db-wal
 db.requests
 db.snapshot
 
 .DS_Store
+.tools/
 
 *.ll
 *.o

@@ -1,6 +1,7 @@
 import pf.Attribute
 import pf.Html
 
+import Design
 import Models
 
 Pages :: [].{
@@ -34,14 +35,14 @@ Pages :: [].{
 			session,
 			"Home",
 			[
-				Html.h1([], [Html.text("Roc + htmx playground")]),
-				Html.p([Attribute.class("lead")], [Html.text("Running on basic-webserver 0.14.0.")]),
+				Html.h1([Design.pageTitle], [Html.text("Roc + htmx playground")]),
+				Html.p([Design.lead], [Html.text("Running on basic-webserver 0.14.0.")]),
 				Html.div(
-					[Attribute.class("d-flex gap-2")],
+					[Design.actions],
 					[
-						Html.a([Attribute.href("/task"), Attribute.class("btn btn-primary")], [Html.text("Tasks")]),
-						Html.a([Attribute.href("/treeview"), Attribute.class("btn btn-outline-primary")], [Html.text("Tree")]),
-						Html.a([Attribute.href("/bigTask"), Attribute.class("btn btn-outline-primary")], [Html.text("BigTask")]),
+						Html.a([Attribute.href("/task"), Design.button(Primary, Regular)], [Html.text("Tasks")]),
+						Html.a([Attribute.href("/treeview"), Design.button(Outline, Regular)], [Html.text("Tree")]),
+						Html.a([Attribute.href("/bigTask"), Design.button(Outline, Regular)], [Html.text("BigTask")]),
 					],
 				),
 			],
@@ -53,13 +54,13 @@ Pages :: [].{
 			session,
 			"Login",
 			[
-				Html.h1([], [Html.text("Login")]),
+				Html.h1([Design.pageTitle], [Html.text("Login")]),
 				errorMessage(error),
 				Html.form(
 					[Attribute.action("/login"), Attribute.method("post")],
 					[
 						textInput("Username", "user", "text", username),
-						Html.button([Attribute.type("submit"), Attribute.class("btn btn-primary")], [Html.text("Login")]),
+						Html.button([Attribute.type("submit"), Design.button(Primary, Regular)], [Html.text("Login")]),
 					],
 				),
 			],
@@ -71,14 +72,14 @@ Pages :: [].{
 			Models.anonymousSession,
 			"Register",
 			[
-				Html.h1([], [Html.text("Register")]),
+				Html.h1([Design.pageTitle], [Html.text("Register")]),
 				errorMessage(error),
 				Html.form(
 					[Attribute.action("/register"), Attribute.method("post")],
 					[
 						textInput("Username", "user", "text", username),
 						textInput("Email", "email", "email", email),
-						Html.button([Attribute.type("submit"), Attribute.class("btn btn-primary")], [Html.text("Register")]),
+						Html.button([Attribute.type("submit"), Design.button(Primary, Regular)], [Html.text("Register")]),
 					],
 				),
 			],
@@ -90,7 +91,7 @@ Pages :: [].{
 			session,
 			"Tasks",
 			[
-				Html.h1([], [Html.text("Tasks")]),
+				Html.h1([Design.pageTitle], [Html.text("Tasks")]),
 				Html.form(
 					[
 						attribute("hx-post", "/task/search"),
@@ -101,7 +102,7 @@ Pages :: [].{
 						Html.input([
 							Attribute.name("filterTasks"),
 							Attribute.value(filter),
-							Attribute.class("form-control mb-3"),
+							Design.searchInput,
 							attribute("placeholder", "Filter tasks"),
 						]),
 					],
@@ -120,24 +121,29 @@ Pages :: [].{
 			session,
 			"Users",
 			[
-				Html.h1([], [Html.text("Users")]),
-				Html.table(
-					[Attribute.class("table table-striped")],
+				Html.h1([Design.pageTitle], [Html.text("Users")]),
+				Html.div(
+					[Design.tableFrame],
 					[
-						Html.thead([], [Html.tr([], [headerCell("ID"), headerCell("Name"), headerCell("Email")])]),
-						Html.tbody(
-							[],
-							userRows.map(
-								|user|
-									Html.tr(
-										[],
-										[
-											tableCell(user.id.to_str()),
-											tableCell(user.name),
-											tableCell(user.email),
-										],
+						Html.table(
+							[Design.table],
+							[
+								Html.thead([Design.tableHead], [Html.tr([], [headerCell("ID"), headerCell("Name"), headerCell("Email")])]),
+								Html.tbody(
+									[Design.tableBody],
+									userRows.map(
+										|user|
+											Html.tr(
+												[Design.tableRow],
+												[
+													tableCell(user.id.to_str()),
+													tableCell(user.name),
+													tableCell(user.email),
+												],
+											),
 									),
-							),
+								),
+							],
 						),
 					],
 				),
@@ -150,13 +156,13 @@ Pages :: [].{
 			session,
 			"Tree",
 			[
-				Html.h1([], [Html.text("Task hierarchy")]),
-				Html.ul([Attribute.class("todo-tree-ul")], [renderTree(taskTree)]),
+				Html.h1([Design.pageTitle], [Html.text("Task hierarchy")]),
+				Html.ul([Design.tree], [renderTree(taskTree)]),
 			],
 		)
 
 	unauthorized : Html.Node
-	unauthorized = simplePage(Models.anonymousSession, "Unauthorized", [Html.h1([], [Html.text("Unauthorized")])])
+	unauthorized = simplePage(Models.anonymousSession, "Unauthorized", [Html.h1([Design.pageTitle], [Html.text("Unauthorized")])])
 
 	bigTasks : BigTaskPage -> Html.Node
 	bigTasks = |model|
@@ -164,18 +170,18 @@ Pages :: [].{
 			model.session,
 			"BigTask",
 			[
-				Html.h1([], [Html.text("Big Task Table")]),
+				Html.h1([Design.pageTitle], [Html.text("Big Task Table")]),
 				Html.a(
 					[
 						Attribute.href("/bigTask/downloadCsv"),
-						Attribute.class("btn btn-success mb-3"),
+						Design.downloadButton,
 						attribute("download", ""),
 					],
 					[Html.text("Download CSV")],
 				),
 				bigTaskTable(model.tasks, model.sortBy, model.sortDirection),
 				Html.p(
-					[],
+					[Design.pagination],
 					[
 						Html.text(
 							"Page ${model.page.to_str()} · ${model.total.to_str()} total rows",
@@ -203,18 +209,15 @@ simplePage = |session, title, children|
 					Html.meta([attribute("charset", "utf-8")]),
 					Html.meta([Attribute.name("viewport"), attribute("content", "width=device-width, initial-scale=1")]),
 					Html.title([], [Html.text(title)]),
-					Html.link([Attribute.rel("stylesheet"), Attribute.href("/bootstrap.min.css")]),
 					Html.link([Attribute.rel("stylesheet"), Attribute.href("/styles.css")]),
 					Html.element("script", [Attribute.src("/htmx.min.js")], []),
-					Html.element("script", [Attribute.src("/site.js")], []),
 				],
 			),
 			Html.body(
-				[],
+				[Design.body],
 				[
 					navbar(session),
-					Html.main([Attribute.class("container py-4")], children),
-					Html.element("script", [Attribute.src("/bootstrap.bundle.min.js")], []),
+					Html.main([Design.page], children),
 				],
 			),
 		],
@@ -223,14 +226,14 @@ simplePage = |session, title, children|
 navbar : Models.Session -> Html.Node
 navbar = |session|
 	Html.nav(
-		[Attribute.class("navbar navbar-expand bg-body-tertiary border-bottom")],
+		[Design.nav],
 		[
 			Html.div(
-				[Attribute.class("container-fluid")],
+				[Design.navInner],
 				[
-					Html.a([Attribute.class("navbar-brand"), Attribute.href("/")], [Html.text("Roc + htmx")]),
+					Html.a([Design.brand, Attribute.href("/")], [Html.text("Roc + htmx")]),
 					Html.ul(
-						[Attribute.class("navbar-nav me-auto")],
+						[Design.navLinks],
 						[
 							navItem("Tasks", "/task"),
 							navItem("Users", "/user"),
@@ -247,8 +250,8 @@ navbar = |session|
 navItem : Str, Str -> Html.Node
 navItem = |label, href|
 	Html.li(
-		[Attribute.class("nav-item")],
-		[Html.a([Attribute.class("nav-link"), Attribute.href(href)], [Html.text(label)])],
+		[],
+		[Html.a([Design.navLink, Attribute.href(href)], [Html.text(label)])],
 	)
 
 authControls : Models.Session -> Html.Node
@@ -256,18 +259,18 @@ authControls = |session|
 	match session.user {
 		Guest =>
 			Html.div(
-				[Attribute.class("d-flex gap-2")],
+				[Design.auth],
 				[
-					Html.a([Attribute.href("/login"), Attribute.class("btn btn-outline-primary")], [Html.text("Login")]),
-					Html.a([Attribute.href("/register"), Attribute.class("btn btn-primary")], [Html.text("Register")]),
+					Html.a([Attribute.href("/login"), Design.button(Outline, Small)], [Html.text("Login")]),
+					Html.a([Attribute.href("/register"), Design.button(Primary, Small)], [Html.text("Register")]),
 				],
 			)
 		LoggedIn(name) =>
 			Html.form(
-				[Attribute.action("/logout"), Attribute.method("post"), Attribute.class("d-flex gap-2 align-items-center")],
+				[Attribute.action("/logout"), Attribute.method("post"), Design.auth],
 				[
-					Html.span([], [Html.text(name)]),
-					Html.button([Attribute.type("submit"), Attribute.class("btn btn-outline-secondary")], [Html.text("Logout")]),
+					Html.span([Design.userName], [Html.text(name)]),
+					Html.button([Attribute.type("submit"), Design.button(Outline, Small)], [Html.text("Logout")]),
 				],
 			)
 		}
@@ -275,15 +278,15 @@ authControls = |session|
 textInput : Str, Str, Str, Str -> Html.Node
 textInput = |label, name, kind, value|
 	Html.div(
-		[Attribute.class("mb-3")],
+		[Design.field],
 		[
-			Html.label([Attribute.for_(name), Attribute.class("form-label")], [Html.text(label)]),
+			Html.label([Attribute.for_(name), Design.label], [Html.text(label)]),
 			Html.input([
 				Attribute.id(name),
 				Attribute.name(name),
 				Attribute.type(kind),
 				Attribute.value(value),
-				Attribute.class("form-control"),
+				Design.input,
 				attribute("required", ""),
 			]),
 		],
@@ -294,19 +297,19 @@ errorMessage = |message|
 	if message.is_empty() {
 		Html.div([], [])
 	} else {
-		Html.div([Attribute.class("alert alert-danger")], [Html.text(message)])
+		Html.div([Design.validation], [Html.text(message)])
 	}
 
 todoListNode : List(Models.Todo) -> Html.Node
 todoListNode = |todoRows|
 	Html.div(
-		[Attribute.id("todo-list")],
+		[Attribute.id("todo-list"), Design.tableFrame],
 		[
 			Html.table(
-				[Attribute.class("table table-striped align-middle")],
+				[Design.table],
 				[
-					Html.thead([], [Html.tr([], [headerCell("Task"), headerCell("Status"), headerCell("Actions")])]),
-					Html.tbody([], todoRows.map(todoRow)),
+					Html.thead([Design.tableHead], [Html.tr([], [headerCell("Task"), headerCell("Status"), headerCell("Actions")])]),
+					Html.tbody([Design.tableBody], todoRows.map(todoRow)),
 				],
 			),
 		],
@@ -316,22 +319,27 @@ todoRow : Models.Todo -> Html.Node
 todoRow = |todo| {
 	id = todo.id.to_str()
 	Html.tr(
-		[],
+		[Design.tableRow],
 		[
 			tableCell(todo.task),
 			tableCell(todo.status),
 			Html.td(
-				[],
+				[Design.tableCell],
 				[
-					actionButton("Complete", "/task/${id}/complete", "hx-put", "btn-outline-success"),
-					actionButton("In progress", "/task/${id}/in-progress", "hx-put", "btn-outline-warning"),
-					Html.button(
+					Html.div(
+						[Design.tableActions],
 						[
-							Attribute.class("btn btn-sm btn-outline-danger ms-1"),
-							attribute("hx-post", "/task/${id}/delete"),
-							attribute("hx-target", "#todo-list"),
+							actionButton("Complete", "/task/${id}/complete", "hx-put", Success),
+							actionButton("In progress", "/task/${id}/in-progress", "hx-put", Warning),
+							Html.button(
+								[
+									Design.button(Danger, Small),
+									attribute("hx-post", "/task/${id}/delete"),
+									attribute("hx-target", "#todo-list"),
+								],
+								[Html.text("Delete")],
+							),
 						],
-						[Html.text("Delete")],
 					),
 				],
 			),
@@ -339,11 +347,11 @@ todoRow = |todo| {
 	)
 }
 
-actionButton : Str, Str, Str, Str -> Html.Node
-actionButton = |label, url, hxMethod, className|
+actionButton : Str, Str, Str, Design.ButtonTone -> Html.Node
+actionButton = |label, url, hxMethod, tone|
 	Html.button(
 		[
-			Attribute.class("btn btn-sm ${className} ms-1"),
+			Design.button(tone, Small),
 			attribute(hxMethod, url),
 		],
 		[Html.text(label)],
@@ -352,24 +360,24 @@ actionButton = |label, url, hxMethod, className|
 newTodoForm : () -> Html.Node
 newTodoForm = ||
 	Html.form(
-		[Attribute.action("/task/new"), Attribute.method("post"), Attribute.class("row g-2")],
+		[Attribute.action("/task/new"), Attribute.method("post"), Design.todoForm],
 		[
 			Html.div(
-				[Attribute.class("col-md-8")],
+				[Design.todoTask],
 				[
 					Html.input([
 						Attribute.name("task"),
-						Attribute.class("form-control"),
+						Design.input,
 						attribute("placeholder", "New task"),
 						attribute("required", ""),
 					]),
 				],
 			),
 			Html.div(
-				[Attribute.class("col-md-2")],
+				[Design.todoStatus],
 				[
 					Html.select(
-						[Attribute.name("status"), Attribute.class("form-select")],
+						[Attribute.name("status"), Design.select],
 						[
 							selectOption("Not Started", False),
 							selectOption("In-Progress", False),
@@ -379,8 +387,8 @@ newTodoForm = ||
 				],
 			),
 			Html.div(
-				[Attribute.class("col-md-2")],
-				[Html.button([Attribute.type("submit"), Attribute.class("btn btn-primary w-100")], [Html.text("Add")])],
+				[Design.todoSubmit],
+				[Html.button([Attribute.type("submit"), Design.button(Primary, Full)], [Html.text("Add")])],
 			),
 		],
 	)
@@ -405,7 +413,7 @@ renderTree = |taskTree|
 				[],
 				[
 					Html.text("${todo.task} (${todo.status})"),
-					Html.ul([], children.map(renderTree)),
+					Html.ul([Design.treeChildren], children.map(renderTree)),
 				],
 			)
 		}
@@ -413,13 +421,13 @@ renderTree = |taskTree|
 bigTaskTable : List(Models.BigTask), Models.SortColumn, Models.SortDirection -> Html.Node
 bigTaskTable = |taskRows, sortBy, direction|
 	Html.div(
-		[Attribute.class("table-responsive")],
+		[Design.tableScroll],
 		[
 			Html.table(
-				[Attribute.class("table table-striped table-sm table-bordered")],
+				[Design.table],
 				[
 					Html.thead(
-						[],
+						[Design.tableHead],
 						[
 							Html.tr(
 								[],
@@ -435,7 +443,7 @@ bigTaskTable = |taskRows, sortBy, direction|
 							),
 						],
 					),
-					Html.tbody([], taskRows.map(bigTaskRow)),
+					Html.tbody([Design.tableBody], taskRows.map(bigTaskRow)),
 				],
 			),
 		],
@@ -452,7 +460,7 @@ sortHeader = |label, column, selected, direction| {
 		[
 			attribute("hx-get", "/bigTask?sortBy=${column.to_str()}&sortDirection=${next}"),
 			attribute("hx-target", "body"),
-			Attribute.style("cursor:pointer;"),
+			Design.sortableHeader,
 		],
 		[Html.text(label)],
 	)
@@ -462,11 +470,11 @@ bigTaskRow : Models.BigTask -> Html.Node
 bigTaskRow = |task| {
 	id = task.id.to_str()
 	Html.tr(
-		[],
+		[Design.tableRow],
 		[
 			tableCell(task.referenceId),
 			Html.td(
-				[],
+				[Design.tableCellWide],
 				[
 					editInput({
 						updateUrl: "/bigTask/customerId/${id}",
@@ -478,7 +486,7 @@ bigTaskRow = |task| {
 				],
 			),
 			Html.td(
-				[],
+				[Design.tableCellWide],
 				[
 					editInput({
 						updateUrl: "/bigTask/dateCreated/${id}",
@@ -491,7 +499,7 @@ bigTaskRow = |task| {
 			),
 			tableCell(task.title),
 			Html.td(
-				[],
+				[Design.tableCellWide],
 				[
 					editStatus({
 						updateUrl: "/bigTask/status/${id}",
@@ -519,7 +527,7 @@ editInput = |{ updateUrl, name, kind, value, validation }|
 				Attribute.name(name),
 				Attribute.type(kind),
 				Attribute.value(value),
-				Attribute.class("form-control"),
+				Design.input,
 			]),
 			errorMessage(validation),
 		],
@@ -535,7 +543,7 @@ editStatus = |{ updateUrl, value: selected, validation }|
 		],
 		[
 			Html.select(
-				[Attribute.name("Status"), Attribute.class("form-select")],
+				[Attribute.name("Status"), Design.select],
 				[
 					selectOption("Raised", selected == "Raised"),
 					selectOption("Completed", selected == "Completed"),
@@ -549,10 +557,10 @@ editStatus = |{ updateUrl, value: selected, validation }|
 	)
 
 headerCell : Str -> Html.Node
-headerCell = |value| Html.th([], [Html.text(value)])
+headerCell = |value| Html.th([Design.tableHeader], [Html.text(value)])
 
 tableCell : Str -> Html.Node
-tableCell = |value| Html.td([], [Html.text(value)])
+tableCell = |value| Html.td([Design.tableCell], [Html.text(value)])
 
 attribute : Str, Str -> Attribute.Attribute
 attribute = |name, value| Attribute.attribute(name, value)

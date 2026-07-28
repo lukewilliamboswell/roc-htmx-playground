@@ -135,6 +135,49 @@ test.describe("CRM journeys", () => {
     );
   });
 
+  test("provides native secondary exits from CRM forms", async ({
+    browser,
+  }) => {
+    const context = await browser.newContext({ javaScriptEnabled: false });
+    const page = await context.newPage();
+
+    await loginAsMara(page);
+    await page.goto("/companies/new");
+    const newCompanyForm = page.locator("form");
+    await expect(
+      newCompanyForm.getByRole("button", {
+        name: "Check and save company",
+        exact: true,
+      }),
+    ).toBeVisible();
+    await newCompanyForm
+      .getByRole("link", { name: "Cancel", exact: true })
+      .click();
+    await expect(page).toHaveURL("/companies");
+
+    await page.goto("/companies/company-acme/edit");
+    const editCompanyForm = page.locator("form");
+    await expect(
+      editCompanyForm.getByRole("button", {
+        name: "Save company",
+        exact: true,
+      }),
+    ).toBeVisible();
+    await editCompanyForm
+      .getByRole("link", { name: "Cancel", exact: true })
+      .click();
+    await expect(page).toHaveURL("/companies/company-acme");
+
+    await page.goto("/people/new");
+    await page
+      .locator("form")
+      .getByRole("link", { name: "Cancel", exact: true })
+      .click();
+    await expect(page).toHaveURL("/people");
+
+    await context.close();
+  });
+
   test("maintains primary contacts and exposes task responsibility", async ({
     page,
   }) => {

@@ -519,6 +519,12 @@ Where HTML supports the method, the form also declares its native action and
 method; methods such as `PUT` still require enhancement or a deliberate POST
 fallback.
 
+A full-page form presents one primary submit action and an adjacent secondary
+Cancel link. Cancel is navigation, not a mutation: it uses a typed location and
+returns to the record being edited or the collection that owns a new record.
+This escape route must work without browser scripting and must not submit or
+discard data through an action endpoint.
+
 Do not introduce a shared `hx_nav` helper that silently chooses a global target
 and swap strategy. `Web` owns typed protocol primitives; the feature view
 composes target, selection, and swap attributes beside the region whose

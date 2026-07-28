@@ -162,6 +162,10 @@ form_page = |actor, companies, existing, form, validation, matches| {
 		Some(_) => True
 		None => False
 	}
+	cancel_location = match existing {
+		Some(person) => Route.Location.PersonDetail(person.id)
+		None => Route.Location.AtPage(Route.Page.People)
+	}
 	Layout.page(
 		actor.session,
 		if editing {
@@ -284,20 +288,30 @@ form_page = |actor, companies, existing, form, validation, matches| {
 							Attribute.value("yes"),
 						])
 					},
-					Html.button(
+					Html.div(
+						[Design.actions],
 						[
-							Attribute.type("submit"),
-							Design.button(Design.ButtonTone.Primary, Design.ButtonSize.Regular),
-						],
-						[
-							Html.text(
-								if editing {
-									"Save person"
-								} else if matches.is_empty() {
-									"Check and save person"
-								} else {
-									"Create as a separate person"
-								},
+							Html.button(
+								[
+									Attribute.type("submit"),
+									Design.button(Design.ButtonTone.Primary, Design.ButtonSize.Regular),
+								],
+								[
+									Html.text(
+										if editing {
+											"Save person"
+										} else if matches.is_empty() {
+											"Check and save person"
+										} else {
+											"Create as a separate person"
+										},
+									),
+								],
+							),
+							Web.link(
+								cancel_location,
+								[Design.button(Design.ButtonTone.Outline, Design.ButtonSize.Regular)],
+								[Html.text("Cancel")],
 							),
 						],
 					),

@@ -236,12 +236,22 @@ edit_form_page = |actor, company, form, validation, conflict|
 							),
 						],
 					),
-					Html.button(
+					Html.div(
+						[Design.actions],
 						[
-							Attribute.type("submit"),
-							Design.button(Design.ButtonTone.Primary, Design.ButtonSize.Regular),
+							Html.button(
+								[
+									Attribute.type("submit"),
+									Design.button(Design.ButtonTone.Primary, Design.ButtonSize.Regular),
+								],
+								[Html.text("Save company")],
+							),
+							Web.link(
+								Route.Location.CompanyDetail(company.id),
+								[Design.button(Design.ButtonTone.Outline, Design.ButtonSize.Regular)],
+								[Html.text("Cancel")],
+							),
 						],
-						[Html.text("Save company")],
 					),
 				],
 			),
@@ -378,18 +388,28 @@ company_form_page = |actor, form, validation, matches|
 							Attribute.value("yes"),
 						])
 					},
-					Html.button(
+					Html.div(
+						[Design.actions],
 						[
-							Attribute.type("submit"),
-							Design.button(Design.ButtonTone.Primary, Design.ButtonSize.Regular),
-						],
-						[
-							Html.text(
-								if matches.is_empty() {
-									"Check and save company"
-								} else {
-									"Create as a separate company"
-								},
+							Html.button(
+								[
+									Attribute.type("submit"),
+									Design.button(Design.ButtonTone.Primary, Design.ButtonSize.Regular),
+								],
+								[
+									Html.text(
+										if matches.is_empty() {
+											"Check and save company"
+										} else {
+											"Create as a separate company"
+										},
+									),
+								],
+							),
+							Web.link(
+								Route.Page.Companies,
+								[Design.button(Design.ButtonTone.Outline, Design.ButtonSize.Regular)],
+								[Html.text("Cancel")],
 							),
 						],
 					),

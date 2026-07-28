@@ -3,6 +3,7 @@ import pf.Html
 
 import Actor
 import Design
+import FormView
 import Layout
 import Route
 import Web
@@ -187,18 +188,19 @@ task_form = |actor, action|
 		action,
 		[Design.inlineForm],
 		[
-			field("Subject", Route.TaskInput.Subject, "Follow up"),
+			FormView.required_text_field("Subject", Route.TaskInput.Subject, "", "Follow up"),
 			Html.div(
 				[Design.field],
 				[
-					Html.label(
-						[Attribute.for_(Route.TaskInput.to_name(Route.TaskInput.DueLocal)), Design.label],
-						[Html.text("Due in ${actor.workspace.timezone.to_str()}")],
+					FormView.required_label(
+						"Due in ${actor.workspace.timezone.to_str()}",
+						Route.TaskInput.to_name(Route.TaskInput.DueLocal),
 					),
 					Html.input([
 						Attribute.id(Route.TaskInput.to_name(Route.TaskInput.DueLocal)),
 						Attribute.name(Route.TaskInput.to_name(Route.TaskInput.DueLocal)),
 						Attribute.type("datetime-local"),
+						attribute("required", ""),
 						Design.input,
 					]),
 				],
@@ -255,7 +257,7 @@ task_form = |actor, action|
 					),
 				],
 			),
-			field("Context", Route.TaskInput.Context, "What needs to happen?"),
+			FormView.text_field("Context", Route.TaskInput.Context, "", "What needs to happen?"),
 			Html.button(
 				[
 					Attribute.type("submit"),
@@ -264,21 +266,6 @@ task_form = |actor, action|
 				],
 				[Html.text("Schedule task")],
 			),
-		],
-	)
-
-field : Str, Route.TaskInput, Str -> Html.Node
-field = |label, input, placeholder|
-	Html.div(
-		[Design.field],
-		[
-			Html.label([Attribute.for_(input.to_name()), Design.label], [Html.text(label)]),
-			Html.input([
-				Attribute.id(input.to_name()),
-				Attribute.name(input.to_name()),
-				attribute("placeholder", placeholder),
-				Design.input,
-			]),
 		],
 	)
 

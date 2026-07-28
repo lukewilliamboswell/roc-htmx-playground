@@ -269,12 +269,19 @@ test.describe("CRM journeys", () => {
     await expect(phoneSection.locator("#person-phone-value")).toBeFocused();
 
     await emailSection.getByLabel("Label", { exact: true }).fill("Personal");
-    await emailSection
-      .getByLabel("Value", { exact: true })
-      .fill("ada.secondary@example.com");
-    await emailSection
-      .getByRole("button", { name: "Add", exact: true })
-      .click();
+    const emailValue = emailSection.getByRole("textbox", {
+      name: "Value",
+      exact: true,
+    });
+    const addEmail = emailSection.getByRole("button", {
+      name: "Add",
+      exact: true,
+    });
+    await expect(emailValue).toHaveAttribute("required", "");
+    await addEmail.click();
+    await expect(emailValue).toBeFocused();
+    await emailValue.fill("ada.secondary@example.com");
+    await addEmail.click();
 
     emailSection = page.locator("section").filter({
       has: page.getByRole("heading", {
@@ -303,10 +310,23 @@ test.describe("CRM journeys", () => {
     const taskSection = page.locator("section").filter({
       has: page.getByRole("heading", { name: "Open tasks", exact: true }),
     });
-    await taskSection
-      .getByLabel("Subject", { exact: true })
-      .fill("Confirm browser journey");
-    await taskSection.getByLabel(/^Due in /).fill("2026-07-29T10:00");
+    const taskSubject = taskSection.getByRole("textbox", {
+      name: "Subject",
+      exact: true,
+    });
+    const taskDue = taskSection.getByLabel(/^Due in /);
+    const scheduleTask = taskSection.getByRole("button", {
+      name: "Schedule task",
+      exact: true,
+    });
+    await expect(taskSubject).toHaveAttribute("required", "");
+    await expect(taskDue).toHaveAttribute("required", "");
+    await scheduleTask.click();
+    await expect(taskSubject).toBeFocused();
+    await taskSubject.fill("Confirm browser journey");
+    await scheduleTask.click();
+    await expect(taskDue).toBeFocused();
+    await taskDue.fill("2026-07-29T10:00");
     await taskSection
       .getByLabel("Assignee", { exact: true })
       .selectOption({ label: "Theo Nguyen" });
@@ -316,9 +336,7 @@ test.describe("CRM journeys", () => {
     await taskSection
       .getByLabel("Context", { exact: true })
       .fill("Verify the CRM browser workflow");
-    await taskSection
-      .getByRole("button", { name: "Schedule task", exact: true })
-      .click();
+    await scheduleTask.click();
 
     const task = page
       .getByRole("listitem")
@@ -413,7 +431,7 @@ test.describe("CRM journeys", () => {
       has: page.getByRole("heading", { name: "Open tasks", exact: true }),
     });
     await taskSection
-      .getByLabel("Subject", { exact: true })
+      .getByRole("textbox", { name: "Subject", exact: true })
       .fill("Native completion");
     await taskSection.getByLabel(/^Due in /).fill("2026-07-29T11:00");
     await taskSection

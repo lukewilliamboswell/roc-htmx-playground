@@ -424,7 +424,7 @@ contact_section = |person, kind| {
 						"Work",
 						"Work",
 					),
-					FormView.text_field_with_id(
+					FormView.required_text_field_with_id(
 						"Value",
 						Route.PersonInput.Value,
 						"${field_prefix}-value",

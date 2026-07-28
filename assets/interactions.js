@@ -30,7 +30,7 @@
         message.setAttribute("role", "alert");
         message.setAttribute("data-transport-error", "");
         message.textContent =
-            "The request could not reach the server. Check your connection and try again.";
+            "We could not confirm whether the change completed. Check the current record before trying again.";
         feedback.replaceChildren(message);
     });
 

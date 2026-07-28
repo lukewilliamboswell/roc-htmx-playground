@@ -468,7 +468,7 @@ test.describe("CRM journeys", () => {
       page
         .getByRole("alert")
         .getByText(
-          "The request could not reach the server. Check your connection and try again.",
+          "We could not confirm whether the change completed. Check the current record before trying again.",
         ),
     ).toBeVisible();
     await expect(task).toBeVisible();
@@ -503,7 +503,8 @@ test.describe("CRM journeys", () => {
     await page.route(completionPattern, async (route) => {
       completionRequests += 1;
       await new Promise((resolve) => setTimeout(resolve, 250));
-      await route.continue();
+      await route.fetch();
+      await route.abort("failed");
     });
 
     await complete.evaluate((button) => {
@@ -511,10 +512,22 @@ test.describe("CRM journeys", () => {
       button.click();
     });
 
-    await expect(task).not.toBeVisible();
+    await expect(
+      page
+        .getByRole("alert")
+        .getByText(
+          "We could not confirm whether the change completed. Check the current record before trying again.",
+        ),
+    ).toBeVisible();
+    await expect(task).toBeVisible();
     await expect(page).toHaveURL(relationshipUrl);
-    await expect(page.locator("#related-open-tasks-heading")).toBeFocused();
     expect(completionRequests).toBe(1);
+
+    await page.unroute(completionPattern);
+    await complete.click();
+
+    await expect(task).not.toBeVisible();
+    await expect(page.locator("#related-open-tasks-heading")).toBeFocused();
   });
 
   test("completes related work in context without JavaScript", async ({

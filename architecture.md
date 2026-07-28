@@ -578,9 +578,9 @@ version in one immediate transaction. A stale write returns `409 Conflict`
 with the submitted value intact and the current version, so the user can review
 and retry without silently overwriting another committed edit.
 
-Do not apply latest-wins where every request matters or the first accepted
-mutation must run exactly once. Give each synchronization policy a name that
-states its intent, and back mutations with a server-side invariant.
+Do not apply latest-wins where every request matters. Give each synchronization
+policy a name that states its intent, and back mutations with a server-side
+invariant. Browser synchronization cannot provide exactly-once execution.
 
 ### Form fragments own validation and focus
 
@@ -620,8 +620,11 @@ only the stable section that owns the changed state. The native destination is
 the contract.
 
 The submitting control exposes local request status. A named first-wins policy
-may drop repeated browser submissions, but the persistence operation still
-enforces the state transition exactly once.
+may drop repeated browser submissions while one page request is pending, but it
+does not make retries safe. Prefer idempotent state transitions such as
+`open -> completed` guarded by `WHERE status = 'open'`. A non-idempotent
+operation instead needs a client operation key that the server stores with its
+result and replays for duplicate submissions.
 
 HTMX 4 error responses have an explicit destination. Full error pages expose a
 stable `Web.ErrorTarget.RequestError` summary; enhanced mutation forms use
@@ -633,12 +636,14 @@ place for correction or retry.
 
 Use a JavaScript event boundary only when neither semantic HTML nor an HTTP
 response can represent the outcome. Connection loss and client-side timeout
-meet that test. An enhanced form opts in with
+meet that test. They create an uncertain outcome: lack of a response does not
+prove the server failed to commit. An enhanced form opts in with
 `Web.network_errors_to(target)`; `interactions.js` listens for HTMX 4's
 `htmx:error` event and writes a persistent alert into that form's existing
-local feedback region. A later retry clears the transport alert before issuing
-the request. Server-rendered success, validation, and operational error markup
-remain authoritative.
+local feedback region. Its copy tells the user to check current state before
+retrying; the retry must be safe under the mutation's idempotency rule. A later
+retry clears the transport alert before issuing the request. Server-rendered
+success, validation, and operational error markup remain authoritative.
 
 Do not generalize this boundary into a client state layer. In particular, we
 reject global spinners and transient success/error toasts as the default:

@@ -139,7 +139,8 @@ Web := [].{
 	hx_sync_latest = Attribute.attribute("hx-sync", "this:replace")
 
 	## Keep the first mutation request and ignore repeated submissions until it
-	## finishes. Persistence must still enforce the transition exactly once.
+	## finishes. Persistence must still make retries safe: use an idempotent
+	## transition, or persist an idempotency key with the operation result.
 	hx_sync_first : Attribute.Attribute
 	hx_sync_first = Attribute.attribute("hx-sync", "this:drop")
 

@@ -99,6 +99,42 @@ test.describe("CRM journeys", () => {
     ).toBeVisible();
   });
 
+  test("preserves CRM form values and focuses server validation", async ({
+    page,
+  }) => {
+    await loginAsMara(page);
+    await page.goto("/companies/new");
+
+    await page
+      .getByLabel("Website", { exact: true })
+      .fill("https://preserved.example");
+    await page
+      .getByRole("button", { name: "Check and save company", exact: true })
+      .click();
+
+    const companyError = page.getByRole("alert");
+    await expect(companyError).toHaveText("Enter a company name.");
+    await expect(companyError).toBeFocused();
+    await expect(page.getByLabel("Website", { exact: true })).toHaveValue(
+      "https://preserved.example",
+    );
+
+    await page.goto("/people/new");
+    await page
+      .getByLabel("Role or title", { exact: true })
+      .fill("Preserved role");
+    await page
+      .getByRole("button", { name: "Check and save person", exact: true })
+      .click();
+
+    const personError = page.getByRole("alert");
+    await expect(personError).toHaveText("Enter a person's name.");
+    await expect(personError).toBeFocused();
+    await expect(page.getByLabel("Role or title", { exact: true })).toHaveValue(
+      "Preserved role",
+    );
+  });
+
   test("maintains primary contacts and exposes task responsibility", async ({
     page,
   }) => {

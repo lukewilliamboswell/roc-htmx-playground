@@ -579,6 +579,14 @@ may therefore use `422` only when its HTML is shaped for the declared target.
 Unexpected server errors must not replace a local editor with a full-page
 error representation.
 
+Full-page forms use the same recovery principle at page scale. An invalid
+submission re-renders every submitted value, places a stable focusable alert
+before the form, and moves focus to that alert. Field-level messages use stable
+IDs and `aria-describedby` only when the server can identify the field that
+failed; a general error must not be falsely associated with one control.
+Native constraint validation may complement this response but does not replace
+server validation.
+
 ### Contextual mutations defend the action at three layers
 
 A mutation initiated inside a record context keeps the member in that context.

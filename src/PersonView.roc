@@ -186,7 +186,7 @@ form_page = |actor, companies, existing, form, validation, matches| {
 			if validation.is_empty() {
 				Html.text("")
 			} else {
-				Html.p([Design.validation], [Html.text(validation)])
+				validation_summary("person-form-error", validation)
 			},
 			if matches.is_empty() {
 				Html.text("")
@@ -659,6 +659,19 @@ primary_contact = |person| {
 		email
 	}
 }
+
+validation_summary : Str, Str -> Html.Node
+validation_summary = |id, message|
+	Html.p(
+		[
+			Attribute.id(id),
+			attribute("role", "alert"),
+			attribute("tabindex", "-1"),
+			attribute("autofocus", ""),
+			Design.validation,
+		],
+		[Html.text(message)],
+	)
 
 attribute : Str, Str -> Attribute.Attribute
 attribute = |name, value| Attribute.attribute(name, value)

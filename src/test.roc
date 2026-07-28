@@ -101,8 +101,10 @@ test_companies! = |db| {
 			"Australia/Melbourne",
 			[],
 			[],
+			[],
 		)
 	member = Member.from_storage("member-mara", "Mara Singh", "mara@example.com", 1)
+	theo_id = Member.Id.from_storage("member-theo")
 	listed = CompanyStore.list!(store, Company.Filter.empty)
 	expect match listed {
 		Ok([company]) =>
@@ -185,7 +187,7 @@ test_companies! = |db| {
 	}
 	updated_input = valid_company_input(
 		"Northwind Workshop",
-		member.id,
+		theo_id,
 		"customer",
 		"https://northwind.example",
 		"+61 3 8111 2222",
@@ -228,6 +230,15 @@ test_companies! = |db| {
 		limits: Sqlite.default_query_limits,
 	}) ?? { count: 0 }
 	expect activity_count.count == 1
+
+	history = CompanyStore.history!(store, created_id)
+	expect match history {
+		Ok(activities) =>
+			activities.len() == 2
+				and activities.any(|activity| activity.changeField == "owner")
+					and activities.any(|activity| activity.changeField == "lifecycle")
+		Err(_) => False
+	}
 }
 
 valid_company_input : Str, Member.Id, Str, Str, Str -> Company.New
@@ -250,8 +261,10 @@ test_people! = |db| {
 			"Australia/Melbourne",
 			[],
 			[],
+			[],
 		)
 	member = Member.from_storage("member-mara", "Mara Singh", "mara@example.com", 1)
+	theo_id = Member.Id.from_storage("member-theo")
 	input = valid_person_input(
 		"Ada Lovelace",
 		member.id,
@@ -325,7 +338,7 @@ test_people! = |db| {
 		_ => False
 	}
 
-	moved = valid_person_input("Ada Lovelace", member.id, "", "", "")
+	moved = valid_person_input("Ada Lovelace", theo_id, "", "", "")
 	updated = PersonStore.update!(
 		store,
 		workspace.id,
@@ -351,6 +364,15 @@ test_people! = |db| {
 	expect match stale {
 		Err(Person.UpdateError.Conflict(current)) =>
 			current.version.to_i64() == 2 and current.companyId.is_empty()
+		_ => False
+	}
+
+	history = PersonStore.history!(store, person_id)
+	expect match history {
+		Ok([activity]) =>
+			activity.changeField == "owner"
+				and activity.changeFrom == "member-mara"
+					and activity.changeTo == "member-theo"
 		_ => False
 	}
 }
@@ -385,8 +407,10 @@ test_work_tasks! = |db| {
 			"Australia/Melbourne",
 			[],
 			[],
+			[],
 		)
 	member = Member.from_storage("member-mara", "Mara Singh", "mara@example.com", 1)
+	theo_id = Member.Id.from_storage("member-theo")
 	overdue_input = valid_work_task(
 		"Call Acme",
 		"2026-07-27T16:00",
@@ -426,7 +450,20 @@ test_work_tasks! = |db| {
 		upcoming_input,
 		"2026-07-28T00:00:00Z",
 	)
-	expect overdue.is_ok() and today_task.is_ok() and upcoming.is_ok()
+	delegated_input = valid_work_task(
+		"Confirm installation",
+		"2026-07-29T10:00",
+		theo_id,
+		WorkTask.Related.Company("company-acme"),
+	)
+	delegated = WorkTaskStore.create!(
+		store,
+		workspace.id,
+		member.id,
+		delegated_input,
+		"2026-07-28T00:05:00Z",
+	)
+	expect overdue.is_ok() and today_task.is_ok() and upcoming.is_ok() and delegated.is_ok()
 
 	work = WorkTaskStore.for_assignee!(
 		store,
@@ -439,6 +476,17 @@ test_work_tasks! = |db| {
 			first.bucket == WorkTask.Bucket.Overdue
 				and second.bucket == WorkTask.Bucket.Today
 					and third.bucket == WorkTask.Bucket.Upcoming
+		_ => False
+	}
+
+	theo_work = WorkTaskStore.for_assignee!(
+		store,
+		workspace.id,
+		theo_id,
+		"2026-07-28",
+	)
+	expect match theo_work {
+		Ok([task]) => task.subject.to_str() == "Confirm installation"
 		_ => False
 	}
 
@@ -494,6 +542,7 @@ test_workspace! = |db| {
 					and workspace.timezone.to_str() == "Australia/Melbourne"
 						and workspace.sources.len() == 6
 							and workspace.taskTypes.len() == 5
+								and workspace.members.len() == 2
 		Err(_) => False
 	}
 }

@@ -6,6 +6,7 @@ import Actor
 import AppError
 import Company
 import Http
+import Member
 import Person
 import Route
 import Web
@@ -29,10 +30,15 @@ WorkTaskHandler := [].{
 	create! : Server.Request, WorkTaskStore, Actor, WorkTask.Related => Try(Response, AppError)
 	create! = |request, store, actor, related| {
 		fields = Http.read_form!(request)?
+		assignee = Member.Id.from_str(field(fields, Route.TaskInput.Assignee))
+			? |_| AppError.BadRequest("Choose a valid active assignee")
+		if !actor.workspace.has_active_member(assignee) {
+			return Err(AppError.BadRequest("Choose a valid active assignee"))
+		}
 		input = WorkTask.new(
 			field(fields, Route.TaskInput.Subject),
 			field(fields, Route.TaskInput.DueLocal),
-			actor.member.id,
+			assignee,
 			field(fields, Route.TaskInput.TaskType),
 			related,
 			field(fields, Route.TaskInput.Context),

@@ -1,5 +1,6 @@
 import pf.Sqlite
 
+import Member
 import Workspace
 
 WorkspaceStore :: { db : Sqlite.Db }.{
@@ -53,6 +54,20 @@ WorkspaceStore :: { db : Sqlite.Db }.{
 					limits: Sqlite.default_query_limits,
 				}) ? Workspace.LoadError.StoreFailure
 
+				member_rows : List({ active : I64, email : Str, id : Str, name : Str })
+				member_rows = Sqlite.query_many!({
+					db: store.db,
+					query: (
+						\\SELECT member_id AS id, name, email, active
+						\\FROM members
+						\\WHERE workspace_id = :workspaceId AND active = 1
+						\\ORDER BY name, member_id;
+						,
+					),
+					params: { workspaceId: row.id },
+					limits: Sqlite.default_query_limits,
+				}) ? Workspace.LoadError.StoreFailure
+
 				Ok(
 					Workspace.from_storage(
 						row.id,
@@ -75,6 +90,15 @@ WorkspaceStore :: { db : Sqlite.Db }.{
 									task_type.name,
 									task_type.position,
 									task_type.active,
+								),
+						),
+						member_rows.map(
+							|member|
+								Member.from_storage(
+									member.id,
+									member.name,
+									member.email,
+									member.active,
 								),
 						),
 					),

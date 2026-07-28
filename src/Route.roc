@@ -192,11 +192,12 @@ Route := [
 			}
 	}
 
-	CompanyInput := [Name, Lifecycle, Website, Phone, Source, Context, ConfirmDistinct, Version].{
+	CompanyInput := [Name, Owner, Lifecycle, Website, Phone, Source, Context, ConfirmDistinct, Version].{
 		to_name : CompanyInput -> Str
 		to_name = |input|
 			match input {
 				Name => "name"
+				Owner => "owner"
 				Lifecycle => "lifecycle"
 				Website => "website"
 				Phone => "phone"
@@ -207,13 +208,14 @@ Route := [
 			}
 	}
 
-	PersonInput := [Name, Company, JobTitle, Lifecycle, Source, Context, Email, Phone, ConfirmDistinct, Version, Label, Value, Primary].{
+	PersonInput := [Name, Company, JobTitle, Owner, Lifecycle, Source, Context, Email, Phone, ConfirmDistinct, Version, Label, Value, Primary].{
 		to_name : PersonInput -> Str
 		to_name = |input|
 			match input {
 				Name => "name"
 				Company => "company"
 				JobTitle => "jobTitle"
+				Owner => "owner"
 				Lifecycle => "lifecycle"
 				Source => "source"
 				Context => "context"
@@ -227,12 +229,13 @@ Route := [
 			}
 	}
 
-	TaskInput := [Subject, DueLocal, TaskType, Context].{
+	TaskInput := [Subject, DueLocal, Assignee, TaskType, Context].{
 		to_name : TaskInput -> Str
 		to_name = |input|
 			match input {
 				Subject => "subject"
 				DueLocal => "dueLocal"
+				Assignee => "assignee"
 				TaskType => "taskType"
 				Context => "context"
 			}

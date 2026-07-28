@@ -1,5 +1,6 @@
 import pf.Sqlite
 
+import Activity
 import Company
 import Member
 import Workspace
@@ -156,6 +157,29 @@ CompanyStore :: { db : Sqlite.Db }.{
 				Ok(version)
 			}
 		}
+	}
+
+	history! : CompanyStore, Company.Id => Try(List(Activity), Sqlite.QueryError)
+	history! = |store, id| {
+		rows : List(RawActivity)
+		rows = Sqlite.query_many!({
+			db: store.db,
+			query: (
+				\\SELECT a.activity_id AS id, a.occurred_at AS occurredAt,
+				\\ member.name AS createdByName, a.subject,
+				\\ a.change_field AS changeField, a.change_from AS changeFrom,
+				\\ a.change_to AS changeTo
+				\\FROM activities a
+				\\JOIN activity_companies link ON link.activity_id = a.activity_id
+				\\JOIN members member ON member.member_id = a.created_by_id
+				\\WHERE link.company_id = :id
+				\\ORDER BY a.occurred_at DESC, a.activity_id DESC;
+				,
+			),
+			params: { id: id.to_str() },
+			limits: Sqlite.default_query_limits,
+		})?
+		Ok(rows.map(Activity.from_storage))
 	}
 }
 
@@ -557,4 +581,14 @@ RawMatch : {
 	updatedByName : Str,
 	version : I64,
 	website : Str,
+}
+
+RawActivity : {
+	changeField : Str,
+	changeFrom : Str,
+	changeTo : Str,
+	createdByName : Str,
+	id : Str,
+	occurredAt : Str,
+	subject : Str,
 }

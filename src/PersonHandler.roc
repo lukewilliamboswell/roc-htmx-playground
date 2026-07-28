@@ -7,6 +7,7 @@ import AppError
 import Company
 import CompanyStore
 import Http
+import Member
 import Person
 import PersonStore
 import PersonView
@@ -29,7 +30,8 @@ PersonHandler := [].{
 				today = WorkTaskStore.today!(tasks) ? AppError.from
 				open_tasks = WorkTaskStore.for_person!(tasks, id.to_str(), today)
 					? AppError.from
-				Ok(Http.html(200, PersonView.detail(actor, person, open_tasks), []))
+				history = PersonStore.history!(store, id) ? AppError.from
+				Ok(Http.html(200, PersonView.detail(actor, person, open_tasks, history), []))
 			}
 			Err(Person.FindError.NotFound) => Err(AppError.NotFound("person ${id.to_str()}"))
 			Err(Person.FindError.StoreFailure(error)) => Err(AppError.from(error))
@@ -39,7 +41,7 @@ PersonHandler := [].{
 	new_page! = |companies, actor, company_id| {
 		company_list = CompanyStore.list!(companies, Company.Filter.empty)
 			? AppError.from
-		form = empty_form(company_id)
+		form = empty_form(company_id, actor.member.id.to_str())
 		Ok(Http.html(200, PersonView.new_page(actor, company_list, form, "", []), []))
 	}
 
@@ -194,12 +196,17 @@ render_edit_error! = |store, actor, companies, id, form, message, status|
 	}
 
 person_input : PersonView.Form, Actor -> Try(Person.New, Str)
-person_input = |form, actor|
+person_input = |form, actor| {
+	owner = Member.Id.from_str(form.owner)
+		? |_| "Choose a valid active owner."
+	if !actor.workspace.has_active_member(owner) {
+		return Err("Choose a valid active owner.")
+	}
 	match Person.new(
 		form.name,
 		form.company,
 		form.jobTitle,
-		actor.member.id,
+		owner,
 		form.lifecycle,
 		form.source,
 		form.context,
@@ -210,6 +217,7 @@ person_input = |form, actor|
 		Err(Person.NewError.NameWasEmpty) => Err("Enter a person's name.")
 		Err(Person.NewError.InvalidLifecycle(_)) => Err("Choose a valid lifecycle.")
 	}
+}
 
 form_values : Dict(Str, Str) -> PersonView.Form
 form_values = |fields|
@@ -217,6 +225,7 @@ form_values = |fields|
 		name: field(fields, Route.PersonInput.Name),
 		company: field(fields, Route.PersonInput.Company),
 		jobTitle: field(fields, Route.PersonInput.JobTitle),
+		owner: field(fields, Route.PersonInput.Owner),
 		lifecycle: field(fields, Route.PersonInput.Lifecycle),
 		source: field(fields, Route.PersonInput.Source),
 		context: field(fields, Route.PersonInput.Context),
@@ -227,12 +236,13 @@ form_values = |fields|
 field : Dict(Str, Str), Route.PersonInput -> Str
 field = |fields, input| fields.get(input.to_name()) ?? ""
 
-empty_form : Str -> PersonView.Form
-empty_form = |company_id|
+empty_form : Str, Str -> PersonView.Form
+empty_form = |company_id, owner|
 	PersonView.Form.{
 		name: "",
 		company: company_id,
 		jobTitle: "",
+		owner,
 		lifecycle: "lead",
 		source: "",
 		context: "",
@@ -246,6 +256,7 @@ form_from_person = |person|
 		name: person.name.to_str(),
 		company: person.companyId,
 		jobTitle: person.jobTitle,
+		owner: person.ownerId.to_str(),
 		lifecycle: person.lifecycle.to_str(),
 		source: person.sourceId,
 		context: person.context,

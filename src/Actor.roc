@@ -24,5 +24,6 @@ expect Actor.from_session(
 		"Australia/Melbourne",
 		[],
 		[],
+		[],
 	),
 ).is_err()

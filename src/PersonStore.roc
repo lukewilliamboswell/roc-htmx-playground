@@ -1,5 +1,6 @@
 import pf.Sqlite
 
+import Activity
 import Company
 import Member
 import Person
@@ -145,13 +146,13 @@ PersonStore :: { db : Sqlite.Db }.{
 	update! : PersonStore, Workspace.Id, Member.Id, Person.Id, Person.New, Company.Version, Str => Try(Company.Version, Person.UpdateError(Sqlite.QueryError))
 	update! = |store, workspace_id, actor_id, id, input, expected_version, now| {
 		current = find!(store, id)
-		match current {
+		current_person = match current {
 			Err(Person.FindError.NotFound) => return Err(Person.UpdateError.NotFound)
 			Err(Person.FindError.StoreFailure(error)) =>
 				return Err(Person.UpdateError.StoreFailure(error))
 			Ok(person) if person.version != expected_version =>
 				return Err(Person.UpdateError.Conflict(person))
-			Ok(_) => {}
+			Ok(person) => person
 		}
 		next_version = Company.Version.from_i64(expected_version.to_i64() + 1)
 		changed = Sqlite.execute!({
@@ -211,7 +212,54 @@ PersonStore :: { db : Sqlite.Db }.{
 				now,
 			},
 		}) ? Person.UpdateError.StoreFailure
+		if current_person.ownerId != input.ownerId {
+			log_person_change!(
+				store.db,
+				workspace_id,
+				actor_id,
+				id,
+				"owner",
+				current_person.ownerId.to_str(),
+				input.ownerId.to_str(),
+				now,
+			) ? Person.UpdateError.StoreFailure
+		}
+		if current_person.lifecycle != input.lifecycle {
+			log_person_change!(
+				store.db,
+				workspace_id,
+				actor_id,
+				id,
+				"lifecycle",
+				current_person.lifecycle.to_label(),
+				input.lifecycle.to_label(),
+				now,
+			) ? Person.UpdateError.StoreFailure
+		}
 		Ok(next_version)
+	}
+
+	history! : PersonStore, Person.Id => Try(List(Activity), Sqlite.QueryError)
+	history! = |store, id| {
+		rows : List(RawActivity)
+		rows = Sqlite.query_many!({
+			db: store.db,
+			query: (
+				\\SELECT a.activity_id AS id, a.occurred_at AS occurredAt,
+				\\ member.name AS createdByName, a.subject,
+				\\ a.change_field AS changeField, a.change_from AS changeFrom,
+				\\ a.change_to AS changeTo
+				\\FROM activities a
+				\\JOIN activity_people link ON link.activity_id = a.activity_id
+				\\JOIN members member ON member.member_id = a.created_by_id
+				\\WHERE link.person_id = :id
+				\\ORDER BY a.occurred_at DESC, a.activity_id DESC;
+				,
+			),
+			params: { id: id.to_str() },
+			limits: Sqlite.default_query_limits,
+		})?
+		Ok(rows.map(Activity.from_storage))
 	}
 
 	add_contact! : PersonStore, Person.Id, [Email, Phone], Str, Str, Bool => Try({}, Sqlite.QueryError)
@@ -312,6 +360,41 @@ PersonStore :: { db : Sqlite.Db }.{
 			}
 		Ok({})
 	}
+}
+
+log_person_change! : Sqlite.Db, Workspace.Id, Member.Id, Person.Id, Str, Str, Str, Str => Try({}, Sqlite.QueryError)
+log_person_change! = |db, workspace_id, actor_id, person_id, field, from, to, now| {
+	activity : { id : Str }
+	activity = Sqlite.query!({
+		db,
+		query: (
+			\\INSERT INTO activities (
+			\\ activity_id, workspace_id, activity_type, occurred_at,
+			\\ created_by_id, subject, details, outcome, change_field,
+			\\ change_from, change_to, created_at
+			\\) VALUES (
+			\\ 'activity-' || lower(hex(randomblob(16))), :workspaceId,
+			\\ 'record_change', :now, :actorId, 'Person updated',
+			\\ '', '', :field, :fromValue, :toValue, :now
+			\\) RETURNING activity_id AS id;
+			,
+		),
+		params: {
+			workspaceId: workspace_id.to_str(),
+			actorId: actor_id.to_str(),
+			field,
+			fromValue: from,
+			toValue: to,
+			now,
+		},
+		limits: Sqlite.default_query_limits,
+	})?
+	Sqlite.execute!({
+		db,
+		query: "INSERT INTO activity_people (activity_id, person_id) VALUES (:activityId, :personId);",
+		params: { activityId: activity.id, personId: person_id.to_str() },
+	})?
+	Ok({})
 }
 
 create_in_transaction! : Sqlite.Transaction, Workspace.Id, Member.Id, Person.New, Str => Try(Person.Id, Sqlite.QueryError)
@@ -535,3 +618,13 @@ RawPerson : {
 RawContact : { id : Str, label : Str, primaryValue : I64, value : Str }
 
 RawPersonMatch : { id : Str, reason : Str, strength : Str }
+
+RawActivity : {
+	changeField : Str,
+	changeFrom : Str,
+	changeTo : Str,
+	createdByName : Str,
+	id : Str,
+	occurredAt : Str,
+	subject : Str,
+}

@@ -130,6 +130,33 @@ task_form = |actor, action|
 				[Design.field],
 				[
 					Html.label(
+						[Attribute.for_(Route.TaskInput.to_name(Route.TaskInput.Assignee)), Design.label],
+						[Html.text("Assignee")],
+					),
+					Html.select(
+						[
+							Attribute.id(Route.TaskInput.to_name(Route.TaskInput.Assignee)),
+							Attribute.name(Route.TaskInput.to_name(Route.TaskInput.Assignee)),
+							Design.select,
+						],
+						actor.workspace.members.map(
+							|member|
+								Html.option(
+									if member.id == actor.member.id {
+										[Attribute.value(member.id.to_str()), attribute("selected", "")]
+									} else {
+										[Attribute.value(member.id.to_str())]
+									},
+									[Html.text(member.name.to_str())],
+								),
+						),
+					),
+				],
+			),
+			Html.div(
+				[Design.field],
+				[
+					Html.label(
 						[Attribute.for_(Route.TaskInput.to_name(Route.TaskInput.TaskType)), Design.label],
 						[Html.text("Task type")],
 					),

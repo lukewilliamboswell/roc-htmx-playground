@@ -1,6 +1,7 @@
 import pf.Attribute
 import pf.Html
 
+import Activity
 import Actor
 import Company
 import Design
@@ -20,6 +21,7 @@ CompanyView :: [].{
 
 	Form := {
 		name : Str,
+		owner : Str,
 		lifecycle : Str,
 		website : Str,
 		phone : Str,
@@ -74,8 +76,8 @@ CompanyView :: [].{
 	conflict_page = |actor, current, attempted|
 		edit_form_page(actor, current, attempted, "", True)
 
-	detail : Actor, Company, List(Person), List(WorkTask) -> Html.Node
-	detail = |actor, company, people, tasks|
+	detail : Actor, Company, List(Person), List(WorkTask), List(Activity) -> Html.Node
+	detail = |actor, company, people, tasks, history|
 		Layout.page(
 			actor.session,
 			Route.Page.Companies,
@@ -133,10 +135,7 @@ CompanyView :: [].{
 					tasks,
 					Route.PostAction.CreateCompanyTask(company.id),
 				),
-				placeholder_section(
-					"History",
-					"Owner and lifecycle changes will appear here once editing is enabled.",
-				),
+				activity_section(history),
 			],
 		)
 }
@@ -192,6 +191,12 @@ edit_form_page = |actor, company, form, validation, conflict|
 					text_field("Company name", Route.CompanyInput.Name, form.name, "Acme Studio"),
 					text_field("Website", Route.CompanyInput.Website, form.website, "https://acme.example"),
 					text_field("Phone", Route.CompanyInput.Phone, form.phone, "+61 3 9000 0000"),
+					select_field(
+						"Owner",
+						Route.CompanyInput.Owner,
+						form.owner,
+						actor.workspace.members.map(|member| (member.id.to_str(), member.name.to_str())),
+					),
 					select_field(
 						"Lifecycle",
 						Route.CompanyInput.Lifecycle,
@@ -319,6 +324,12 @@ company_form_page = |actor, form, validation, matches|
 					text_field("Company name", Route.CompanyInput.Name, form.name, "Acme Studio"),
 					text_field("Website", Route.CompanyInput.Website, form.website, "https://acme.example"),
 					text_field("Phone", Route.CompanyInput.Phone, form.phone, "+61 3 9000 0000"),
+					select_field(
+						"Owner",
+						Route.CompanyInput.Owner,
+						form.owner,
+						actor.workspace.members.map(|member| (member.id.to_str(), member.name.to_str())),
+					),
 					select_field(
 						"Lifecycle",
 						Route.CompanyInput.Lifecycle,
@@ -571,14 +582,33 @@ detail_list = |items|
 		),
 	)
 
-placeholder_section : Str, Str -> Html.Node
-placeholder_section = |title, message|
+activity_section : List(Activity) -> Html.Node
+activity_section = |history|
 	Html.element(
 		"section",
 		[Design.contentSection],
 		[
-			Html.h2([Design.sectionHeading], [Html.text(title)]),
-			Html.p([Design.contentSectionText], [Html.text(message)]),
+			Html.h2([Design.sectionHeading], [Html.text("History")]),
+			Html.ul(
+				[Design.taskList],
+				if history.is_empty() {
+					[Html.li([Design.secondaryText], [Html.text("No recorded changes yet.")])]
+				} else {
+					history.map(
+						|activity|
+							Html.li(
+								[Design.taskItem],
+								[
+									Html.p([], [Html.text(Activity.summary(activity))]),
+									Html.p(
+										[Design.activityMeta],
+										[Html.text("${activity.createdByName} · ${activity.occurredAt}")],
+									),
+								],
+							),
+					)
+				},
+			),
 		],
 	)
 

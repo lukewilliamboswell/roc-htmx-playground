@@ -299,6 +299,9 @@ Design :: [].{
 	taskActions : Attribute.Attribute
 	taskActions = class("mt-3")
 
+	activityMeta : Attribute.Attribute
+	activityMeta = class("mt-1 text-xs text-slate-500")
+
 	todoForm : Attribute.Attribute
 	todoForm = class("mt-6 grid gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm md:grid-cols-12")
 

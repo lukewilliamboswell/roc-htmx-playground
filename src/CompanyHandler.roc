@@ -8,6 +8,7 @@ import Company
 import CompanyStore
 import CompanyView
 import Http
+import Member
 import PersonStore
 import Route
 import Web
@@ -38,10 +39,11 @@ CompanyHandler := [].{
 							today = WorkTaskStore.today!(tasks) ? AppError.from
 							open_tasks = WorkTaskStore.for_company!(tasks, id.to_str(), today)
 								? AppError.from
+							history = CompanyStore.history!(store, id) ? AppError.from
 							Ok(
 								Http.html(
 									200,
-									CompanyView.detail(actor, company, associated, open_tasks),
+									CompanyView.detail(actor, company, associated, open_tasks, history),
 									[],
 								),
 							)
@@ -55,7 +57,11 @@ CompanyHandler := [].{
 
 	new_page : Actor -> Response
 	new_page = |actor|
-		Http.html(200, CompanyView.new_page(actor, empty_form(), ""), [])
+		Http.html(
+			200,
+			CompanyView.new_page(actor, empty_form(actor.member.id.to_str()), ""),
+			[],
+		)
 
 	edit_page! : CompanyStore, Actor, Company.Id => Try(Response, AppError)
 	edit_page! = |store, actor, id|
@@ -165,10 +171,15 @@ create_input! = |store, actor, form, input, confirm_distinct|
 	}
 
 company_input : CompanyView.Form, Actor -> Try(Company.New, Str)
-company_input = |form, actor|
+company_input = |form, actor| {
+	owner = Member.Id.from_str(form.owner)
+		? |_| "Choose a valid active owner."
+	if !actor.workspace.has_active_member(owner) {
+		return Err("Choose a valid active owner.")
+	}
 	match Company.new(
 		form.name,
-		actor.member.id,
+		owner,
 		form.lifecycle,
 		form.website,
 		form.phone,
@@ -179,11 +190,13 @@ company_input = |form, actor|
 		Err(Company.NewError.NameWasEmpty) => Err("Enter a company name.")
 		Err(Company.NewError.InvalidLifecycle(_)) => Err("Choose a valid lifecycle.")
 	}
+}
 
 form_values : Dict(Str, Str) -> CompanyView.Form
 form_values = |fields|
 	CompanyView.Form.{
 		name: field(fields, Route.CompanyInput.Name),
+		owner: field(fields, Route.CompanyInput.Owner),
 		lifecycle: field(fields, Route.CompanyInput.Lifecycle),
 		website: field(fields, Route.CompanyInput.Website),
 		phone: field(fields, Route.CompanyInput.Phone),
@@ -194,10 +207,11 @@ form_values = |fields|
 field : Dict(Str, Str), Route.CompanyInput -> Str
 field = |fields, input| fields.get(input.to_name()) ?? ""
 
-empty_form : () -> CompanyView.Form
-empty_form = ||
+empty_form : Str -> CompanyView.Form
+empty_form = |owner|
 	CompanyView.Form.{
 		name: "",
+		owner,
 		lifecycle: "lead",
 		website: "",
 		phone: "",
@@ -209,6 +223,7 @@ form_from_company : Company -> CompanyView.Form
 form_from_company = |company|
 	CompanyView.Form.{
 		name: company.name.to_str(),
+		owner: company.ownerId.to_str(),
 		lifecycle: company.lifecycle.to_str(),
 		website: company.website,
 		phone: company.phone,

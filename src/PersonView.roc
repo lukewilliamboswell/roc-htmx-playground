@@ -1,6 +1,7 @@
 import pf.Attribute
 import pf.Html
 
+import Activity
 import Actor
 import Company
 import Design
@@ -16,6 +17,7 @@ PersonView :: [].{
 		name : Str,
 		company : Str,
 		jobTitle : Str,
+		owner : Str,
 		lifecycle : Str,
 		source : Str,
 		context : Str,
@@ -54,8 +56,8 @@ PersonView :: [].{
 			],
 		)
 
-	detail : Actor, Person, List(WorkTask) -> Html.Node
-	detail = |actor, person, tasks|
+	detail : Actor, Person, List(WorkTask), List(Activity) -> Html.Node
+	detail = |actor, person, tasks, history|
 		Layout.page(
 			actor.session,
 			Route.Page.People,
@@ -110,6 +112,7 @@ PersonView :: [].{
 					tasks,
 					Route.PostAction.CreatePersonTask(person.id),
 				),
+				activity_section(history),
 			],
 		)
 
@@ -121,6 +124,36 @@ PersonView :: [].{
 	edit_page = |actor, companies, person, form, validation|
 		form_page(actor, companies, Some(person), form, validation, [])
 }
+
+activity_section : List(Activity) -> Html.Node
+activity_section = |history|
+	Html.element(
+		"section",
+		[Design.contentSection],
+		[
+			Html.h2([Design.sectionHeading], [Html.text("History")]),
+			Html.ul(
+				[Design.taskList],
+				if history.is_empty() {
+					[Html.li([Design.secondaryText], [Html.text("No recorded changes yet.")])]
+				} else {
+					history.map(
+						|activity|
+							Html.li(
+								[Design.taskItem],
+								[
+									Html.p([], [Html.text(Activity.summary(activity))]),
+									Html.p(
+										[Design.activityMeta],
+										[Html.text("${activity.createdByName} · ${activity.occurredAt}")],
+									),
+								],
+							),
+					)
+				},
+			),
+		],
+	)
 
 form_page : Actor, List(Company), [None, Some(Person)], PersonView.Form, Str, List(Person.Match) -> Html.Node
 form_page = |actor, companies, existing, form, validation, matches| {
@@ -185,6 +218,12 @@ form_page = |actor, companies, existing, form, validation, matches| {
 						[("", "No company")].concat(
 							companies.map(|company| (company.id.to_str(), company.name.to_str())),
 						),
+					),
+					select_field(
+						"Owner",
+						Route.PersonInput.Owner,
+						form.owner,
+						actor.workspace.members.map(|member| (member.id.to_str(), member.name.to_str())),
 					),
 					select_field(
 						"Lifecycle",

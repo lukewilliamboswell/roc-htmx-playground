@@ -1,3 +1,5 @@
+import Member
+
 Workspace := {
 	id : Id,
 	name : Str,
@@ -5,6 +7,7 @@ Workspace := {
 	timezone : Timezone,
 	sources : List(Source),
 	taskTypes : List(TaskType),
+	members : List(Member),
 }.{
 	Id :: Str.{
 		from_str : Str -> Try(Id, [InvalidWorkspaceId])
@@ -99,8 +102,8 @@ Workspace := {
 
 	LoadError(err) := [MissingWorkspace, MultipleWorkspaces, StoreFailure(err)]
 
-	from_storage : Str, Str, Str, Str, List(Source), List(TaskType) -> Workspace
-	from_storage = |id, name, currency, timezone, sources, task_types|
+	from_storage : Str, Str, Str, Str, List(Source), List(TaskType), List(Member) -> Workspace
+	from_storage = |id, name, currency, timezone, sources, task_types, members|
 		Workspace.{
 			id: Id.(id),
 			name,
@@ -108,6 +111,7 @@ Workspace := {
 			timezone: Timezone.(timezone),
 			sources,
 			taskTypes: task_types,
+			members,
 		}
 
 	source_from_storage : Str, Str, I64, I64 -> Source
@@ -132,6 +136,10 @@ Workspace := {
 	timezone_matches = |workspace, configured|
 		!configured.trim().is_empty()
 			and configured == workspace.timezone.to_str()
+
+	has_active_member : Workspace, Member.Id -> Bool
+	has_active_member = |workspace, id|
+		workspace.members.any(|member| member.active and member.id == id)
 }
 
 expect Workspace.Currency.from_str("aud") == Ok(Workspace.Currency.("AUD"))

@@ -165,6 +165,7 @@ Company := {
 	}
 
 	FindError(err) := [NotFound, StoreFailure(err)]
+	CreateError(err) := [DuplicateMatches(List(Match)), StoreFailure(err)]
 
 	new : Str, Member.Id, Str, Str, Str, Str, Str -> Try(New, NewError)
 	new = |name, owner_id, lifecycle, website, phone, source_id, context|

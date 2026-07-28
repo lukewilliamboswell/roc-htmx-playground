@@ -25,6 +25,7 @@ import Todo
 import TodoStore
 import User
 import UserStore
+import Workspace
 import WorkspaceStore
 
 Context := {}
@@ -84,6 +85,16 @@ init! = || {
 test_companies! : Sqlite.Db => {}
 test_companies! = |db| {
 	store = CompanyStore.new(db)
+	workspace = WorkspaceStore.load!(WorkspaceStore.new(db))
+		?? Workspace.from_storage(
+			"workspace-example",
+			"Example CRM",
+			"AUD",
+			"Australia/Melbourne",
+			[],
+			[],
+		)
+	member = Member.from_storage("member-mara", "Mara Singh", "mara@example.com", 1)
 	listed = CompanyStore.list!(store, Company.Filter.empty)
 	expect match listed {
 		Ok([company]) =>
@@ -107,7 +118,66 @@ test_companies! = |db| {
 		Err(Company.FindError.NotFound) => True
 		_ => False
 	}
+
+	duplicate_input = valid_company_input(
+		"Acme Studio Australia",
+		member.id,
+		"https://www.acme.example/contact",
+		"",
+	)
+	matches = CompanyStore.matches!(store, workspace.id, duplicate_input)
+	expect match matches {
+		Ok([{ strength: Company.MatchStrength.Strong, reason: "Same website domain", .. }]) => True
+		_ => False
+	}
+
+	blocked = CompanyStore.create!(
+		store,
+		workspace.id,
+		member.id,
+		duplicate_input,
+		"2026-07-28T10:00:00Z",
+		False,
+	)
+	expect match blocked {
+		Err(Company.CreateError.DuplicateMatches([_])) => True
+		_ => False
+	}
+
+	new_input = valid_company_input(
+		"Northwind Workshop",
+		member.id,
+		"https://northwind.example",
+		"+61 3 8111 2222",
+	)
+	created = CompanyStore.create!(
+		store,
+		workspace.id,
+		member.id,
+		new_input,
+		"2026-07-28T10:05:00Z",
+		False,
+	)
+	found = match created {
+		Ok(id) => CompanyStore.find!(store, id)
+		Err(_) => Err(Company.FindError.NotFound)
+	}
+	expect match found {
+		Ok(company) =>
+			company.name.to_str() == "Northwind Workshop"
+				and company.version.to_i64() == 1
+		Err(_) => False
+	}
 }
+
+valid_company_input : Str, Member.Id, Str, Str -> Company.New
+valid_company_input = |name, owner_id, website, phone|
+	match Company.new(name, owner_id, "lead", website, phone, "event", "Test context") {
+		Ok(input) => input
+		Err(_) => {
+			crash "Company test input should be valid."
+		}
+	}
 
 test_workspace! : Sqlite.Db => {}
 test_workspace! = |db| {

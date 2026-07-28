@@ -24,6 +24,7 @@ Route := [
 		TodoTree,
 		Users,
 		Companies,
+		CompanyNew,
 		BigTasks,
 	].{
 		is_eq : _
@@ -38,6 +39,7 @@ Route := [
 				TodoTree => "Tree"
 				Users => "Users"
 				Companies => "Companies"
+				CompanyNew => "New company"
 				BigTasks => "BigTask"
 			}
 
@@ -51,6 +53,7 @@ Route := [
 				TodoTree => "/treeview"
 				Users => "/user"
 				Companies => "/companies"
+				CompanyNew => "/companies/new"
 				BigTasks => "/bigTask"
 			}
 	}
@@ -90,6 +93,8 @@ Route := [
 		SearchTodos,
 		CreateTodo,
 		DeleteTodo(Todo.Id),
+		PreviewCompany,
+		CreateCompany,
 	].{
 		to_post_url : PostAction -> Str
 		to_post_url = |action|
@@ -100,6 +105,8 @@ Route := [
 				SearchTodos => "/task/search"
 				CreateTodo => "/task/new"
 				DeleteTodo(id) => "/task/${Todo.Id.to_str(id)}/delete"
+				PreviewCompany => "/companies/preview"
+				CreateCompany => "/companies"
 			}
 	}
 
@@ -137,6 +144,20 @@ Route := [
 				Filter => "filterTasks"
 				Task => "task"
 				Status => "status"
+			}
+	}
+
+	CompanyInput := [Name, Lifecycle, Website, Phone, Source, Context, ConfirmDistinct].{
+		to_name : CompanyInput -> Str
+		to_name = |input|
+			match input {
+				Name => "name"
+				Lifecycle => "lifecycle"
+				Website => "website"
+				Phone => "phone"
+				Source => "source"
+				Context => "context"
+				ConfirmDistinct => "confirmDistinct"
 			}
 	}
 
@@ -235,6 +256,9 @@ Route := [
 					Ok(Visit(CompanySearch(filter)))
 				}
 			}
+			(Get, ["", "companies", "new"]) => Ok(Visit(AtPage(CompanyNew)))
+			(Post, ["", "companies", "preview"]) => Ok(Post(PreviewCompany))
+			(Post, ["", "companies"]) => Ok(Post(CreateCompany))
 			(Get, ["", "companies", id]) =>
 				Ok(Visit(CompanyDetail(Company.Id.from_storage(id))))
 

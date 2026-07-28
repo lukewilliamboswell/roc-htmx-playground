@@ -185,6 +185,12 @@ visit! = |context, session, location|
 						actor_from_session(session, context.workspace)?,
 						Company.Filter.empty,
 					)
+				Route.Page.CompanyNew =>
+					Ok(
+						CompanyHandler.new_page(
+							actor_from_session(session, context.workspace)?,
+						),
+					)
 				Route.Page.BigTasks =>
 					BigTaskHandler.page!(context.bigTaskStore, BigTask.Query.default, session)
 				}
@@ -228,6 +234,18 @@ post! = |request, context, session, action|
 			TodoHandler.create!(request, context.todoStore)
 		Route.PostAction.DeleteTodo(id) =>
 			TodoHandler.delete!(context.todoStore, id)
+		Route.PostAction.PreviewCompany =>
+			CompanyHandler.preview!(
+				request,
+				context.companyStore,
+				actor_from_session(session, context.workspace)?,
+			)
+		Route.PostAction.CreateCompany =>
+			CompanyHandler.create!(
+				request,
+				context.companyStore,
+				actor_from_session(session, context.workspace)?,
+			)
 		}
 
 put! : Server.Request, Context, Session, Route.PutAction => Try(Response, AppError)

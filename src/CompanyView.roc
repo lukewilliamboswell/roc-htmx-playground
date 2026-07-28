@@ -15,6 +15,15 @@ CompanyView :: [].{
 		filter : Company.Filter,
 	}
 
+	Form := {
+		name : Str,
+		lifecycle : Str,
+		website : Str,
+		phone : Str,
+		source : Str,
+		context : Str,
+	}
+
 	page : PageModel -> Html.Node
 	page = |model|
 		Layout.page(
@@ -34,12 +43,25 @@ CompanyView :: [].{
 								),
 							],
 						),
+						Web.link(
+							Route.Page.CompanyNew,
+							[Design.button(Design.ButtonTone.Primary, Design.ButtonSize.Regular)],
+							[Html.text("New company")],
+						),
 					],
 				),
 				search_form(model.filter),
 				company_table(model.companies),
 			],
 		)
+
+	new_page : Actor, Form, Str -> Html.Node
+	new_page = |actor, form, validation|
+		company_form_page(actor, form, validation, [])
+
+	duplicate_page : Actor, Form, List(Company.Match) -> Html.Node
+	duplicate_page = |actor, form, matches|
+		company_form_page(actor, form, "", matches)
 
 	detail : Actor, Company -> Html.Node
 	detail = |actor, company|
@@ -104,6 +126,179 @@ CompanyView :: [].{
 			],
 		)
 }
+
+company_form_page : Actor, CompanyView.Form, Str, List(Company.Match) -> Html.Node
+company_form_page = |actor, form, validation, matches|
+	Layout.page(
+		actor.session,
+		Route.Page.CompanyNew,
+		[
+			Web.link(Route.Page.Companies, [Design.navLink], [Html.text("← Companies")]),
+			Html.h1([Design.pageTitle, attribute("class", "mt-4")], [Html.text("New company")]),
+			Html.p(
+				[Design.lead],
+				[Html.text("Capture the relationship now; only the company name is required.")],
+			),
+			if validation.is_empty() {
+				Html.text("")
+			} else {
+				Html.p([Design.validation], [Html.text(validation)])
+			},
+			if matches.is_empty() {
+				Html.text("")
+			} else {
+				duplicate_panel(matches)
+			},
+			Web.post_form(
+				if matches.is_empty() {
+					Route.PostAction.PreviewCompany
+				} else {
+					Route.PostAction.CreateCompany
+				},
+				[attribute("class", "mt-6 max-w-2xl rounded-xl border border-slate-200 bg-white p-6 shadow-sm")],
+				[
+					text_field("Company name", Route.CompanyInput.Name, form.name, "Acme Studio"),
+					text_field("Website", Route.CompanyInput.Website, form.website, "https://acme.example"),
+					text_field("Phone", Route.CompanyInput.Phone, form.phone, "+61 3 9000 0000"),
+					select_field(
+						"Lifecycle",
+						Route.CompanyInput.Lifecycle,
+						form.lifecycle,
+						[
+							("lead", "Lead"),
+							("prospect", "Prospect"),
+							("customer", "Customer"),
+							("inactive", "Inactive"),
+						],
+					),
+					select_field(
+						"Source",
+						Route.CompanyInput.Source,
+						form.source,
+						[("", "Not recorded")].concat(
+							actor.workspace.sources.map(|source| (source.id.to_str(), source.name)),
+						),
+					),
+					Html.div(
+						[Design.field],
+						[
+							Html.label(
+								[Attribute.for_(Route.CompanyInput.to_name(Route.CompanyInput.Context)), Design.label],
+								[Html.text("Relationship context")],
+							),
+							Html.element(
+								"textarea",
+								[
+									Attribute.id(Route.CompanyInput.to_name(Route.CompanyInput.Context)),
+									Attribute.name(Route.CompanyInput.to_name(Route.CompanyInput.Context)),
+									Design.input,
+									attribute("rows", "4"),
+								],
+								[Html.text(form.context)],
+							),
+						],
+					),
+					if matches.is_empty() {
+						Html.text("")
+					} else {
+						Html.input([
+							Attribute.type("hidden"),
+							Attribute.name(Route.CompanyInput.to_name(Route.CompanyInput.ConfirmDistinct)),
+							Attribute.value("yes"),
+						])
+					},
+					Html.button(
+						[
+							Attribute.type("submit"),
+							Design.button(Design.ButtonTone.Primary, Design.ButtonSize.Regular),
+						],
+						[
+							Html.text(
+								if matches.is_empty() {
+									"Check and save company"
+								} else {
+									"Create as a separate company"
+								},
+							),
+						],
+					),
+				],
+			),
+		],
+	)
+
+duplicate_panel : List(Company.Match) -> Html.Node
+duplicate_panel = |matches|
+	Html.element(
+		"section",
+		[attribute("class", "mt-6 rounded-xl border border-amber-300 bg-amber-50 p-5")],
+		[
+			Html.h2([attribute("class", "text-lg font-semibold text-amber-950")], [Html.text("Check possible duplicates")]),
+			Html.p(
+				[attribute("class", "mt-1 text-sm text-amber-900")],
+				[Html.text("Review these existing companies before creating another record.")],
+			),
+			Html.ul(
+				[attribute("class", "mt-4 space-y-3")],
+				matches.map(
+					|candidate|
+						Html.li(
+							[attribute("class", "rounded-lg bg-white p-3")],
+							[
+								Web.link(
+									Route.Location.CompanyDetail(candidate.company.id),
+									[attribute("class", "font-semibold text-blue-700 hover:underline")],
+									[Html.text(candidate.company.name.to_str())],
+								),
+								Html.p(
+									[attribute("class", "text-sm text-slate-600")],
+									[Html.text("${candidate.strength.to_label()}: ${candidate.reason}")],
+								),
+							],
+						),
+				),
+			),
+		],
+	)
+
+text_field : Str, Route.CompanyInput, Str, Str -> Html.Node
+text_field = |label, input, value, placeholder|
+	Html.div(
+		[Design.field],
+		[
+			Html.label([Attribute.for_(input.to_name()), Design.label], [Html.text(label)]),
+			Html.input([
+				Attribute.id(input.to_name()),
+				Attribute.name(input.to_name()),
+				Attribute.value(value),
+				attribute("placeholder", placeholder),
+				Design.input,
+			]),
+		],
+	)
+
+select_field : Str, Route.CompanyInput, Str, List((Str, Str)) -> Html.Node
+select_field = |label, input, selected, options|
+	Html.div(
+		[Design.field],
+		[
+			Html.label([Attribute.for_(input.to_name()), Design.label], [Html.text(label)]),
+			Html.select(
+				[Attribute.id(input.to_name()), Attribute.name(input.to_name()), Design.select],
+				options.map(
+					|(value, option_label)|
+						Html.option(
+							if value == selected {
+								[Attribute.value(value), attribute("selected", "")]
+							} else {
+								[Attribute.value(value)]
+							},
+							[Html.text(option_label)],
+						),
+				),
+			),
+		],
+	)
 
 search_form : Company.Filter -> Html.Node
 search_form = |filter|

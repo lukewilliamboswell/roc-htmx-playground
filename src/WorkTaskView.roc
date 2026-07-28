@@ -60,6 +60,7 @@ WorkTaskView := [].{
 			"section",
 			[
 				Attribute.id(WorkTaskTarget.to_id(WorkTaskTarget.RelatedTasks)),
+				attribute("aria-busy", "false"),
 				Design.contentSection,
 			],
 			[
@@ -176,6 +177,7 @@ complete_form_attributes = |action, enhanced|
 			Web.hx_swap(Web.Swap.OuterHtml),
 			Web.hx_sync_first,
 			Web.network_errors_to(WorkTaskTarget.Feedback),
+			Web.busy_during_request(WorkTaskTarget.RelatedTasks),
 			Web.focus_after_swap(WorkTaskTarget.Heading),
 		].concat(Web.hx_errors_to(WorkTaskTarget.Feedback))
 	} else {

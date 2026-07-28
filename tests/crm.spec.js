@@ -512,6 +512,10 @@ test.describe("CRM journeys", () => {
       button.click();
     });
 
+    await expect(page.locator("#related-open-tasks")).toHaveAttribute(
+      "aria-busy",
+      "true",
+    );
     await expect(
       page
         .getByRole("alert")
@@ -520,6 +524,10 @@ test.describe("CRM journeys", () => {
         ),
     ).toBeVisible();
     await expect(task).toBeVisible();
+    await expect(page.locator("#related-open-tasks")).toHaveAttribute(
+      "aria-busy",
+      "false",
+    );
     await expect(page).toHaveURL(relationshipUrl);
     expect(completionRequests).toBe(1);
 
@@ -528,6 +536,14 @@ test.describe("CRM journeys", () => {
 
     await expect(task).not.toBeVisible();
     await expect(page.locator("#related-open-tasks-heading")).toBeFocused();
+    await expect
+      .poll(() =>
+        page.locator("#related-open-tasks-heading").evaluate((heading) => {
+          const rect = heading.getBoundingClientRect();
+          return rect.top >= 0 && rect.bottom <= window.innerHeight;
+        }),
+      )
+      .toBe(true);
   });
 
   test("completes related work in context without JavaScript", async ({

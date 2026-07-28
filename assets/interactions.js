@@ -10,12 +10,32 @@
         return targetId ? document.getElementById(targetId) : null;
     }
 
+    function busyRegionFor(event) {
+        var detail = event.detail;
+        var context = detail && detail.ctx;
+        var source = context && context.sourceElement;
+        var targetId = source && source.getAttribute("data-busy-target");
+
+        return targetId ? document.getElementById(targetId) : null;
+    }
+
     document.addEventListener("htmx:before:request", function (event) {
         var feedback = feedbackFor(event);
         var previous = feedback && feedback.querySelector("[data-transport-error]");
+        var busyRegion = busyRegionFor(event);
 
         if (previous) {
             previous.remove();
+        }
+        if (busyRegion) {
+            busyRegion.setAttribute("aria-busy", "true");
+        }
+    });
+
+    document.addEventListener("htmx:finally:request", function (event) {
+        var busyRegion = busyRegionFor(event);
+        if (busyRegion) {
+            busyRegion.setAttribute("aria-busy", "false");
         }
     });
 
@@ -47,7 +67,7 @@
 
         var target = document.getElementById(targetId);
         if (target) {
-            target.focus({ preventScroll: true });
+            target.focus();
         }
     });
 })();

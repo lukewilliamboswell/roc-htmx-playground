@@ -172,6 +172,14 @@ Web := [].{
 	network_errors_to = |target|
 		Attribute.attribute("data-network-error-target", target.to_id())
 
+	## Mark the interaction's owning region busy for the full request lifetime.
+	busy_during_request : target -> Attribute.Attribute
+		where [
+			target.to_id : target -> Str,
+		]
+	busy_during_request = |target|
+		Attribute.attribute("data-busy-target", target.to_id())
+
 	## Restore keyboard orientation after a successful swap removes the control
 	## that initiated it.
 	focus_after_swap : target -> Attribute.Attribute

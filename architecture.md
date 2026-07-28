@@ -708,7 +708,17 @@ validation preserve focus through stable element IDs, while normal navigation
 uses the browser's document behavior. Programmatic post-swap focus is reserved
 for interactions that remove the active element and can name a nearby semantic
 anchor. Error responses keep focus in place and announce their local alert
-instead.
+instead. Restored focus must retain a visible focus indicator and be scrolled
+into the viewport; suppressing focus scroll without another visibility
+guarantee is not acceptable.
+
+The owning region exposes `aria-busy` for the complete request lifetime when a
+delay can be perceived. Short local progress text uses `role="status"` with a
+polite live region; errors use a persistent alert or error summary. Re-rendered
+validation keeps each message associated with its control, and a multi-field
+summary links to the affected controls rather than merely announcing an
+unactionable paragraph. These semantics supplement visible labels and status
+copy; they do not replace them.
 
 ### Advanced techniques require product pressure
 

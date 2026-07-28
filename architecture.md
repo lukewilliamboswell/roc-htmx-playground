@@ -762,21 +762,35 @@ requirements before any polling interval is chosen.
 
 ### Consequential actions use preview and confirmation states
 
-Deletion, merge, import, export, bulk reassignment, stage retirement, and
-archiving with open work are workflows, not button decorations. Each uses a
-typed, navigable server-rendered preview that:
+Safeguards are proportional to consequence, scope, and reversibility. A
+low-impact reversible change may commit directly when its control states the
+outcome clearly and the resulting page offers a reliable undo. An irreversible,
+cross-record, bulk, privacy-sensitive, or hard-to-reconstruct action is a
+workflow, not button decoration, and uses a typed, navigable server-rendered
+preview.
+
+That preview:
 
 - states whether the action is reversible;
-- names the records and exact dependent counts affected;
+- names the affected scope and shows dependent counts or representative records
+  when they materially change the decision;
 - presents any required choices before commitment;
 - keeps the confirm action visually distinct from cancel; and
 - remains usable without JavaScript.
 
-Do not use `hx-confirm` or a native confirm dialog as the only barrier. A short
-prompt cannot present the dependent records, reassignment decisions, merge
-field choices, or privacy warning required by the CRM. HTMX may enhance the
-preview form after the server-rendered flow exists, but cancelling, refreshing,
-reloading, and submitting the canonical route must remain coherent.
+The commit rechecks authorization and any version, scope, or dependent-state
+assumption made by the preview. Its retry follows the operation's idempotency
+rule and the completed action is auditable. Do not use `hx-confirm` or a native
+confirm dialog as the only barrier when the decision needs dependent records,
+reassignment choices, merge field choices, or a privacy warning. Conversely,
+do not force every deletion or export through a heavyweight preview when a
+clear label, small known scope, reversibility, and undo make it safer and less
+error-prone to act directly.
+
+HTMX may enhance the server-rendered flow, but cancel, refresh, reload, and
+canonical submission remain coherent. A sensitive preview is authorized on
+every request, uses `private, no-store`, and does not leak its contents through
+the URL.
 
 ### Empty states stay inside their owned representation
 
@@ -789,11 +803,20 @@ JavaScript-disabled submissions need the same explanation.
 ### Interaction testing contract
 
 Browser tests exercise the failure mode that each interaction policy exists to
-prevent. Depending on the policy, this includes uneven latency, duplicate
-activation, direct reload, history traversal, JavaScript-disabled submission,
-HTTP or transport failure, validation association, and focus after replacement.
-Tests assert the user-visible contract rather than merely checking for HTMX
-attributes.
+prevent. The interaction suite covers JavaScript-disabled navigation and
+submission; uneven response latency; duplicate activation; two-tab stale
+writes; a commit whose response is lost; direct reload and history traversal;
+session expiry; forged `HX-Request` and cross-origin mutation headers; cache and
+security headers; validation association; and focus plus viewport restoration.
+Tests assert the user-visible failure and recovery rather than merely checking
+for HTMX attributes.
+
+Automated DOM assertions do not establish assistive-technology usability.
+Release checks for a new interaction pattern include keyboard-only operation,
+visible focus at normal and zoomed layouts, and a brief screen-reader pass over
+busy, status, validation, error, and post-swap focus announcements. Record
+manual findings beside the release or audit evidence rather than presenting
+them as enduring architecture.
 
 ## Suggested module dependency direction
 

@@ -888,6 +888,19 @@ Dedicated view models are useful when the screen needs data assembled from
 several domain types or needs presentation state such as validation messages,
 pagination, or selected controls.
 
+Page hierarchy is stable across features. Each full page has exactly one `h1`.
+A collection page puts its title and one page-level creation action before
+search and comparable rows. A detail page presents the record's highest-value
+summary before related collections and history. A form page states the action
+in its `h1`, then presents guidance, validation, fields, and actions in that
+order. Section-local actions remain visually and structurally scoped to their
+`h2` section rather than competing with the page purpose.
+
+Use tables for repeated records whose fields are compared across rows, with
+the record identifier rendered as a real link. Use cards and description lists
+for one record's summary. Do not make a whole table row imitate a link when an
+ordinary identifier anchor provides clearer keyboard and browser behavior.
+
 View models should remain typed:
 
 ```roc

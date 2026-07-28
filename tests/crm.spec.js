@@ -279,6 +279,58 @@ test.describe("CRM journeys", () => {
     await context.close();
   });
 
+  test("keeps CRM page hierarchy predictable", async ({ page }) => {
+    await loginAsMara(page);
+
+    await page.goto("/companies");
+    await expect(page.getByRole("heading", { level: 1 })).toHaveCount(1);
+    await expect(
+      page.getByRole("heading", {
+        level: 1,
+        name: "Companies",
+        exact: true,
+      }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("link", { name: "Acme Studio", exact: true }),
+    ).toBeVisible();
+
+    await page.goto("/companies/company-acme");
+    await expect(page.getByRole("heading", { level: 1 })).toHaveCount(1);
+    await expect(
+      page.getByRole("heading", {
+        level: 1,
+        name: "Acme Studio",
+        exact: true,
+      }),
+    ).toBeVisible();
+    expect(
+      await page.getByRole("heading", { level: 2 }).allTextContents(),
+    ).toEqual(["Relationship", "Record", "People", "Open tasks", "History"]);
+
+    await page.goto("/people/new");
+    await expect(page.getByRole("heading", { level: 1 })).toHaveCount(1);
+    await expect(
+      page.getByRole("heading", {
+        level: 1,
+        name: "New person",
+        exact: true,
+      }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("button", {
+        name: "Check and save person",
+        exact: true,
+      }),
+    ).toHaveCount(1);
+
+    await page.goto("/work");
+    await expect(page.getByRole("heading", { level: 1 })).toHaveCount(1);
+    expect(
+      await page.getByRole("heading", { level: 2 }).allTextContents(),
+    ).toEqual(["Overdue", "Due today", "Upcoming"]);
+  });
+
   test("maintains primary contacts and exposes task responsibility", async ({
     page,
   }) => {

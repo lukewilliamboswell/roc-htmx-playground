@@ -483,14 +483,26 @@ search_form = |filter|
 				[Attribute.for_("company-search"), Design.label],
 				[Html.text("Search companies")],
 			),
-			Html.input([
-				Attribute.id("company-search"),
-				Attribute.name("q"),
-				Attribute.type("search"),
-				Attribute.value(filter.to_str()),
-				attribute("placeholder", "Name, website, or phone"),
-				Design.searchInput,
-			]),
+			Html.div(
+				[Design.searchControls],
+				[
+					Html.input([
+						Attribute.id("company-search"),
+						Attribute.name("q"),
+						Attribute.type("search"),
+						Attribute.value(filter.to_str()),
+						attribute("placeholder", "Name, website, or phone"),
+						Design.searchInput,
+					]),
+					Html.button(
+						[
+							Attribute.type("submit"),
+							Design.button(Design.ButtonTone.Outline, Design.ButtonSize.Regular),
+						],
+						[Html.text("Search")],
+					),
+				],
+			),
 		],
 	)
 

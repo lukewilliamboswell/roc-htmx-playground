@@ -147,12 +147,8 @@ Person := {
 	primary_value = |methods|
 		match methods.find_first(|method| method.primary) {
 			Ok(method) => method.value
-			Err(_) =>
-				match methods.first() {
-					Ok(method) => method.value
-					Err(_) => ""
-				}
-			}
+			Err(_) => ""
+		}
 
 	from_storage : {
 		companyId : Str,
@@ -209,3 +205,6 @@ Person := {
 expect Person.Name.from_str(" Ada Lovelace ").is_ok()
 expect Person.Name.from_str(" ").is_err()
 expect Person.normalized_email(" Ada@Example.COM ") == "ada@example.com"
+expect Person.primary_value([
+	Person.contact_from_storage("secondary", "Work", "secondary@example.com", 0),
+]) == ""

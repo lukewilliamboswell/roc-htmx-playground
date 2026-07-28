@@ -86,8 +86,16 @@ task_item = |task|
 		[Design.taskItem],
 		[
 			Html.p([Design.taskSubject], [Html.text(task.subject.to_str())]),
-			Html.p([Design.taskDue], [Html.text(task.dueLocal.to_str())]),
-			Html.p([Design.taskRelated], [Html.text(related_label(task))]),
+			Html.div(
+				[Design.taskMeta],
+				[
+					Html.p([Design.taskDue], [Html.text("Due: ${task.dueLocal.to_str()}")]),
+					Html.p([], [Html.text("Assignee: ${task.assigneeName}")]),
+					Html.p([], [Html.text("Type: ${task_type_label(task)}")]),
+					Html.p([Design.taskRelated], [Html.text("Related to: ${related_label(task)}")]),
+					Html.p([], [Html.text("Context: ${context_label(task)}")]),
+				],
+			),
 			Web.post_form(
 				Route.PostAction.CompleteTask(task.id),
 				[Design.taskActions],
@@ -183,6 +191,7 @@ task_form = |actor, action|
 				[
 					Attribute.type("submit"),
 					Design.button(Design.ButtonTone.Primary, Design.ButtonSize.Regular),
+					Design.inlineFormAction,
 				],
 				[Html.text("Schedule task")],
 			),
@@ -212,6 +221,22 @@ related_label = |task|
 		task.companyName
 	} else {
 		"Related CRM record"
+	}
+
+task_type_label : WorkTask -> Str
+task_type_label = |task|
+	if task.taskTypeName.is_empty() {
+		"Not specified"
+	} else {
+		task.taskTypeName
+	}
+
+context_label : WorkTask -> Str
+context_label = |task|
+	if task.context.is_empty() {
+		"Not provided"
+	} else {
+		task.context
 	}
 
 attribute : Str, Str -> Attribute.Attribute

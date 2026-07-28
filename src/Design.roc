@@ -137,6 +137,9 @@ Design :: [].{
 	searchForm : Attribute.Attribute
 	searchForm = class("mt-6")
 
+	searchControls : Attribute.Attribute
+	searchControls = class("mb-5 mt-2 flex flex-col gap-2 sm:flex-row")
+
 	field : Attribute.Attribute
 	field = class("mb-4 space-y-2")
 
@@ -147,7 +150,7 @@ Design :: [].{
 	input = class("block w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-950 shadow-sm outline-none transition placeholder:text-slate-500 focus:border-blue-500 focus:ring-4 focus:ring-blue-100")
 
 	searchInput : Attribute.Attribute
-	searchInput = class("mb-5 block w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-950 shadow-sm outline-none transition placeholder:text-slate-500 focus:border-blue-500 focus:ring-4 focus:ring-blue-100")
+	searchInput = class("block min-w-0 flex-1 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-950 shadow-sm outline-none transition placeholder:text-slate-500 focus:border-blue-500 focus:ring-4 focus:ring-blue-100")
 
 	select : Attribute.Attribute
 	select = class("block w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-950 shadow-sm outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100")
@@ -266,6 +269,9 @@ Design :: [].{
 	inlineForm : Attribute.Attribute
 	inlineForm = class("mt-4 grid gap-3 rounded-lg bg-slate-50 p-4 sm:grid-cols-2")
 
+	inlineFormAction : Attribute.Attribute
+	inlineFormAction = class("self-start justify-self-start sm:self-end")
+
 	checkboxLabel : Attribute.Attribute
 	checkboxLabel = class("flex items-center gap-2 text-sm text-slate-700")
 
@@ -298,6 +304,9 @@ Design :: [].{
 
 	taskRelated : Attribute.Attribute
 	taskRelated = class("mt-1 text-sm text-slate-500")
+
+	taskMeta : Attribute.Attribute
+	taskMeta = class("mt-2 space-y-1 text-sm text-slate-600")
 
 	taskActions : Attribute.Attribute
 	taskActions = class("mt-3")

@@ -380,6 +380,7 @@ contact_section = |person, kind| {
 						[
 							Attribute.type("submit"),
 							Design.button(Design.ButtonTone.Outline, Design.ButtonSize.Regular),
+							Design.inlineFormAction,
 						],
 						[Html.text("Add")],
 					),
@@ -469,14 +470,26 @@ search_form = |filter|
 		],
 		[
 			Html.label([Attribute.for_("people-search"), Design.label], [Html.text("Search people")]),
-			Html.input([
-				Attribute.id("people-search"),
-				Attribute.name("q"),
-				Attribute.type("search"),
-				Attribute.value(filter.to_str()),
-				attribute("placeholder", "Name, email, or phone"),
-				Design.searchInput,
-			]),
+			Html.div(
+				[Design.searchControls],
+				[
+					Html.input([
+						Attribute.id("people-search"),
+						Attribute.name("q"),
+						Attribute.type("search"),
+						Attribute.value(filter.to_str()),
+						attribute("placeholder", "Name, email, or phone"),
+						Design.searchInput,
+					]),
+					Html.button(
+						[
+							Attribute.type("submit"),
+							Design.button(Design.ButtonTone.Outline, Design.ButtonSize.Regular),
+						],
+						[Html.text("Search")],
+					),
+				],
+			),
 		],
 	)
 

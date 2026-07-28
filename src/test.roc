@@ -24,6 +24,7 @@ import Http
 import Member
 import MemberStore
 import Person
+import PersonHandler
 import PersonStore
 import Session
 import SessionStore
@@ -35,6 +36,7 @@ import Workspace
 import WorkspaceStore
 import WorkTask
 import WorkTaskStore
+import WorkTaskView
 
 Context := {}
 
@@ -288,6 +290,17 @@ test_companies! = |db| {
 		Ok([company]) => company.name.to_str() == "Mixed CASE Company"
 		_ => False
 	}
+
+	# CRM-002: search has an explicit submit affordance in rendered HTML.
+	page_response = CompanyHandler.page!(store, actor, Company.Filter.empty)
+	expect match page_response {
+		Ok(response) => {
+			body = response_body(response)
+			body.contains("id=\"company-search\"")
+				and body.contains(">Search</button>")
+		}
+		Err(_) => False
+	}
 }
 
 valid_company_input : Str, Member.Id, Str, Str, Str -> Company.New
@@ -458,6 +471,35 @@ test_people! = |db| {
 				== Activity.Change.OwnerChanged({ from: "Mara Singh", to: "Theo Nguyen" })
 		_ => False
 	}
+
+	actor = logged_in_actor(workspace, member)
+	page_response = PersonHandler.page!(store, actor, Person.Filter.empty)
+	expect match page_response {
+		Ok(response) => {
+			body = response_body(response)
+			body.contains("id=\"people-search\"")
+				and body.contains(">Search</button>")
+		}
+		Err(_) => False
+	}
+
+	# CRM-009 and CRM-050: contact maintenance and history are human-readable.
+	detail_response = PersonHandler.detail!(
+		store,
+		WorkTaskStore.new(db),
+		actor,
+		person_id,
+	)
+	expect match detail_response {
+		Ok(response) => {
+			body = response_body(response)
+			body.contains("Make primary")
+				and body.contains("Owner: Mara Singh → Theo Nguyen")
+					and !body.contains("Owner: member-theo")
+						and !body.contains("2026-07-28T")
+		}
+		Err(_) => False
+	}
 }
 
 valid_person_input : Str, Member.Id, Str, Str, Str -> Person.New
@@ -562,6 +604,18 @@ test_work_tasks! = |db| {
 		_ => False
 	}
 
+	# CRM-035: a rendered task says who owns it, what kind it is, and why it exists.
+	actor = logged_in_actor(workspace, member)
+	work_page = match work {
+		Ok(tasks) => response_body(Http.html(200, WorkTaskView.page(actor, tasks), []))
+		Err(_) => ""
+	}
+	expect work_page.contains("Due: 27 Jul 2026, 16:00")
+	expect work_page.contains("Assignee: Mara Singh")
+	expect work_page.contains("Type: Follow up")
+	expect work_page.contains("Context: Test context")
+	expect !work_page.contains("2026-07-27T16:00")
+
 	theo_work = WorkTaskStore.for_assignee!(
 		store,
 		workspace.id,
@@ -614,6 +668,21 @@ valid_work_task = |subject, due_local, assignee_id, related|
 			crash "Work task test input should be valid."
 		}
 	}
+
+logged_in_actor : Workspace, Member -> Actor
+logged_in_actor = |workspace, member|
+	match Actor.from_session(
+		Session.logged_in(Session.Id.from_i64(99), member),
+		workspace,
+	) {
+		Ok(actor) => actor
+		Err(_) => {
+			crash "View integration test requires a logged-in actor."
+		}
+	}
+
+response_body : Response -> Str
+response_body = |response| Str.from_utf8_lossy(Response.body(response))
 
 test_workspace! : Sqlite.Db => {}
 test_workspace! = |db| {

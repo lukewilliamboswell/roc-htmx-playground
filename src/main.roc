@@ -371,11 +371,12 @@ post! = |request, context, session, action|
 				actor_from_session(session, context.workspace)?,
 				WorkTask.Related.Person(id.to_str()),
 			)
-		Route.PostAction.CompleteTask(id) =>
+		Route.PostAction.CompleteTask(id, task_context) =>
 			WorkTaskHandler.complete!(
 				context.workTaskStore,
 				actor_from_session(session, context.workspace)?,
 				id,
+				task_context,
 			)
 		}
 

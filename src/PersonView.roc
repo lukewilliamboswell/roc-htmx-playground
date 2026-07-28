@@ -111,6 +111,7 @@ PersonView :: [].{
 					actor,
 					tasks,
 					Route.PostAction.CreatePersonTask(person.id),
+					Route.TaskContext.PersonRecord(person.id),
 				),
 				activity_section(history),
 			],

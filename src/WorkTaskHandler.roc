@@ -67,8 +67,8 @@ WorkTaskHandler := [].{
 		)
 	}
 
-	complete! : WorkTaskStore, Actor, WorkTask.Id => Try(Response, AppError)
-	complete! = |store, actor, id| {
+	complete! : WorkTaskStore, Actor, WorkTask.Id, Route.TaskContext => Try(Response, AppError)
+	complete! = |store, actor, id, context| {
 		WorkTaskStore.complete!(
 			store,
 			actor.workspace.id,
@@ -76,7 +76,7 @@ WorkTaskHandler := [].{
 			id,
 			Utc.to_iso_8601(Utc.now!()),
 		) ? AppError.from
-		Ok(Web.redirect(Route.Page.Work))
+		Ok(Web.redirect(context.to_location()))
 	}
 }
 

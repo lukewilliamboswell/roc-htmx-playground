@@ -1,3 +1,4 @@
+import pf.Attribute
 import pf.Html
 
 import Design
@@ -77,8 +78,17 @@ document = |session, page_identity, heading, message, actions|
 		page_identity,
 		[],
 		[
-			Html.h1([Design.pageTitle], [Html.text(heading)]),
-			Html.p([Design.lead], [Html.text(message)]),
+			Html.element(
+				"section",
+				[
+					Attribute.id(Web.ErrorTarget.to_id(Web.ErrorTarget.RequestError)),
+					attribute("role", "alert"),
+				],
+				[
+					Html.h1([Design.pageTitle], [Html.text(heading)]),
+					Html.p([Design.lead], [Html.text(message)]),
+				],
+			),
 			Html.div([Design.actions], actions),
 		],
 	)
@@ -90,3 +100,6 @@ home_link = ||
 		[Design.button(Design.ButtonTone.Primary, Design.ButtonSize.Regular)],
 		[Html.text("Back to home")],
 	)
+
+attribute : Str, Str -> Attribute.Attribute
+attribute = |name, value| Attribute.attribute(name, value)

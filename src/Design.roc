@@ -311,6 +311,9 @@ Design :: [].{
 	taskActions : Attribute.Attribute
 	taskActions = class("mt-3")
 
+	taskRequestStatus : Attribute.Attribute
+	taskRequestStatus = class("htmx-indicator ml-2")
+
 	activityMeta : Attribute.Attribute
 	activityMeta = class("mt-1 text-xs text-slate-500")
 

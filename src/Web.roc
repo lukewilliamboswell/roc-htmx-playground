@@ -14,6 +14,14 @@ import Route
 Web := [].{
 	Header : { name : Str, value : Str }
 
+	ErrorTarget := [RequestError].{
+		to_selector : ErrorTarget -> Str
+		to_selector = |_| "#request-error"
+
+		to_id : ErrorTarget -> Str
+		to_id = |_| "request-error"
+	}
+
 	Swap := [InnerHtml, OuterHtml].{
 		to_attribute : Swap -> Str
 		to_attribute = |swap|
@@ -128,6 +136,25 @@ Web := [].{
 	## where an older response must never replace a newer state.
 	hx_sync_latest : Attribute.Attribute
 	hx_sync_latest = Attribute.attribute("hx-sync", "this:replace")
+
+	## Keep the first mutation request and ignore repeated submissions until it
+	## finishes. Persistence must still enforce the transition exactly once.
+	hx_sync_first : Attribute.Attribute
+	hx_sync_first = Attribute.attribute("hx-sync", "this:drop")
+
+	## Route expected and unexpected HTTP failures into a local feedback region
+	## without replacing the interaction's normal success target.
+	hx_errors_to : target -> List(Attribute.Attribute)
+		where [
+			target.to_selector : target -> Str,
+		]
+	hx_errors_to = |target| {
+		policy = "target:${target.to_selector()} select:${ErrorTarget.to_selector(ErrorTarget.RequestError)} swap:innerHTML"
+		[
+			Attribute.attribute("hx-status:4xx", policy),
+			Attribute.attribute("hx-status:5xx", policy),
+		]
+	}
 
 	redirect : location -> Response
 		where [

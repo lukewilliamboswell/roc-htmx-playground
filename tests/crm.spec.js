@@ -152,5 +152,93 @@ test.describe("CRM journeys", () => {
     await expect(task).toContainText(
       "Context: Verify the CRM browser workflow",
     );
+
+    const relationshipUrl = page.url();
+    const completionPattern = "**/people/*/tasks/*/complete";
+    const complete = task.getByRole("button", {
+      name: "Complete",
+      exact: true,
+    });
+
+    await page.route(completionPattern, async (route) => {
+      await route.fulfill({
+        status: 500,
+        contentType: "text/html",
+        body: `
+          <html>
+            <body>
+              <section id="request-error" role="alert">
+                Completion failed. Try again.
+              </section>
+            </body>
+          </html>
+        `,
+      });
+    });
+    await complete.click();
+
+    await expect(
+      page.getByRole("alert").getByText("Completion failed. Try again."),
+    ).toBeVisible();
+    await expect(task).toBeVisible();
+    await expect(page).toHaveURL(relationshipUrl);
+    await page.unroute(completionPattern);
+
+    let completionRequests = 0;
+    await page.route(completionPattern, async (route) => {
+      completionRequests += 1;
+      await new Promise((resolve) => setTimeout(resolve, 250));
+      await route.continue();
+    });
+
+    await complete.evaluate((button) => {
+      button.click();
+      button.click();
+    });
+
+    await expect(task).not.toBeVisible();
+    await expect(page).toHaveURL(relationshipUrl);
+    expect(completionRequests).toBe(1);
+  });
+
+  test("completes related work in context without JavaScript", async ({
+    browser,
+  }) => {
+    const context = await browser.newContext({ javaScriptEnabled: false });
+    const page = await context.newPage();
+
+    await loginAsMara(page);
+    await page.goto("/people/new");
+    await page.getByLabel("Name", { exact: true }).fill("No Script Follow-up");
+    await page
+      .getByRole("button", { name: "Check and save person", exact: true })
+      .click();
+
+    const taskSection = page.locator("section").filter({
+      has: page.getByRole("heading", { name: "Open tasks", exact: true }),
+    });
+    await taskSection
+      .getByLabel("Subject", { exact: true })
+      .fill("Native completion");
+    await taskSection.getByLabel(/^Due in /).fill("2026-07-29T11:00");
+    await taskSection
+      .getByRole("button", { name: "Schedule task", exact: true })
+      .click();
+
+    const relationshipUrl = page.url();
+    const task = page
+      .getByRole("listitem")
+      .filter({ hasText: "Native completion" });
+    await task
+      .getByRole("button", { name: "Complete", exact: true })
+      .click();
+
+    await expect(page).toHaveURL(relationshipUrl);
+    await expect(
+      page.getByRole("heading", { name: "No Script Follow-up", exact: true }),
+    ).toBeVisible();
+    await expect(task).not.toBeVisible();
+
+    await context.close();
   });
 });

@@ -607,6 +607,41 @@ Unexpected server errors must not be allowed to replace a local editor with a
 full-page error representation; the application-wide failure-feedback seam
 owns that policy.
 
+### Contextual mutations defend the action at three layers
+
+A mutation initiated inside a relationship record should keep the member in
+that relationship context. Task completion actions therefore carry a typed
+`Route.TaskContext`; their native POST redirects to the corresponding person,
+company, or work-list location. On person and company pages HTMX follows the
+same action and replaces only the stable open-tasks section selected from the
+canonical redirected page. The native behavior is the contract, not a
+different fallback destination.
+
+Mutation feedback is local. The submitting button exposes a request status for
+the duration of the request; a global spinner would be ambiguous when requests
+overlap and would make fast local actions feel heavier than they are.
+`Web.hx_sync_first` maps "the first accepted completion wins" to
+`this:drop`. An adversarial browser journey holds the first request open and
+activates the button twice; removing the policy produces two POSTs and fails
+the journey. This transport policy is not the business invariant:
+`WorkTaskStore.complete!` still updates only an open task, so a repeated or
+retried request cannot complete it twice.
+
+HTMX 4 error responses need an explicit destination. Full error pages expose a
+stable `Web.ErrorTarget.RequestError` summary, and enhanced mutation forms use
+`Web.hx_errors_to` to select that summary into a dedicated local `aria-live`
+feedback region for both `4xx` and `5xx` responses. The normal task section,
+including any entered state, remains in place. The browser journey injects a
+`500` response before allowing a successful retry and verifies both the alert
+and preservation of context.
+
+This seam validates contextual delivery and duplicate-action behavior; it does
+not claim that CRM-020 and CRM-021 are complete. The current task model still
+needs a completion result and the option to schedule the next action. Network
+loss and timeout feedback also remain a separate browser-event seam because
+they have no HTTP error representation to select. Those gaps should be solved
+on the CRM task workflow, not by expanding the legacy playground features.
+
 ## Suggested module dependency direction
 
 Roc intentionally disallows cyclic imports. We therefore design dependencies

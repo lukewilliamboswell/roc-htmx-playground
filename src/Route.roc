@@ -110,6 +110,22 @@ Route := [
 			}
 	}
 
+	TaskContext := [
+		WorkList,
+		CompanyRecord(Company.Id),
+		PersonRecord(Person.Id),
+	].{
+		is_eq : _
+
+		to_location : TaskContext -> Location
+		to_location = |context|
+			match context {
+				WorkList => AtPage(Page.Work)
+				CompanyRecord(id) => CompanyDetail(id)
+				PersonRecord(id) => PersonDetail(id)
+			}
+	}
+
 	PostAction := [
 		Register,
 		Login,
@@ -130,7 +146,7 @@ Route := [
 		DeletePersonPhone(Person.Id, Person.ContactId),
 		CreateCompanyTask(Company.Id),
 		CreatePersonTask(Person.Id),
-		CompleteTask(WorkTask.Id),
+		CompleteTask(WorkTask.Id, TaskContext),
 	].{
 		to_post_url : PostAction -> Str
 		to_post_url = |action|
@@ -158,8 +174,15 @@ Route := [
 					"/people/${id.to_str()}/phones/${contact_id.to_str()}/delete"
 				CreateCompanyTask(id) => "/companies/${id.to_str()}/tasks"
 				CreatePersonTask(id) => "/people/${id.to_str()}/tasks"
-				CompleteTask(id) => "/tasks/${id.to_str()}/complete"
-			}
+				CompleteTask(id, context) =>
+					match context {
+						TaskContext.WorkList => "/tasks/${id.to_str()}/complete"
+						TaskContext.CompanyRecord(company_id) =>
+							"/companies/${company_id.to_str()}/tasks/${id.to_str()}/complete"
+						TaskContext.PersonRecord(person_id) =>
+							"/people/${person_id.to_str()}/tasks/${id.to_str()}/complete"
+						}
+				}
 	}
 
 	PutAction := [
@@ -363,6 +386,15 @@ Route := [
 				Ok(Post(UpdateCompany(Company.Id.from_storage(id))))
 			(Post, ["", "companies", id, "tasks"]) =>
 				Ok(Post(CreateCompanyTask(Company.Id.from_storage(id))))
+			(Post, ["", "companies", id, "tasks", task_id, "complete"]) =>
+				Ok(
+					Post(
+						CompleteTask(
+							WorkTask.Id.from_storage(task_id),
+							TaskContext.CompanyRecord(Company.Id.from_storage(id)),
+						),
+					),
+				)
 			(Get, ["", "companies", id]) =>
 				Ok(Visit(CompanyDetail(Company.Id.from_storage(id))))
 
@@ -390,6 +422,15 @@ Route := [
 				Ok(Post(UpdatePerson(Person.Id.from_storage(id))))
 			(Post, ["", "people", id, "tasks"]) =>
 				Ok(Post(CreatePersonTask(Person.Id.from_storage(id))))
+			(Post, ["", "people", id, "tasks", task_id, "complete"]) =>
+				Ok(
+					Post(
+						CompleteTask(
+							WorkTask.Id.from_storage(task_id),
+							TaskContext.PersonRecord(Person.Id.from_storage(id)),
+						),
+					),
+				)
 			(Get, ["", "people", id]) =>
 				Ok(Visit(PersonDetail(Person.Id.from_storage(id))))
 			(Post, ["", "people", id, "emails"]) =>
@@ -426,7 +467,7 @@ Route := [
 
 			(Get, ["", "work"]) => Ok(Visit(AtPage(Work)))
 			(Post, ["", "tasks", id, "complete"]) =>
-				Ok(Post(CompleteTask(WorkTask.Id.from_storage(id))))
+				Ok(Post(CompleteTask(WorkTask.Id.from_storage(id), TaskContext.WorkList)))
 			(Post, ["", "people", id, "phones", contact_id, "delete"]) =>
 				Ok(
 					Post(
@@ -593,8 +634,28 @@ expect {
 		"http://localhost/tasks/task-follow-up/complete",
 	)
 	match result {
-		Ok(Route.Post(Route.PostAction.CompleteTask(id))) =>
-			id.to_str() == "task-follow-up"
+		Ok(Route.Post(Route.PostAction.CompleteTask(id, context))) =>
+			id.to_str() == "task-follow-up" and context == Route.TaskContext.WorkList
+		_ => False
+	}
+}
+
+expect {
+	person_id = Person.Id.from_storage("person-ada")
+	task_id = WorkTask.Id.from_storage("task-follow-up")
+	action = Route.PostAction.CompleteTask(
+		task_id,
+		Route.TaskContext.PersonRecord(person_id),
+	)
+	parsed = Route.parse_parts(
+		Route.Method.Post,
+		action.to_post_url(),
+		"http://localhost/people/person-ada/tasks/task-follow-up/complete",
+	)
+	match parsed {
+		Ok(Route.Post(Route.PostAction.CompleteTask(actual_task, context))) =>
+			actual_task == task_id
+				and context == Route.TaskContext.PersonRecord(person_id)
 		_ => False
 	}
 }

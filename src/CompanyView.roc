@@ -134,6 +134,7 @@ CompanyView :: [].{
 					actor,
 					tasks,
 					Route.PostAction.CreateCompanyTask(company.id),
+					Route.TaskContext.CompanyRecord(company.id),
 				),
 				activity_section(history),
 			],

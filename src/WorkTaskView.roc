@@ -8,6 +8,22 @@ import Route
 import Web
 import WorkTask
 
+WorkTaskTarget := [RelatedTasks, Feedback].{
+	to_selector : WorkTaskTarget -> Str
+	to_selector = |target|
+		match target {
+			RelatedTasks => "#related-open-tasks"
+			Feedback => "#related-task-feedback"
+		}
+
+	to_id : WorkTaskTarget -> Str
+	to_id = |target|
+		match target {
+			RelatedTasks => "related-open-tasks"
+			Feedback => "related-task-feedback"
+		}
+}
+
 WorkTaskView := [].{
 	page : Actor, List(WorkTask) -> Html.Node
 	page = |actor, tasks|
@@ -35,18 +51,28 @@ WorkTaskView := [].{
 			],
 		)
 
-	related_section : Actor, List(WorkTask), Route.PostAction -> Html.Node
-	related_section = |actor, tasks, create_action|
+	related_section : Actor, List(WorkTask), Route.PostAction, Route.TaskContext -> Html.Node
+	related_section = |actor, tasks, create_action, completion_context|
 		Html.element(
 			"section",
-			[Design.contentSection],
+			[
+				Attribute.id(WorkTaskTarget.to_id(WorkTaskTarget.RelatedTasks)),
+				Design.contentSection,
+			],
 			[
 				Html.h2([Design.sectionHeading], [Html.text("Open tasks")]),
+				Html.div(
+					[
+						Attribute.id(WorkTaskTarget.to_id(WorkTaskTarget.Feedback)),
+						attribute("aria-live", "assertive"),
+					],
+					[],
+				),
 				Html.p(
 					[Design.contentSectionText],
 					[Html.text("Due times use ${actor.workspace.timezone.to_str()}.")],
 				),
-				task_list(tasks),
+				task_list(tasks, completion_context, True),
 				task_form(actor, create_action),
 			],
 		)
@@ -65,23 +91,23 @@ bucket = |title, tasks, overdue|
 		],
 		[
 			Html.h2([Design.sectionHeading], [Html.text(title)]),
-			task_list(tasks),
+			task_list(tasks, Route.TaskContext.WorkList, False),
 		],
 	)
 
-task_list : List(WorkTask) -> Html.Node
-task_list = |tasks|
+task_list : List(WorkTask), Route.TaskContext, Bool -> Html.Node
+task_list = |tasks, completion_context, enhanced|
 	Html.ul(
 		[Design.taskList],
 		if tasks.is_empty() {
 			[Html.li([Design.secondaryText], [Html.text("No tasks in this group.")])]
 		} else {
-			tasks.map(task_item)
+			tasks.map(|task| task_item(task, completion_context, enhanced))
 		},
 	)
 
-task_item : WorkTask -> Html.Node
-task_item = |task|
+task_item : WorkTask, Route.TaskContext, Bool -> Html.Node
+task_item = |task, completion_context, enhanced|
 	Html.li(
 		[Design.taskItem],
 		[
@@ -97,20 +123,52 @@ task_item = |task|
 				],
 			),
 			Web.post_form(
-				Route.PostAction.CompleteTask(task.id),
-				[Design.taskActions],
+				Route.PostAction.CompleteTask(task.id, completion_context),
+				complete_form_attributes(
+					Route.PostAction.CompleteTask(task.id, completion_context),
+					enhanced,
+				),
 				[
 					Html.button(
 						[
 							Attribute.type("submit"),
 							Design.button(Design.ButtonTone.Success, Design.ButtonSize.Small),
 						],
-						[Html.text("Complete")],
+						[
+							Html.text("Complete"),
+							if enhanced {
+								Html.span(
+									[
+										Design.taskRequestStatus,
+										attribute("role", "status"),
+										attribute("aria-live", "polite"),
+									],
+									[Html.text("Completing…")],
+								)
+							} else {
+								Html.text("")
+							},
+						],
 					),
 				],
 			),
 		],
 	)
+
+complete_form_attributes : Route.PostAction, Bool -> List(Attribute.Attribute)
+complete_form_attributes = |action, enhanced|
+	if enhanced {
+		[
+			Design.taskActions,
+			Web.hx_post(action),
+			Web.hx_target(WorkTaskTarget.RelatedTasks),
+			Web.hx_select(WorkTaskTarget.RelatedTasks),
+			Web.hx_swap(Web.Swap.OuterHtml),
+			Web.hx_sync_first,
+		].concat(Web.hx_errors_to(WorkTaskTarget.Feedback))
+	} else {
+		[Design.taskActions]
+	}
 
 task_form : Actor, Route.PostAction -> Html.Node
 task_form = |actor, action|

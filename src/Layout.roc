@@ -60,6 +60,7 @@ Layout := [].{
 			Route.Page.Todos => [Route.Asset.Htmx]
 			Route.Page.BigTasks => [Route.Asset.Htmx]
 			Route.Page.Companies => [Route.Asset.Htmx]
+			Route.Page.People => [Route.Asset.Htmx]
 			_ => []
 		}
 

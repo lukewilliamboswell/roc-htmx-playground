@@ -238,7 +238,7 @@ Route := [
 			}
 	}
 
-	PersonInput := [Name, Company, JobTitle, Owner, Lifecycle, Source, Context, Email, Phone, ConfirmDistinct, Version, Label, Value, Primary].{
+	PersonInput := [Name, Company, JobTitle, Owner, Lifecycle, Source, Context, Email, Phone, OriginCompany, ConfirmDistinct, Version, Label, Value, Primary].{
 		to_name : PersonInput -> Str
 		to_name = |input|
 			match input {
@@ -251,6 +251,7 @@ Route := [
 				Context => "context"
 				Email => "email"
 				Phone => "phone"
+				OriginCompany => "originCompany"
 				ConfirmDistinct => "confirmDistinct"
 				Version => "version"
 				Label => "label"

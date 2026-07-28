@@ -130,10 +130,11 @@ test.describe("CRM journeys", () => {
       "https://preserved.example",
     );
 
-    await page.goto("/people/new");
+    await page.goto("/people/new?company=company-acme");
     await page
       .getByLabel("Role or title", { exact: true })
       .fill("Preserved role");
+    await page.getByLabel("Company", { exact: true }).selectOption("");
     await expect(
       page.getByText(
         "Only a name is required. Add an email or phone when known to make follow-up and duplicate checking more reliable.",
@@ -147,7 +148,7 @@ test.describe("CRM journeys", () => {
     await expect(personName).toHaveAttribute("required", "");
     await personSubmit.click();
     await expect(personName).toBeFocused();
-    await expect(page).toHaveURL("/people/new");
+    await expect(page).toHaveURL("/people/new?company=company-acme");
 
     await personName.evaluate((input) => {
       input.form.noValidate = true;
@@ -160,6 +161,10 @@ test.describe("CRM journeys", () => {
     await expect(page.getByLabel("Role or title", { exact: true })).toHaveValue(
       "Preserved role",
     );
+    await expect(page.getByLabel("Company", { exact: true })).toHaveValue("");
+    await expect(
+      page.getByRole("link", { name: "Cancel", exact: true }),
+    ).toHaveAttribute("href", "/companies/company-acme");
   });
 
   test("provides native secondary exits from CRM forms", async ({
@@ -201,6 +206,22 @@ test.describe("CRM journeys", () => {
       .getByRole("link", { name: "Cancel", exact: true })
       .click();
     await expect(page).toHaveURL("/people");
+
+    await page.goto("/people/new?company=company-acme");
+    await expect(
+      page.getByRole("link", { name: "← Acme Studio", exact: true }),
+    ).toHaveAttribute("href", "/companies/company-acme");
+    await page
+      .locator("form")
+      .filter({
+        has: page.getByRole("button", {
+          name: "Check and save person",
+          exact: true,
+        }),
+      })
+      .getByRole("link", { name: "Cancel", exact: true })
+      .click();
+    await expect(page).toHaveURL("/companies/company-acme");
 
     await context.close();
   });

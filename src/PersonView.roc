@@ -23,6 +23,7 @@ PersonView :: [].{
 		context : Str,
 		email : Str,
 		phone : Str,
+		originCompany : Str,
 	}
 
 	page : Actor, List(Person), Person.Filter -> Html.Node
@@ -117,13 +118,13 @@ PersonView :: [].{
 			],
 		)
 
-	new_page : Actor, List(Company), Form, Str, List(Person.Match) -> Html.Node
-	new_page = |actor, companies, form, validation, matches|
-		form_page(actor, companies, None, form, validation, matches)
+	new_page : Actor, List(Company), [None, Some(Company)], Form, Str, List(Person.Match) -> Html.Node
+	new_page = |actor, companies, origin, form, validation, matches|
+		form_page(actor, companies, origin, None, form, validation, matches)
 
 	edit_page : Actor, List(Company), Person, Form, Str -> Html.Node
 	edit_page = |actor, companies, person, form, validation|
-		form_page(actor, companies, Some(person), form, validation, [])
+		form_page(actor, companies, None, Some(person), form, validation, [])
 }
 
 activity_section : List(Activity) -> Html.Node
@@ -156,16 +157,28 @@ activity_section = |history|
 		],
 	)
 
-form_page : Actor, List(Company), [None, Some(Person)], PersonView.Form, Str, List(Person.Match) -> Html.Node
-form_page = |actor, companies, existing, form, validation, matches| {
+form_page : Actor, List(Company), [None, Some(Company)], [None, Some(Person)], PersonView.Form, Str, List(Person.Match) -> Html.Node
+form_page = |actor, companies, origin, existing, form, validation, matches| {
 	editing = match existing {
 		Some(_) => True
 		None => False
 	}
 	cancel_location = match existing {
 		Some(person) => Route.Location.PersonDetail(person.id)
-		None => Route.Location.AtPage(Route.Page.People)
-	}
+		None =>
+			match origin {
+				Some(company) => Route.Location.CompanyDetail(company.id)
+				None => Route.Location.AtPage(Route.Page.People)
+			}
+		}
+	parent_label = match existing {
+		Some(person) => person.name.to_str()
+		None =>
+			match origin {
+				Some(company) => company.name.to_str()
+				None => "People"
+			}
+		}
 	Layout.page(
 		actor.session,
 		if editing {
@@ -174,7 +187,7 @@ form_page = |actor, companies, existing, form, validation, matches| {
 			Route.Page.PersonNew
 		},
 		[
-			Web.link(Route.Page.People, [Design.navLink], [Html.text("← People")]),
+			Web.link(cancel_location, [Design.navLink], [Html.text("← ${parent_label}")]),
 			Html.h1(
 				[Design.pageTitle, Design.backLinkedPageTitle],
 				[
@@ -223,6 +236,15 @@ form_page = |actor, companies, existing, form, validation, matches| {
 								Attribute.type("hidden"),
 								Attribute.name(Route.PersonInput.to_name(Route.PersonInput.Version)),
 								Attribute.value(person.version.to_str()),
+							])
+						None => Html.text("")
+					},
+					match origin {
+						Some(company) =>
+							Html.input([
+								Attribute.type("hidden"),
+								Attribute.name(Route.PersonInput.to_name(Route.PersonInput.OriginCompany)),
+								Attribute.value(company.id.to_str()),
 							])
 						None => Html.text("")
 					},

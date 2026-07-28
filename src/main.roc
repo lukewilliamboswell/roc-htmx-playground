@@ -220,7 +220,7 @@ visit! = |context, session, location|
 					PersonHandler.new_page!(
 						context.companyStore,
 						actor_from_session(session, context.workspace)?,
-						"",
+						None,
 					)
 				Route.Page.Work =>
 					WorkTaskHandler.page!(
@@ -281,7 +281,7 @@ visit! = |context, session, location|
 			PersonHandler.new_page!(
 				context.companyStore,
 				actor_from_session(session, context.workspace)?,
-				company_id.to_str(),
+				Some(company_id),
 			)
 		}
 

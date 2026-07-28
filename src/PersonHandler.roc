@@ -37,12 +37,16 @@ PersonHandler := [].{
 			Err(Person.FindError.StoreFailure(error)) => Err(AppError.from(error))
 		}
 
-	new_page! : CompanyStore, Actor, Str => Try(Response, AppError)
+	new_page! : CompanyStore, Actor, [None, Some(Company.Id)] => Try(Response, AppError)
 	new_page! = |companies, actor, company_id| {
 		company_list = CompanyStore.list!(companies, Company.Filter.empty)
 			? AppError.from
-		form = empty_form(company_id, actor.member.id.to_str())
-		Ok(Http.html(200, PersonView.new_page(actor, company_list, form, "", []), []))
+		origin = match company_id {
+			Some(id) => Some(find_origin_company!(companies, id)?)
+			None => None
+		}
+		form = empty_form(origin, actor.member.id.to_str())
+		Ok(Http.html(200, PersonView.new_page(actor, company_list, origin, form, "", []), []))
 	}
 
 	edit_page! : PersonStore, CompanyStore, Actor, Person.Id => Try(Response, AppError)
@@ -70,16 +74,17 @@ PersonHandler := [].{
 		form = form_values(fields)
 		company_list = CompanyStore.list!(companies, Company.Filter.empty)
 			? AppError.from
+		origin = form_origin!(companies, form.originCompany)?
 		match person_input(form, actor) {
 			Err(message) =>
-				Ok(Http.html(422, PersonView.new_page(actor, company_list, form, message, []), []))
+				Ok(Http.html(422, PersonView.new_page(actor, company_list, origin, form, message, []), []))
 			Ok(input) =>
 				match PersonStore.matches!(people, actor.workspace.id, input) {
 					Err(error) => Err(AppError.from(error))
 					Ok(matches) if matches.is_empty() =>
-						create_input!(people, actor, company_list, form, input, False)
+						create_input!(people, actor, company_list, origin, form, input, False)
 					Ok(matches) =>
-						Ok(Http.html(200, PersonView.new_page(actor, company_list, form, "", matches), []))
+						Ok(Http.html(200, PersonView.new_page(actor, company_list, origin, form, "", matches), []))
 					}
 			}
 	}
@@ -94,10 +99,11 @@ PersonHandler := [].{
 		}
 		company_list = CompanyStore.list!(companies, Company.Filter.empty)
 			? AppError.from
+		origin = form_origin!(companies, form.originCompany)?
 		match person_input(form, actor) {
 			Err(message) =>
-				Ok(Http.html(422, PersonView.new_page(actor, company_list, form, message, []), []))
-			Ok(input) => create_input!(people, actor, company_list, form, input, True)
+				Ok(Http.html(422, PersonView.new_page(actor, company_list, origin, form, message, []), []))
+			Ok(input) => create_input!(people, actor, company_list, origin, form, input, True)
 		}
 	}
 
@@ -177,8 +183,8 @@ PersonHandler := [].{
 	}
 }
 
-create_input! : PersonStore, Actor, List(Company), PersonView.Form, Person.New, Bool => Try(Response, AppError)
-create_input! = |store, actor, companies, form, input, confirmed|
+create_input! : PersonStore, Actor, List(Company), [None, Some(Company)], PersonView.Form, Person.New, Bool => Try(Response, AppError)
+create_input! = |store, actor, companies, origin, form, input, confirmed|
 	match PersonStore.create!(
 		store,
 		actor.workspace.id,
@@ -189,7 +195,7 @@ create_input! = |store, actor, companies, form, input, confirmed|
 	) {
 		Ok(id) => Ok(Web.redirect(Route.Location.PersonDetail(id)))
 		Err(Person.CreateError.DuplicateMatches(matches)) =>
-			Ok(Http.html(200, PersonView.new_page(actor, companies, form, "", matches), []))
+			Ok(Http.html(200, PersonView.new_page(actor, companies, origin, form, "", matches), []))
 		Err(Person.CreateError.StoreFailure(error)) => Err(AppError.from(error))
 	}
 
@@ -238,16 +244,20 @@ form_values = |fields|
 		context: field(fields, Route.PersonInput.Context),
 		email: field(fields, Route.PersonInput.Email),
 		phone: field(fields, Route.PersonInput.Phone),
+		originCompany: field(fields, Route.PersonInput.OriginCompany),
 	}
 
 field : Dict(Str, Str), Route.PersonInput -> Str
 field = |fields, input| fields.get(input.to_name()) ?? ""
 
-empty_form : Str, Str -> PersonView.Form
-empty_form = |company_id, owner|
+empty_form : [None, Some(Company)], Str -> PersonView.Form
+empty_form = |origin, owner|
 	PersonView.Form.{
 		name: "",
-		company: company_id,
+		company: match origin {
+			Some(company) => company.id.to_str()
+			None => ""
+		},
 		jobTitle: "",
 		owner,
 		lifecycle: "lead",
@@ -255,6 +265,10 @@ empty_form = |company_id, owner|
 		context: "",
 		email: "",
 		phone: "",
+		originCompany: match origin {
+			Some(company) => company.id.to_str()
+			None => ""
+		},
 	}
 
 form_from_person : Person -> PersonView.Form
@@ -269,4 +283,24 @@ form_from_person = |person|
 		context: person.context,
 		email: "",
 		phone: "",
+		originCompany: "",
+	}
+
+form_origin! : CompanyStore, Str => Try([None, Some(Company)], AppError)
+form_origin! = |store, value|
+	if value.is_empty() {
+		Ok(None)
+	} else {
+		id = Company.Id.from_str(value)
+			? |_| AppError.BadRequest("Expected a valid originating company")
+		Ok(Some(find_origin_company!(store, id)?))
+	}
+
+find_origin_company! : CompanyStore, Company.Id => Try(Company, AppError)
+find_origin_company! = |store, id|
+	match CompanyStore.find!(store, id) {
+		Ok(company) => Ok(company)
+		Err(Company.FindError.NotFound) =>
+			Err(AppError.BadRequest("Originating company was not found"))
+		Err(Company.FindError.StoreFailure(error)) => Err(AppError.from(error))
 	}

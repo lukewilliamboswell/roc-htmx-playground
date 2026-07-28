@@ -525,6 +525,12 @@ returns to the record being edited or the collection that owns a new record.
 This escape route must work without browser scripting and must not submit or
 discard data through an action endpoint.
 
+When a parent record launches a creation form, carry that origin separately
+from editable relationship fields. Back and Cancel return to the validated
+origin through validation and confirmation responses even if the member
+changes the new record's relationships. Never infer navigation context from a
+mutable selection.
+
 Do not introduce a shared `hx_nav` helper that silently chooses a global target
 and swap strategy. `Web` owns typed protocol primitives; the feature view
 composes target, selection, and swap attributes beside the region whose

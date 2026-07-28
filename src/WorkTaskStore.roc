@@ -132,8 +132,10 @@ task_select = (
 	\\ t.task_type_id AS taskTypeId, IFNULL(task_type.name, '') AS taskTypeName,
 	\\ t.status, t.company_id AS companyId, IFNULL(company.name, '') AS companyName,
 	\\ t.person_id AS personId, IFNULL(person.name, '') AS personName,
-	\\ t.context, creator.name AS createdByName, t.created_at AS createdAt,
-	\\ t.completed_at AS completedAt
+	\\ t.context, creator.name AS createdByName,
+	\\ strftime('%Y-%m-%dT%H:%M', t.created_at, 'localtime') AS createdAt,
+	\\ CASE WHEN t.completed_at = '' THEN ''
+	\\      ELSE strftime('%Y-%m-%dT%H:%M', t.completed_at, 'localtime') END AS completedAt
 	\\FROM crm_tasks t
 	\\JOIN members assignee ON assignee.member_id = t.assignee_id
 	\\JOIN members creator ON creator.member_id = t.created_by_id

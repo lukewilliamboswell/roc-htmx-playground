@@ -1,9 +1,10 @@
+import DateTime
 import Member
 
 WorkTask := {
 	id : Id,
 	subject : Subject,
-	dueLocal : Str,
+	dueLocal : DateTime.Display,
 	assigneeId : Member.Id,
 	assigneeName : Str,
 	taskTypeId : Str,
@@ -15,8 +16,8 @@ WorkTask := {
 	personName : Str,
 	context : Str,
 	createdByName : Str,
-	createdAt : Str,
-	completedAt : Str,
+	createdAt : DateTime.Display,
+	completedAt : DateTime.Display,
 	bucket : Bucket,
 }.{
 	Id :: Str.{
@@ -160,7 +161,7 @@ WorkTask := {
 		WorkTask.{
 			id: Id.(row.id),
 			subject: Subject.(row.subject),
-			dueLocal: row.dueLocal,
+			dueLocal: DateTime.Display.from_local_storage(row.dueLocal),
 			assigneeId: Member.Id.from_storage(row.assigneeId),
 			assigneeName: row.assigneeName,
 			taskTypeId: row.taskTypeId,
@@ -172,8 +173,8 @@ WorkTask := {
 			personName: row.personName,
 			context: row.context,
 			createdByName: row.createdByName,
-			createdAt: row.createdAt,
-			completedAt: row.completedAt,
+			createdAt: DateTime.Display.from_local_storage(row.createdAt),
+			completedAt: DateTime.Display.from_local_storage(row.completedAt),
 			bucket: bucket_for(status, row.dueLocal, today),
 		}
 	}

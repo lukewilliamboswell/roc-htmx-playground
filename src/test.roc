@@ -13,6 +13,7 @@ import http.Response
 import "../db/init.sql" as init_schema : Str
 import "../db/test-fixtures.sql" as test_fixtures : Str
 
+import Activity
 import BigTask
 import BigTaskStore
 import Actor
@@ -241,11 +242,15 @@ test_companies! = |db| {
 
 	history = CompanyStore.history!(store, created_id)
 	expect match history {
-		Ok(activities) =>
-			activities.len() == 2
-				and activities.any(|activity| activity.changeField == "owner")
-					and activities.any(|activity| activity.changeField == "lifecycle")
-		Err(_) => False
+		Ok([first, second]) =>
+			match (first.change, second.change) {
+				(
+					Activity.Change.LifecycleChanged({ from: "Lead", to: "Customer" }),
+					Activity.Change.OwnerChanged({ from: "Mara Singh", to: "Theo Nguyen" }),
+				) => True
+				_ => False
+			}
+		_ => False
 	}
 
 	actor = match Actor.from_session(
@@ -436,9 +441,8 @@ test_people! = |db| {
 	history = PersonStore.history!(store, person_id)
 	expect match history {
 		Ok([activity]) =>
-			activity.changeField == "owner"
-				and activity.changeFrom == "member-mara"
-					and activity.changeTo == "member-theo"
+			activity.change
+				== Activity.Change.OwnerChanged({ from: "Mara Singh", to: "Theo Nguyen" })
 		_ => False
 	}
 }

@@ -86,7 +86,7 @@ task_item = |task|
 		[Design.taskItem],
 		[
 			Html.p([Design.taskSubject], [Html.text(task.subject.to_str())]),
-			Html.p([Design.taskDue], [Html.text(task.dueLocal)]),
+			Html.p([Design.taskDue], [Html.text(task.dueLocal.to_str())]),
 			Html.p([Design.taskRelated], [Html.text(related_label(task))]),
 			Web.post_form(
 				Route.PostAction.CompleteTask(task.id),

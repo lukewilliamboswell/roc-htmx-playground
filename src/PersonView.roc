@@ -97,9 +97,9 @@ PersonView :: [].{
 								Html.h2([Design.sectionHeading], [Html.text("Record")]),
 								detail_list([
 									("Created by", person.createdByName),
-									("Created", person.createdAt),
+									("Created", person.createdAt.to_str()),
 									("Last changed by", person.updatedByName),
-									("Last changed", person.updatedAt),
+									("Last changed", person.updatedAt.to_str()),
 								]),
 							],
 						),
@@ -145,7 +145,7 @@ activity_section = |history|
 									Html.p([], [Html.text(Activity.summary(activity))]),
 									Html.p(
 										[Design.activityMeta],
-										[Html.text("${activity.createdByName} · ${activity.occurredAt}")],
+										[Html.text("${activity.createdByName} · ${activity.occurredAt.to_str()}")],
 									),
 								],
 							),

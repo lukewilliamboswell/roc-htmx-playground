@@ -121,9 +121,9 @@ CompanyView :: [].{
 								Html.h2([Design.sectionHeading], [Html.text("Record")]),
 								detail_list([
 									("Created by", company.createdByName),
-									("Created", company.createdAt),
+									("Created", company.createdAt.to_str()),
 									("Last changed by", company.updatedByName),
-									("Last changed", company.updatedAt),
+									("Last changed", company.updatedAt.to_str()),
 								]),
 							],
 						),
@@ -557,7 +557,7 @@ company_row = |company|
 				],
 			),
 			Html.td([Design.tableCell], [Html.text(company.ownerName)]),
-			Html.td([Design.tableCell], [Html.text(company.updatedAt)]),
+			Html.td([Design.tableCell], [Html.text(company.updatedAt.to_str())]),
 		],
 	)
 
@@ -602,7 +602,7 @@ activity_section = |history|
 									Html.p([], [Html.text(Activity.summary(activity))]),
 									Html.p(
 										[Design.activityMeta],
-										[Html.text("${activity.createdByName} · ${activity.occurredAt}")],
+										[Html.text("${activity.createdByName} · ${activity.occurredAt.to_str()}")],
 									),
 								],
 							),

@@ -1,3 +1,4 @@
+import DateTime
 import Member
 import Workspace
 
@@ -14,8 +15,8 @@ Company := {
 	context : Str,
 	createdByName : Str,
 	updatedByName : Str,
-	createdAt : Str,
-	updatedAt : Str,
+	createdAt : DateTime.Display,
+	updatedAt : DateTime.Display,
 	version : Version,
 }.{
 	Id :: Str.{
@@ -250,8 +251,8 @@ Company := {
 			context: row.context,
 			createdByName: row.createdByName,
 			updatedByName: row.updatedByName,
-			createdAt: row.createdAt,
-			updatedAt: row.updatedAt,
+			createdAt: DateTime.Display.from_local_storage(row.createdAt),
+			updatedAt: DateTime.Display.from_local_storage(row.updatedAt),
 			version: Version.(row.version),
 		}
 }

@@ -1,12 +1,20 @@
+import DateTime
+
 Activity := {
 	id : Str,
-	occurredAt : Str,
+	occurredAt : DateTime.Display,
 	createdByName : Str,
 	subject : Str,
-	changeField : Str,
-	changeFrom : Str,
-	changeTo : Str,
+	change : Change,
 }.{
+	Change := [
+		LifecycleChanged({ from : Str, to : Str }),
+		OwnerChanged({ from : Str, to : Str }),
+		Recorded({ field : Str, from : Str, to : Str }),
+	].{
+		is_eq : _
+	}
+
 	from_storage : {
 		changeField : Str,
 		changeFrom : Str,
@@ -19,19 +27,22 @@ Activity := {
 	from_storage = |row|
 		Activity.{
 			id: row.id,
-			occurredAt: row.occurredAt,
+			occurredAt: DateTime.Display.from_local_storage(row.occurredAt),
 			createdByName: row.createdByName,
 			subject: row.subject,
-			changeField: row.changeField,
-			changeFrom: row.changeFrom,
-			changeTo: row.changeTo,
+			change: match row.changeField {
+				"owner" => OwnerChanged({ from: row.changeFrom, to: row.changeTo })
+				"lifecycle" => LifecycleChanged({ from: row.changeFrom, to: row.changeTo })
+				field => Recorded({ field, from: row.changeFrom, to: row.changeTo })
+			},
 		}
 
 	summary : Activity -> Str
 	summary = |activity|
-		if activity.changeField.is_empty() {
-			activity.subject
-		} else {
-			"${activity.changeField}: ${activity.changeFrom} → ${activity.changeTo}"
+		match activity.change {
+			OwnerChanged(change) => "Owner: ${change.from} → ${change.to}"
+			LifecycleChanged(change) => "Lifecycle: ${change.from} → ${change.to}"
+			Recorded(change) if change.field.is_empty() => activity.subject
+			Recorded(change) => "${change.field}: ${change.from} → ${change.to}"
 		}
 }

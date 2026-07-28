@@ -28,8 +28,8 @@ CompanyStore :: { db : Sqlite.Db }.{
 				\\    c.context,
 				\\    creator.name AS createdByName,
 				\\    updater.name AS updatedByName,
-				\\    c.created_at AS createdAt,
-				\\    c.updated_at AS updatedAt,
+				\\    strftime('%Y-%m-%dT%H:%M', c.created_at, 'localtime') AS createdAt,
+				\\    strftime('%Y-%m-%dT%H:%M', c.updated_at, 'localtime') AS updatedAt,
 				\\    c.version
 				\\FROM companies AS c
 				\\JOIN members AS owner ON owner.member_id = c.owner_id
@@ -74,8 +74,8 @@ CompanyStore :: { db : Sqlite.Db }.{
 				\\    c.context,
 				\\    creator.name AS createdByName,
 				\\    updater.name AS updatedByName,
-				\\    c.created_at AS createdAt,
-				\\    c.updated_at AS updatedAt,
+				\\    strftime('%Y-%m-%dT%H:%M', c.created_at, 'localtime') AS createdAt,
+				\\    strftime('%Y-%m-%dT%H:%M', c.updated_at, 'localtime') AS updatedAt,
 				\\    c.version
 				\\FROM companies AS c
 				\\JOIN members AS owner ON owner.member_id = c.owner_id
@@ -165,13 +165,21 @@ CompanyStore :: { db : Sqlite.Db }.{
 		rows = Sqlite.query_many!({
 			db: store.db,
 			query: (
-				\\SELECT a.activity_id AS id, a.occurred_at AS occurredAt,
+				\\SELECT a.activity_id AS id,
+				\\ strftime('%Y-%m-%dT%H:%M', a.occurred_at, 'localtime') AS occurredAt,
 				\\ member.name AS createdByName, a.subject,
-				\\ a.change_field AS changeField, a.change_from AS changeFrom,
-				\\ a.change_to AS changeTo
+				\\ a.change_field AS changeField,
+				\\ CASE WHEN a.change_field = 'owner'
+				\\      THEN IFNULL(previous_owner.name, a.change_from)
+				\\      ELSE a.change_from END AS changeFrom,
+				\\ CASE WHEN a.change_field = 'owner'
+				\\      THEN IFNULL(next_owner.name, a.change_to)
+				\\      ELSE a.change_to END AS changeTo
 				\\FROM activities a
 				\\JOIN activity_companies link ON link.activity_id = a.activity_id
 				\\JOIN members member ON member.member_id = a.created_by_id
+				\\LEFT JOIN members previous_owner ON previous_owner.member_id = a.change_from
+				\\LEFT JOIN members next_owner ON next_owner.member_id = a.change_to
 				\\WHERE link.company_id = :id
 				\\ORDER BY a.occurred_at DESC, a.activity_id DESC;
 				,
@@ -288,7 +296,9 @@ update_in_transaction! = |transaction, workspace_id, actor_id, id, input, expect
 				\\    c.website, c.phone, c.source_id AS sourceId,
 				\\    IFNULL(source.name, '') AS sourceName, c.context,
 				\\    creator.name AS createdByName, updater.name AS updatedByName,
-				\\    c.created_at AS createdAt, c.updated_at AS updatedAt, c.version
+				\\    strftime('%Y-%m-%dT%H:%M', c.created_at, 'localtime') AS createdAt,
+				\\    strftime('%Y-%m-%dT%H:%M', c.updated_at, 'localtime') AS updatedAt,
+				\\    c.version
 				\\FROM companies c
 				\\JOIN members owner ON owner.member_id = c.owner_id
 				\\JOIN members creator ON creator.member_id = c.created_by_id
@@ -471,8 +481,8 @@ duplicate_query = (
 	\\        c.context,
 	\\        creator.name AS createdByName,
 	\\        updater.name AS updatedByName,
-	\\        c.created_at AS createdAt,
-	\\        c.updated_at AS updatedAt,
+	\\        strftime('%Y-%m-%dT%H:%M', c.created_at, 'localtime') AS createdAt,
+	\\        strftime('%Y-%m-%dT%H:%M', c.updated_at, 'localtime') AS updatedAt,
 	\\        c.version,
 	\\        CASE
 	\\            WHEN :normalizedPhone <> ''

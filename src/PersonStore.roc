@@ -245,13 +245,21 @@ PersonStore :: { db : Sqlite.Db }.{
 		rows = Sqlite.query_many!({
 			db: store.db,
 			query: (
-				\\SELECT a.activity_id AS id, a.occurred_at AS occurredAt,
+				\\SELECT a.activity_id AS id,
+				\\ strftime('%Y-%m-%dT%H:%M', a.occurred_at, 'localtime') AS occurredAt,
 				\\ member.name AS createdByName, a.subject,
-				\\ a.change_field AS changeField, a.change_from AS changeFrom,
-				\\ a.change_to AS changeTo
+				\\ a.change_field AS changeField,
+				\\ CASE WHEN a.change_field = 'owner'
+				\\      THEN IFNULL(previous_owner.name, a.change_from)
+				\\      ELSE a.change_from END AS changeFrom,
+				\\ CASE WHEN a.change_field = 'owner'
+				\\      THEN IFNULL(next_owner.name, a.change_to)
+				\\      ELSE a.change_to END AS changeTo
 				\\FROM activities a
 				\\JOIN activity_people link ON link.activity_id = a.activity_id
 				\\JOIN members member ON member.member_id = a.created_by_id
+				\\LEFT JOIN members previous_owner ON previous_owner.member_id = a.change_from
+				\\LEFT JOIN members next_owner ON next_owner.member_id = a.change_to
 				\\WHERE link.person_id = :id
 				\\ORDER BY a.occurred_at DESC, a.activity_id DESC;
 				,
@@ -661,7 +669,9 @@ person_select = (
 	\\ p.lifecycle_status AS lifecycle, p.source_id AS sourceId,
 	\\ IFNULL(source.name, '') AS sourceName, p.context,
 	\\ creator.name AS createdByName, updater.name AS updatedByName,
-	\\ p.created_at AS createdAt, p.updated_at AS updatedAt, p.version
+	\\ strftime('%Y-%m-%dT%H:%M', p.created_at, 'localtime') AS createdAt,
+	\\ strftime('%Y-%m-%dT%H:%M', p.updated_at, 'localtime') AS updatedAt,
+	\\ p.version
 	\\FROM people p
 	,
 )

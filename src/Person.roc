@@ -1,4 +1,5 @@
 import Company
+import DateTime
 import Member
 
 Person := {
@@ -17,8 +18,8 @@ Person := {
 	phones : List(ContactMethod),
 	createdByName : Str,
 	updatedByName : Str,
-	createdAt : Str,
-	updatedAt : Str,
+	createdAt : DateTime.Display,
+	updatedAt : DateTime.Display,
 	version : Company.Version,
 }.{
 	Id :: Str.{
@@ -190,8 +191,8 @@ Person := {
 			phones,
 			createdByName: row.createdByName,
 			updatedByName: row.updatedByName,
-			createdAt: row.createdAt,
-			updatedAt: row.updatedAt,
+			createdAt: DateTime.Display.from_local_storage(row.createdAt),
+			updatedAt: DateTime.Display.from_local_storage(row.updatedAt),
 			version: Company.Version.from_i64(row.version),
 		}
 

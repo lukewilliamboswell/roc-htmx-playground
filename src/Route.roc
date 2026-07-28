@@ -2,6 +2,7 @@ import pf.Server
 import pf.Url
 
 import BigTask
+import Company
 import Todo
 
 ## The complete HTTP vocabulary owned by the application.
@@ -22,6 +23,7 @@ Route := [
 		Todos,
 		TodoTree,
 		Users,
+		Companies,
 		BigTasks,
 	].{
 		is_eq : _
@@ -35,6 +37,7 @@ Route := [
 				Todos => "Tasks"
 				TodoTree => "Tree"
 				Users => "Users"
+				Companies => "Companies"
 				BigTasks => "BigTask"
 			}
 
@@ -47,6 +50,7 @@ Route := [
 				Todos => "/task"
 				TodoTree => "/treeview"
 				Users => "/user"
+				Companies => "/companies"
 				BigTasks => "/bigTask"
 			}
 	}
@@ -62,6 +66,8 @@ Route := [
 		TodoNewCompatibility,
 		BigTasks(BigTask.Query),
 		BigTaskCsv,
+		CompanySearch(Company.Filter),
+		CompanyDetail(Company.Id),
 	].{
 		to_href : Location -> Str
 		to_href = |location|
@@ -71,6 +77,9 @@ Route := [
 				TodoNewCompatibility => "/task/new"
 				BigTasks(query) => "/bigTask?${BigTask.Query.to_query(query)}"
 				BigTaskCsv => "/bigTask/downloadCsv"
+				CompanySearch(filter) =>
+					"/companies?q=${form_encode(filter.to_str())}"
+				CompanyDetail(id) => "/companies/${id.to_str()}"
 			}
 	}
 
@@ -218,6 +227,17 @@ Route := [
 			(Get, ["", "treeview"]) => Ok(Visit(AtPage(TodoTree)))
 			(Get, ["", "user"]) => Ok(Visit(AtPage(Users)))
 
+			(Get, ["", "companies"]) => {
+				filter = Route.company_filter(Url.query_pairs(url))
+				if filter.to_str().is_empty() {
+					Ok(Visit(AtPage(Companies)))
+				} else {
+					Ok(Visit(CompanySearch(filter)))
+				}
+			}
+			(Get, ["", "companies", id]) =>
+				Ok(Visit(CompanyDetail(Company.Id.from_storage(id))))
+
 			(Get, ["", "bigTask"]) =>
 				{
 					query = BigTask.Query.from_pairs(Url.query_pairs(url))
@@ -236,6 +256,13 @@ Route := [
 			_ => Err(NotFound(target))
 		}
 	}
+
+	company_filter : List((Str, Str)) -> Company.Filter
+	company_filter = |pairs|
+		match pairs.find_first(|(name, _)| name == "q") {
+			Ok((_, value)) => Company.Filter.from_str(value)
+			Err(_) => Company.Filter.empty
+		}
 }
 
 method_from_request : Server.Request -> Route.Method
@@ -264,11 +291,65 @@ parse_big_task_update = |text, field|
 big_task_field_segment : BigTask.Field -> Str
 big_task_field_segment = |field| BigTask.Field.to_url_segment(field)
 
+form_encode : Str -> Str
+form_encode = |input|
+	Str.from_utf8_lossy(
+		List.fold(
+			Str.to_utf8(input),
+			[],
+			|out, byte|
+				if byte == 32 {
+					out.append(43)
+				} else if is_form_unescaped(byte) {
+					out.append(byte)
+				} else {
+					out
+						.append(37)
+						.append(hex_digit_byte(byte // 16))
+						.append(hex_digit_byte(byte % 16))
+				},
+		),
+	)
+
+is_form_unescaped : U8 -> Bool
+is_form_unescaped = |byte|
+	(byte >= 48 and byte <= 57)
+		or (byte >= 65 and byte <= 90)
+			or (byte >= 97 and byte <= 122)
+				or byte == 42
+					or byte == 45
+						or byte == 46
+							or byte == 95
+
+hex_digit_byte : U8 -> U8
+hex_digit_byte = |value|
+	if value < 10 {
+		value + 48
+	} else {
+		value + 55
+	}
+
 expect Route.Page.to_href(Route.Page.Todos) == "/task"
+expect Route.Location.to_href(
+	Route.Location.CompanySearch(Company.Filter.from_str("Acme Studio")),
+) == "/companies?q=Acme+Studio"
 
 expect {
 	id = Todo.Id.from_i64(42)
 	Route.PostAction.to_post_url(Route.PostAction.DeleteTodo(id)) == "/task/42/delete"
+}
+
+expect {
+	result = Route.parse_parts(
+		Route.Method.Get,
+		"/companies/company-acme",
+		"http://localhost/companies/company-acme",
+	)
+	match result {
+		Ok(Route.Visit(Route.Location.CompanyDetail(id))) =>
+			id.to_str() == "company-acme"
+		_ => False
+	}
 }
 
 expect {

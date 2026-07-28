@@ -4,13 +4,14 @@ import Workspace
 
 Actor := {
 	member : Member,
+	session : Session,
 	workspace : Workspace,
 }.{
 	from_session : Session, Workspace -> Try(Actor, [LoginRequired])
 	from_session = |session, workspace|
 		match session.user {
 			Session.Auth.Guest => Err(LoginRequired)
-			Session.Auth.LoggedIn(member) => Ok(Actor.{ member, workspace })
+			Session.Auth.LoggedIn(member) => Ok(Actor.{ member, session, workspace })
 		}
 }
 

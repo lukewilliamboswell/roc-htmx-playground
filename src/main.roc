@@ -14,10 +14,14 @@ import pf.Utc
 import http.Response
 
 import AppError
+import Actor
 import AuthHandler
 import BigTask
 import BigTaskHandler
 import BigTaskStore
+import Company
+import CompanyHandler
+import CompanyStore
 import HomeView
 import Http
 import MemberStore
@@ -42,6 +46,7 @@ Context := {
 	userStore : UserStore,
 	todoStore : TodoStore,
 	bigTaskStore : BigTaskStore,
+	companyStore : CompanyStore,
 }
 
 program = { init!, respond!, shutdown! }
@@ -91,6 +96,7 @@ init! = || {
 			userStore: UserStore.new(db),
 			todoStore: TodoStore.new(db),
 			bigTaskStore: BigTaskStore.new(db),
+			companyStore: CompanyStore.new(db),
 		},
 	})
 }
@@ -173,6 +179,12 @@ visit! = |context, session, location|
 				Route.Page.Todos => TodoHandler.page!(context.todoStore, session)
 				Route.Page.TodoTree => TodoHandler.tree_page!(context.todoStore, session)
 				Route.Page.Users => UserHandler.page!(context.userStore, session)
+				Route.Page.Companies =>
+					CompanyHandler.page!(
+						context.companyStore,
+						actor_from_session(session, context.workspace)?,
+						Company.Filter.empty,
+					)
 				Route.Page.BigTasks =>
 					BigTaskHandler.page!(context.bigTaskStore, BigTask.Query.default, session)
 				}
@@ -181,6 +193,25 @@ visit! = |context, session, location|
 		Route.Location.BigTasks(query) =>
 			BigTaskHandler.page!(context.bigTaskStore, query, session)
 		Route.Location.BigTaskCsv => Ok(BigTaskHandler.csv())
+		Route.Location.CompanySearch(filter) =>
+			CompanyHandler.page!(
+				context.companyStore,
+				actor_from_session(session, context.workspace)?,
+				filter,
+			)
+		Route.Location.CompanyDetail(id) =>
+			CompanyHandler.detail!(
+				context.companyStore,
+				actor_from_session(session, context.workspace)?,
+				id,
+			)
+		}
+
+actor_from_session : Session, Workspace -> Try(Actor, AppError)
+actor_from_session = |session, workspace|
+	match Actor.from_session(session, workspace) {
+		Ok(actor) => Ok(actor)
+		Err(_) => Err(AppError.Unauthorized)
 	}
 
 post! : Server.Request, Context, Session, Route.PostAction => Try(Response, AppError)

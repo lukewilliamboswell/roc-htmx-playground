@@ -91,8 +91,18 @@ Web := [].{
 		]
 	hx_target = |target| Attribute.attribute("hx-target", target.to_selector())
 
+	hx_select : target -> Attribute.Attribute
+		where [
+			target.to_selector : target -> Str,
+		]
+	hx_select = |target| Attribute.attribute("hx-select", target.to_selector())
+
 	hx_swap : Swap -> Attribute.Attribute
 	hx_swap = |swap| Attribute.attribute("hx-swap", swap.to_attribute())
+
+	## Mark the stable region restored when browser history is traversed.
+	hx_history_element : Attribute.Attribute
+	hx_history_element = Attribute.attribute("hx-history-elt", "")
 
 	## Keep only the newest request issued by the element.
 	##

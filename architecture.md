@@ -496,6 +496,79 @@ display text, and error explanations are naturally strings. Types are most
 valuable for identifiers, validated values, finite choices, and values that
 would be dangerous to interchange.
 
+## HTMX interaction architecture
+
+HTMX enhances the application's HTML navigation and forms; it does not define
+a second client-side application model. Each interaction must therefore start
+with a semantic HTML control and a server-rendered representation of the
+resulting application state.
+
+We adopt HTMX patterns one behavioral seam at a time. A seam is accepted only
+when:
+
+1. its user-facing claim is stated in observable terms;
+2. a browser journey exercises the failure mode, not only the happy path;
+3. removing the behavior makes that journey fail when a practical mutation
+   check is available;
+4. the complete Roc and browser suites still pass; and
+5. the principle and its tradeoff are recorded here.
+
+Each accepted seam gets its own commit. This keeps interaction policy
+reviewable and prevents a broad collection of copied HTMX conventions from
+acquiring authority without evidence in this application.
+
+### Semantic controls remain the baseline
+
+A navigable state uses an anchor with a typed `href`. HTMX may add a faster
+request and bounded swap to that anchor, but disabling JavaScript, opening the
+link in a new tab, or reloading its URL must still produce a useful full page.
+Mutation controls use forms and buttons rather than pretending to be links.
+Where HTML supports the method, the form also declares its native action and
+method; methods such as `PUT` still require enhancement or a deliberate POST
+fallback.
+
+This is why BigTask sort and pagination controls are links, even though HTMX
+normally handles their activation.
+
+### A swap target owns one coherent state
+
+Target the smallest stable region that completely owns the state changed by an
+interaction. A live search owns its results fragment. BigTask sorting and
+pagination jointly own the results table and pagination controls. Page chrome,
+client-only state, focus, and unrelated regions must not be replaced merely
+because returning a full document is convenient.
+
+The server may still return the canonical full page. `hx-select` can select the
+owned region from that response, avoiding a second partial-rendering branch
+until response size or rendering cost provides evidence that one is needed.
+This trades some response bytes for one representation and reliable direct
+navigation.
+
+### Meaningful state participates in browser history
+
+If users may reasonably refresh, bookmark, share, or traverse back to a state,
+that state belongs in the URL. Discrete sorting and pagination navigation push
+their typed query URL. The stable results region is the history element so
+history traversal restores that region without replacing unrelated document
+state. A direct request for every pushed URL must return a complete page.
+
+Ephemeral UI state should not create history entries merely because HTMX can
+do so. Rapidly changing filters require a separate decision about whether URL
+replacement improves the user task; that decision is validated at their own
+seam.
+
+### Concurrent requests express user intent
+
+Debouncing controls request frequency but does not determine which in-flight
+response is authoritative. Derived UI such as live search and autosave uses
+`Web.hx_sync_latest`, which maps the user-facing rule "newest input wins" to
+HTMX's `this:replace` synchronization. This prevents an older response from
+replacing newer input under uneven latency.
+
+Do not apply latest-wins to operations where every request matters or where
+the first accepted mutation must run exactly once. Those require separately
+named policies and evidence before they are added to `Web`.
+
 ## Suggested module dependency direction
 
 Roc intentionally disallows cyclic imports. We therefore design dependencies

@@ -8,9 +8,12 @@ import Route
 import Session
 import Web
 
-BigTaskTarget := [Body].{
+BigTaskTarget := [Results].{
 	to_selector : BigTaskTarget -> Str
-	to_selector = |_| "body"
+	to_selector = |_| "#big-task-results"
+
+	to_id : BigTaskTarget -> Str
+	to_id = |_| "big-task-results"
 }
 
 BigTaskView :: [].{
@@ -44,8 +47,7 @@ BigTaskView :: [].{
 					],
 					[Html.text("Download CSV")],
 				),
-				table(model),
-				pagination(model),
+				results(model),
 			],
 		)
 
@@ -56,6 +58,16 @@ BigTaskView :: [].{
 			BigTask.Field.CustomerReferenceField => input_editor(model, "text")
 			BigTask.Field.DateCreatedField => input_editor(model, "date")
 		}
+
+	results : PageModel -> Html.Node
+	results = |model|
+		Html.div(
+			[
+				Attribute.id(BigTaskTarget.to_id(BigTaskTarget.Results)),
+				Web.hx_history_element,
+			],
+			[table(model), pagination(model)],
+		)
 }
 
 table : BigTaskView.PageModel -> Html.Node
@@ -138,13 +150,11 @@ sort_header = |label, column, model| {
 			attribute("aria-sort", aria_sort),
 		],
 		[
-			Html.button(
+			Web.link(
+				Route.Location.BigTasks(next_query),
 				[
-					Attribute.type("button"),
 					Design.sortableHeaderButton,
-					Web.hx_get(Route.Location.BigTasks(next_query)),
-					Web.hx_target(BigTaskTarget.Body),
-				],
+				].concat(results_navigation(Route.Location.BigTasks(next_query))),
 				[
 					Html.text(label),
 					Html.span(
@@ -205,7 +215,7 @@ page_link = |label, model, target, enabled|
 		}
 		Web.link(
 			Route.Location.BigTasks(query),
-			[Design.paginationLink],
+			[Design.paginationLink].concat(results_navigation(Route.Location.BigTasks(query))),
 			[Html.text(label)],
 		)
 	} else {
@@ -361,6 +371,15 @@ header_cell = |value|
 
 table_cell : Str -> Html.Node
 table_cell = |value| Html.td([Design.tableCell], [Html.text(value)])
+
+results_navigation : Route.Location -> List(Attribute.Attribute)
+results_navigation = |location|
+	[
+		Web.hx_get(location),
+		Web.hx_target(BigTaskTarget.Results),
+		Web.hx_select(BigTaskTarget.Results),
+		Web.hx_swap(Web.Swap.OuterHtml),
+	]
 
 attribute : Str, Str -> Attribute.Attribute
 attribute = |name, value| Attribute.attribute(name, value)

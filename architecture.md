@@ -503,6 +503,10 @@ a second client-side application model. Each interaction must therefore start
 with a semantic HTML control and a server-rendered representation of the
 resulting application state.
 
+The application currently vendors HTMX `4.0.0-beta6`. Version-specific event,
+status, focus, and history behavior is provisional until HTMX 4 is stable;
+helpers name those assumptions so an upgrade has a bounded review surface.
+
 Interaction policy belongs in typed helpers only after a feature establishes
 the user intent it represents. Browser tests cover the relevant failure mode,
 including concurrency, history, accessibility, or progressive enhancement as
@@ -556,12 +560,19 @@ If users may reasonably refresh, bookmark, share, or traverse back to a state,
 that state belongs in the URL. Discrete sorting and pagination navigation push
 their typed query URL. The stable results region is the history element so
 history traversal restores that region without replacing unrelated document
-state. A direct request for every pushed URL must return a complete page.
+state. A document has at most one `hx-history-elt`. HTMX 4 refetches a traversed
+URL and selects that same stable region, so every pushed URL must directly
+return a complete page containing the matching history element and a coherent
+document title. Restoration must tolerate a cache miss and must not depend on
+client-only state.
 
 Ephemeral UI state does not create history entries merely because HTMX can do
 so. Rapidly changing but meaningful filters use the canonical typed GET query
 URL and replace the current URL rather than pushing one entry per keystroke.
 The server reconstructs both controls and results from every represented URL.
+Do not put secrets, credentials, or unnecessarily identifying values into
+history URLs; sensitive workflow state stays server-side behind an opaque,
+authorized identifier or does not participate in browser history.
 
 ### Concurrent requests express user intent
 
@@ -1122,6 +1133,12 @@ union and match on it.
 Keep platform-specific request and response details concentrated in
 `main.roc`, `Web.roc`, and small rendering helpers. Feature rules and
 repository APIs should not need broad changes.
+
+Because the pinned HTMX 4 build is a beta, an upgrade is an explicit
+compatibility change rather than a routine asset refresh. Review the release
+notes and vendored defaults, then rerun the adversarial browser suite for event
+names and payloads, status policies, history refetch, title/focus behavior,
+request cancellation, CSP compatibility, and the JavaScript-disabled baseline.
 
 ### Change the visual design
 

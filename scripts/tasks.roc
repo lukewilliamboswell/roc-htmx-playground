@@ -120,11 +120,34 @@ resetDevDatabase! = || {
 check! : () => Try({}, _)
 check! = || {
 	buildCss!(Bool.False)?
+	run!("ci/check_source_contracts.sh", [])?
 	run!("roc", ["fmt", "--check", "scripts", "src"])?
 	run!("roc", ["check", "src/main.roc"])?
 	run!("roc", ["test", "src/main.roc"])?
 	runWithTimezone!("roc", ["src/test.roc"])?
+	checkOptimizedIntegration!()?
 
+	Ok({})
+}
+
+checkOptimizedIntegration! : () => Try({}, _)
+checkOptimizedIntegration! = || {
+	output = Path.display(
+		Path.join(
+			Env.temp_dir!(),
+			"roc-htmx-playground-integration-speed",
+		),
+	)
+	run!(
+		"roc",
+		[
+			"build",
+			"--opt=speed",
+			"--output=${output}",
+			"src/test.roc",
+		],
+	)?
+	runWithTimezone!(output, [])?
 	Ok({})
 }
 

@@ -83,7 +83,15 @@ init! = || {
 		Err(_) => Path.utf8("dist/assets")
 	}
 	asset_files = Server.file_root({ id: "assets", path: asset_path })
-	config_with_files = Server.with_file_roots(Server.default_config, [asset_files])
+	listen_port = match Env.var!("PORT") {
+		Ok(value) => U16.from_str(OsStr.display(value)) ?? 8000
+		Err(_) => 8000
+	}
+	config_with_listen = Server.with_listen(
+		Server.default_config,
+		{ host: "127.0.0.1", port: listen_port },
+	)
+	config_with_files = Server.with_file_roots(config_with_listen, [asset_files])
 	config = Server.with_native_routes(
 		config_with_files,
 		[

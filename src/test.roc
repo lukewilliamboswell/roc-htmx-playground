@@ -291,7 +291,7 @@ test_companies! = |db| {
 		_ => False
 	}
 
-	# CRM-002: search has an explicit submit affordance in rendered HTML.
+	# CRM-025: search has an explicit submit affordance in rendered HTML.
 	page_response = CompanyHandler.page!(store, actor, Company.Filter.empty)
 	expect match page_response {
 		Ok(response) => {
@@ -483,7 +483,7 @@ test_people! = |db| {
 		Err(_) => False
 	}
 
-	# CRM-009 and CRM-050: contact maintenance and history are human-readable.
+	# CRM-002 and CRM-030: contacts remain maintainable and history is readable.
 	detail_response = PersonHandler.detail!(
 		store,
 		WorkTaskStore.new(db),
@@ -604,7 +604,7 @@ test_work_tasks! = |db| {
 		_ => False
 	}
 
-	# CRM-035: a rendered task says who owns it, what kind it is, and why it exists.
+	# CRM-019: a rendered task says who owns it, what kind it is, and why it exists.
 	actor = logged_in_actor(workspace, member)
 	work_page = match work {
 		Ok(tasks) => response_body(Http.html(200, WorkTaskView.page(actor, tasks), []))

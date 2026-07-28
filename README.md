@@ -48,6 +48,11 @@ database files during this refactor. `db/init.sql` is the canonical schema and
 # Generated CSS, formatting, type checking, pure tests, and fresh-SQL integration tests
 roc scripts/tasks.roc check
 
+# Chromium journeys against an isolated database and server on port 8010
+npm install
+npx playwright install chromium
+npm run test:e2e
+
 # Build the executable and runtime assets under dist/
 roc scripts/tasks.roc build
 
@@ -59,6 +64,12 @@ roc scripts/tasks.roc css-watch
 The task runner downloads and verifies the pinned standalone Tailwind CSS CLI
 under `.tools/`. Tailwind class strings live only in `src/Design.roc`; views
 consume semantic design attributes.
+
+The Playwright suite lives under `tests/`. It resets only
+`test-results/playwright.db`, builds the current source, and owns port 8010, so
+it does not disturb the development database or a server on port 8000. The
+suite asserts behavior and accessible UI text; it does not use screenshot
+baselines. Failure traces are retained under `test-results/`.
 
 ## Architecture
 

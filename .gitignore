@@ -11,6 +11,9 @@ db.snapshot
 
 .DS_Store
 .tools/
+node_modules/
+playwright-report/
+test-results/
 
 *.ll
 *.o

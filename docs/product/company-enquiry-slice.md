@@ -39,6 +39,21 @@ the newer change.
 | CRM-044 | Active membership is checked on every CRM request |
 | CRM-047 | Optimistic conflict detection and recoverable reapplication |
 
+## Verification layers
+
+The acceptance contract is enforced at several seams:
+
+| Layer | What it catches |
+|---|---|
+| Domain tests in `src/*.roc` | Normalization, validated values, status decisions, and other pure rules |
+| Fresh-SQL integration tests in `src/test.roc` | Store transactions, constraints, handlers, and rendered HTML, in both development and optimized compiler modes |
+| `ci/check_source_contracts.sh` | Architectural rules that are otherwise stringly, including keeping Tailwind classes inside `src/Design.roc` |
+| `tests/crm.spec.js` | Browser journeys for display-name preservation and search (CRM-003, CRM-025), duplicate review (CRM-007), primary contact maintenance (CRM-002), and visible task responsibility (CRM-019) |
+
+The browser suite uses roles, labels, and visible text rather than screenshots.
+That makes it sensitive to missing affordances and misleading copy while
+avoiding image-baseline churn for this server-rendered UI.
+
 ## Temporary compatibility boundaries
 
 - The existing application-managed login remains the request identity adapter
@@ -57,6 +72,7 @@ Each implementation commit must pass:
 
 ```sh
 roc scripts/tasks.roc check
+npm run test:e2e
 ```
 
 Schema-changing commits also recreate the disposable development database

@@ -204,6 +204,10 @@ CREATE TABLE person_emails (
 );
 
 CREATE INDEX person_email_match ON person_emails(normalized_email);
+CREATE UNIQUE INDEX person_email_per_person
+    ON person_emails(person_id, normalized_email);
+CREATE UNIQUE INDEX person_email_primary
+    ON person_emails(person_id) WHERE is_primary = 1;
 
 CREATE TABLE person_phones (
     phone_id TEXT PRIMARY KEY,
@@ -217,6 +221,10 @@ CREATE TABLE person_phones (
 );
 
 CREATE INDEX person_phone_match ON person_phones(normalized_phone);
+CREATE UNIQUE INDEX person_phone_per_person
+    ON person_phones(person_id, normalized_phone);
+CREATE UNIQUE INDEX person_phone_primary
+    ON person_phones(person_id) WHERE is_primary = 1;
 
 CREATE TABLE person_revisions (
     person_id TEXT NOT NULL,

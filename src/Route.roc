@@ -122,6 +122,8 @@ Route := [
 		UpdatePerson(Person.Id),
 		AddPersonEmail(Person.Id),
 		AddPersonPhone(Person.Id),
+		PromotePersonEmail(Person.Id, Person.ContactId),
+		PromotePersonPhone(Person.Id, Person.ContactId),
 		DeletePersonEmail(Person.Id, Person.ContactId),
 		DeletePersonPhone(Person.Id, Person.ContactId),
 		CreateCompanyTask(Company.Id),
@@ -145,6 +147,10 @@ Route := [
 				UpdatePerson(id) => "/people/${id.to_str()}"
 				AddPersonEmail(id) => "/people/${id.to_str()}/emails"
 				AddPersonPhone(id) => "/people/${id.to_str()}/phones"
+				PromotePersonEmail(id, contact_id) =>
+					"/people/${id.to_str()}/emails/${contact_id.to_str()}/primary"
+				PromotePersonPhone(id, contact_id) =>
+					"/people/${id.to_str()}/phones/${contact_id.to_str()}/primary"
 				DeletePersonEmail(id, contact_id) =>
 					"/people/${id.to_str()}/emails/${contact_id.to_str()}/delete"
 				DeletePersonPhone(id, contact_id) =>
@@ -378,6 +384,24 @@ Route := [
 				Ok(Post(AddPersonEmail(Person.Id.from_storage(id))))
 			(Post, ["", "people", id, "phones"]) =>
 				Ok(Post(AddPersonPhone(Person.Id.from_storage(id))))
+			(Post, ["", "people", id, "emails", contact_id, "primary"]) =>
+				Ok(
+					Post(
+						PromotePersonEmail(
+							Person.Id.from_storage(id),
+							Person.ContactId.from_storage(contact_id),
+						),
+					),
+				)
+			(Post, ["", "people", id, "phones", contact_id, "primary"]) =>
+				Ok(
+					Post(
+						PromotePersonPhone(
+							Person.Id.from_storage(id),
+							Person.ContactId.from_storage(contact_id),
+						),
+					),
+				)
 			(Post, ["", "people", id, "emails", contact_id, "delete"]) =>
 				Ok(
 					Post(

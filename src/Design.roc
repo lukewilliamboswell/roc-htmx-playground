@@ -260,6 +260,9 @@ Design :: [].{
 	contactMeta : Attribute.Attribute
 	contactMeta = class("text-xs font-medium uppercase tracking-wide text-slate-500")
 
+	contactActions : Attribute.Attribute
+	contactActions = class("flex flex-wrap items-center justify-end gap-3")
+
 	inlineForm : Attribute.Attribute
 	inlineForm = class("mt-4 grid gap-3 rounded-lg bg-slate-50 p-4 sm:grid-cols-2")
 

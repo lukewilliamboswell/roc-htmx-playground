@@ -168,6 +168,13 @@ PersonHandler := [].{
 			? AppError.from
 		Ok(Web.redirect(Route.Location.PersonDetail(id)))
 	}
+
+	make_primary! : PersonStore, Person.Id, [Email, Phone], Person.ContactId => Try(Response, AppError)
+	make_primary! = |store, id, kind, contact_id| {
+		PersonStore.make_primary!(store, id, kind, contact_id)
+			? AppError.from
+		Ok(Web.redirect(Route.Location.PersonDetail(id)))
+	}
 }
 
 create_input! : PersonStore, Actor, List(Company), PersonView.Form, Person.New, Bool => Try(Response, AppError)

@@ -362,6 +362,41 @@ test_people! = |db| {
 					and Person.primary_value(person.phones) == "0400 000 000"
 		Err(_) => False
 	}
+	personal_email_id = match with_contacts {
+		Ok(person) =>
+			match person.emails.find_first(|method| method.value == "ada@home.example") {
+				Ok(method) => method.id
+				Err(_) => Person.ContactId.from_storage("email-missing")
+			}
+		Err(_) => Person.ContactId.from_storage("email-missing")
+	}
+	promoted = PersonStore.make_primary!(store, person_id, Email, personal_email_id)
+	expect promoted.is_ok()
+	duplicate_email = PersonStore.add_contact!(
+		store,
+		person_id,
+		Email,
+		"Home",
+		"ADA@HOME.EXAMPLE",
+		False,
+	)
+	expect duplicate_email.is_ok()
+	after_promotion = PersonStore.find!(store, person_id)
+	expect match after_promotion {
+		Ok(person) =>
+			person.emails.len() == 2
+				and Person.primary_value(person.emails) == "ADA@HOME.EXAMPLE"
+		Err(_) => False
+	}
+	primary_removed = PersonStore.delete_contact!(store, person_id, Email, personal_email_id)
+	expect primary_removed.is_ok()
+	after_primary_removal = PersonStore.find!(store, person_id)
+	expect match after_primary_removal {
+		Ok(person) =>
+			person.emails.len() == 1
+				and Person.primary_value(person.emails) == "ada@example.com"
+		Err(_) => False
+	}
 
 	company_people = PersonStore.list_for_company!(store, Company.Id.from_storage("company-acme"))
 	expect match company_people {

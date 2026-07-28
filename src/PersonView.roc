@@ -353,19 +353,7 @@ contact_section = |person, kind| {
 											),
 										],
 									),
-									Web.post_form(
-										match kind {
-											Email => Route.PostAction.DeletePersonEmail(person.id, method.id)
-											Phone => Route.PostAction.DeletePersonPhone(person.id, method.id)
-										},
-										[],
-										[
-											Html.button(
-												[Attribute.type("submit"), Design.dangerLinkButton],
-												[Html.text("Remove")],
-											),
-										],
-									),
+									contact_actions(person, kind, method),
 								],
 							),
 					)
@@ -399,6 +387,46 @@ contact_section = |person, kind| {
 			),
 		],
 	)
+}
+
+contact_actions : Person, [Email, Phone], Person.ContactMethod -> Html.Node
+contact_actions = |person, kind, method| {
+	promote = if method.primary {
+		[]
+	} else {
+		[
+			Web.post_form(
+				match kind {
+					Email => Route.PostAction.PromotePersonEmail(person.id, method.id)
+					Phone => Route.PostAction.PromotePersonPhone(person.id, method.id)
+				},
+				[],
+				[
+					Html.button(
+						[
+							Attribute.type("submit"),
+							Design.button(Design.ButtonTone.Outline, Design.ButtonSize.Small),
+						],
+						[Html.text("Make primary")],
+					),
+				],
+			),
+		]
+	}
+	remove = Web.post_form(
+		match kind {
+			Email => Route.PostAction.DeletePersonEmail(person.id, method.id)
+			Phone => Route.PostAction.DeletePersonPhone(person.id, method.id)
+		},
+		[],
+		[
+			Html.button(
+				[Attribute.type("submit"), Design.dangerLinkButton],
+				[Html.text("Remove")],
+			),
+		],
+	)
+	Html.div([Design.contactActions], promote.append(remove))
 }
 
 match_panel : List(Person.Match) -> Html.Node

@@ -267,100 +267,180 @@ PersonStore :: { db : Sqlite.Db }.{
 		if value.trim().is_empty() {
 			return Ok({})
 		}
-		match kind {
-			Email => {
-				primary_value : I64
-				primary_value = if primary {
-					1
-				} else {
-					0
-				}
-				if primary {
-					Sqlite.execute!({
-						db: store.db,
-						query: "UPDATE person_emails SET is_primary = 0 WHERE person_id = :personId;",
-						params: { personId: person_id.to_str() },
-					})?
-				}
-				Sqlite.execute!({
-					db: store.db,
-					query: (
-						\\INSERT INTO person_emails (
-						\\ email_id, person_id, label, email, normalized_email, is_primary, position
-						\\) VALUES (
-						\\ 'email-' || lower(hex(randomblob(16))), :personId, :label,
-						\\ :value, :normalized, :primary,
-						\\ (SELECT COUNT(*) + 1 FROM person_emails WHERE person_id = :personId)
-						\\);
-						,
-					),
-					params: {
-						personId: person_id.to_str(),
-						label: contact_label(label),
-						value: value.trim(),
-						normalized: Person.normalized_email(value),
-						primary: primary_value,
-					},
-				})?
-			}
-			Phone => {
-				primary_value : I64
-				primary_value = if primary {
-					1
-				} else {
-					0
-				}
-				if primary {
-					Sqlite.execute!({
-						db: store.db,
-						query: "UPDATE person_phones SET is_primary = 0 WHERE person_id = :personId;",
-						params: { personId: person_id.to_str() },
-					})?
-				}
-				Sqlite.execute!({
-					db: store.db,
-					query: (
-						\\INSERT INTO person_phones (
-						\\ phone_id, person_id, label, phone, normalized_phone, is_primary, position
-						\\) VALUES (
-						\\ 'phone-' || lower(hex(randomblob(16))), :personId, :label,
-						\\ :value, :normalized, :primary,
-						\\ (SELECT COUNT(*) + 1 FROM person_phones WHERE person_id = :personId)
-						\\);
-						,
-					),
-					params: {
-						personId: person_id.to_str(),
-						label: contact_label(label),
-						value: value.trim(),
-						normalized: Person.normalized_phone(value),
-						primary: primary_value,
-					},
-				})?
-			}
-		}
-		Ok({})
+		transaction = Sqlite.begin!(store.db, Immediate)?
+		result = add_contact_in_transaction!(
+			transaction,
+			person_id,
+			kind,
+			label,
+			value,
+			primary,
+		)
+		finish_contact_transaction!(transaction, result)
+	}
+
+	make_primary! : PersonStore, Person.Id, [Email, Phone], Person.ContactId => Try({}, Sqlite.QueryError)
+	make_primary! = |store, person_id, kind, contact_id| {
+		transaction = Sqlite.begin!(store.db, Immediate)?
+		result = make_primary_in_transaction!(transaction, person_id, kind, contact_id)
+		finish_contact_transaction!(transaction, result)
 	}
 
 	delete_contact! : PersonStore, Person.Id, [Email, Phone], Person.ContactId => Try({}, Sqlite.QueryError)
 	delete_contact! = |store, person_id, kind, contact_id| {
-		match kind {
-			Email =>
-				Sqlite.execute!({
-					db: store.db,
-					query: "DELETE FROM person_emails WHERE person_id = :personId AND email_id = :contactId;",
-					params: { personId: person_id.to_str(), contactId: contact_id.to_str() },
-				})?
-			Phone =>
-				Sqlite.execute!({
-					db: store.db,
-					query: "DELETE FROM person_phones WHERE person_id = :personId AND phone_id = :contactId;",
-					params: { personId: person_id.to_str(), contactId: contact_id.to_str() },
-				})?
-			}
-		Ok({})
+		transaction = Sqlite.begin!(store.db, Immediate)?
+		result = delete_contact_in_transaction!(transaction, person_id, kind, contact_id)
+		finish_contact_transaction!(transaction, result)
 	}
 }
+
+ContactColumns := {
+	id : Str,
+	idPrefix : Str,
+	normalized : Str,
+	table : Str,
+	value : Str,
+}
+
+contact_columns : [Email, Phone] -> ContactColumns
+contact_columns = |kind|
+	match kind {
+		Email => {
+			id: "email_id",
+			idPrefix: "email-",
+			normalized: "normalized_email",
+			table: "person_emails",
+			value: "email",
+		}
+		Phone => {
+			id: "phone_id",
+			idPrefix: "phone-",
+			normalized: "normalized_phone",
+			table: "person_phones",
+			value: "phone",
+		}
+	}
+
+normalized_contact : [Email, Phone], Str -> Str
+normalized_contact = |kind, value|
+	match kind {
+		Email => Person.normalized_email(value)
+		Phone => Person.normalized_phone(value)
+	}
+
+add_contact_in_transaction! : Sqlite.Transaction, Person.Id, [Email, Phone], Str, Str, Bool => Try({}, Sqlite.QueryError)
+add_contact_in_transaction! = |transaction, person_id, kind, label, value, primary| {
+	columns = contact_columns(kind)
+	if primary {
+		Sqlite.Transaction.execute!(
+			transaction,
+			{
+				query: "UPDATE ${columns.table} SET is_primary = 0 WHERE person_id = :personId;",
+				params: { personId: person_id.to_str() },
+			},
+		)?
+	}
+	primary_value : I64
+	primary_value = if primary {
+		1
+	} else {
+		0
+	}
+	Sqlite.Transaction.execute!(
+		transaction,
+		{
+			query: (
+				\\INSERT INTO ${columns.table} (
+				\\ ${columns.id}, person_id, label, ${columns.value},
+				\\ ${columns.normalized}, is_primary, position
+				\\) VALUES (
+				\\ '${columns.idPrefix}' || lower(hex(randomblob(16))), :personId, :label,
+				\\ :value, :normalized, :primary,
+				\\ (SELECT COUNT(*) + 1 FROM ${columns.table} WHERE person_id = :personId)
+				\\)
+				\\ON CONFLICT(person_id, ${columns.normalized}) DO UPDATE SET
+				\\ label = excluded.label,
+				\\ ${columns.value} = excluded.${columns.value},
+				\\ is_primary = CASE
+				\\   WHEN excluded.is_primary = 1 THEN 1
+				\\   ELSE ${columns.table}.is_primary
+				\\ END;
+				,
+			),
+			params: {
+				personId: person_id.to_str(),
+				label: contact_label(label),
+				value: value.trim(),
+				normalized: normalized_contact(kind, value),
+				primary: primary_value,
+			},
+		},
+	)?
+	Ok({})
+}
+
+make_primary_in_transaction! : Sqlite.Transaction, Person.Id, [Email, Phone], Person.ContactId => Try({}, Sqlite.QueryError)
+make_primary_in_transaction! = |transaction, person_id, kind, contact_id| {
+	columns = contact_columns(kind)
+	Sqlite.Transaction.execute!(
+		transaction,
+		{
+			query: "UPDATE ${columns.table} SET is_primary = 0 WHERE person_id = :personId;",
+			params: { personId: person_id.to_str() },
+		},
+	)?
+	updated : { id : Str }
+	updated = Sqlite.Transaction.query!(
+		transaction,
+		{
+			query: "UPDATE ${columns.table} SET is_primary = 1 WHERE person_id = :personId AND ${columns.id} = :contactId RETURNING ${columns.id} AS id;",
+			params: {
+				personId: person_id.to_str(),
+				contactId: contact_id.to_str(),
+			},
+			limits: Sqlite.default_query_limits,
+		},
+	)?
+	_ = updated
+	Ok({})
+}
+
+delete_contact_in_transaction! : Sqlite.Transaction, Person.Id, [Email, Phone], Person.ContactId => Try({}, Sqlite.QueryError)
+delete_contact_in_transaction! = |transaction, person_id, kind, contact_id| {
+	columns = contact_columns(kind)
+	deleted : { primaryValue : I64 }
+	deleted = Sqlite.Transaction.query!(
+		transaction,
+		{
+			query: "DELETE FROM ${columns.table} WHERE person_id = :personId AND ${columns.id} = :contactId RETURNING is_primary AS primaryValue;",
+			params: {
+				personId: person_id.to_str(),
+				contactId: contact_id.to_str(),
+			},
+			limits: Sqlite.default_query_limits,
+		},
+	)?
+	if deleted.primaryValue == 1 {
+		Sqlite.Transaction.execute!(
+			transaction,
+			{
+				query: "UPDATE ${columns.table} SET is_primary = 1 WHERE ${columns.id} = (SELECT ${columns.id} FROM ${columns.table} WHERE person_id = :personId ORDER BY position, ${columns.id} LIMIT 1);",
+				params: { personId: person_id.to_str() },
+			},
+		)?
+	}
+	Ok({})
+}
+
+finish_contact_transaction! : Sqlite.Transaction, Try({}, Sqlite.QueryError) => Try({}, Sqlite.QueryError)
+finish_contact_transaction! = |transaction, result|
+	match result {
+		Ok({}) => Sqlite.Transaction.commit!(transaction)
+		Err(error) => {
+			Sqlite.Transaction.rollback!(transaction) ?? {}
+			Err(error)
+		}
+	}
 
 log_person_change! : Sqlite.Db, Workspace.Id, Member.Id, Person.Id, Str, Str, Str, Str => Try({}, Sqlite.QueryError)
 log_person_change! = |db, workspace_id, actor_id, person_id, field, from, to, now| {

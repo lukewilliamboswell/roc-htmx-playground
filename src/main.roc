@@ -340,6 +340,10 @@ post! = |request, context, session, action|
 			PersonHandler.add_contact!(request, context.personStore, id, Email)
 		Route.PostAction.AddPersonPhone(id) =>
 			PersonHandler.add_contact!(request, context.personStore, id, Phone)
+		Route.PostAction.PromotePersonEmail(id, contact_id) =>
+			PersonHandler.make_primary!(context.personStore, id, Email, contact_id)
+		Route.PostAction.PromotePersonPhone(id, contact_id) =>
+			PersonHandler.make_primary!(context.personStore, id, Phone, contact_id)
 		Route.PostAction.DeletePersonEmail(id, contact_id) =>
 			PersonHandler.delete_contact!(context.personStore, id, Email, contact_id)
 		Route.PostAction.DeletePersonPhone(id, contact_id) =>

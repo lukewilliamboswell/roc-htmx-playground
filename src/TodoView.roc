@@ -35,6 +35,7 @@ TodoView :: [].{
 					[
 						Web.hx_post(Route.PostAction.SearchTodos),
 						attribute("hx-trigger", "input delay:250ms"),
+						Web.hx_sync_latest,
 						Web.hx_target(TodoTarget.TodoList),
 						Web.hx_swap(Web.Swap.OuterHtml),
 					],

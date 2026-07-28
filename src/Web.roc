@@ -94,6 +94,13 @@ Web := [].{
 	hx_swap : Swap -> Attribute.Attribute
 	hx_swap = |swap| Attribute.attribute("hx-swap", swap.to_attribute())
 
+	## Keep only the newest request issued by the element.
+	##
+	## This is appropriate for derived UI such as live search and autosave,
+	## where an older response must never replace a newer state.
+	hx_sync_latest : Attribute.Attribute
+	hx_sync_latest = Attribute.attribute("hx-sync", "this:replace")
+
 	redirect : location -> Response
 		where [
 			location.to_href : location -> Str,

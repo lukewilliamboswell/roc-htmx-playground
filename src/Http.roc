@@ -19,7 +19,16 @@ Http := [].{
 	html = |status, node, extra_headers|
 		Response.from_status(status)
 			.with_headers(
-				[{ name: "Content-Type", value: "text/html; charset=utf-8" }].concat(extra_headers),
+				[
+					{ name: "Content-Type", value: "text/html; charset=utf-8" },
+					{ name: "Cache-Control", value: "private, no-store" },
+					{
+						name: "Content-Security-Policy",
+						value: "default-src 'self'; base-uri 'none'; connect-src 'self'; form-action 'self'; frame-ancestors 'none'; img-src 'self'; script-src 'self'; style-src 'self'",
+					},
+					{ name: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+					{ name: "X-Content-Type-Options", value: "nosniff" },
+				].concat(extra_headers),
 			)
 			.with_body(Html.render(node).to_utf8())
 
@@ -58,6 +67,39 @@ Http := [].{
 		match session.user {
 			Session.Auth.Guest => Err(AppError.Unauthorized)
 			Session.Auth.LoggedIn(_) => Ok({})
+		}
+
+	require_same_origin : Server.Request -> Try({}, AppError)
+	require_same_origin = |request| require_same_origin_headers(request.headers())
+
+	require_same_origin_headers : List(Header) -> Try({}, AppError)
+	require_same_origin_headers = |headers| {
+		host = header_value(headers, "host")
+			? |_| AppError.Forbidden
+		http_origin = "http://${host}"
+		https_origin = "https://${host}"
+
+		match header_value(headers, "origin") {
+			Ok(origin) =>
+				if origin == http_origin or origin == https_origin {
+					Ok({})
+				} else {
+					Err(AppError.Forbidden)
+				}
+			Err(_) =>
+				match header_value(headers, "referer") {
+					Ok(referer) if referer.starts_with("${http_origin}/") or referer.starts_with("${https_origin}/") =>
+						Ok({})
+					_ => Err(AppError.Forbidden)
+				}
+			}
+	}
+
+	header_value : List(Header), Str -> Try(Str, [MissingHeader])
+	header_value = |headers, expected|
+		match headers.find_first(|header| header.name.with_ascii_lowercased() == expected) {
+			Ok(header) => Ok(header.value)
+			Err(_) => Err(MissingHeader)
 		}
 
 	session_id : Server.Request -> Try(Session.Id, [InvalidSessionCookie])
@@ -104,6 +146,14 @@ Http := [].{
 
 	expect Http.session_id_from_headers([]) == Err(InvalidSessionCookie)
 	expect Http.require_login(Session.guest(Session.Id.from_i64(1))) == Err(AppError.Unauthorized)
+	expect Http.require_same_origin_headers([
+		{ name: "Host", value: "app.example" },
+		{ name: "Origin", value: "https://app.example" },
+	]) == Ok({})
+	expect Http.require_same_origin_headers([
+		{ name: "Host", value: "app.example" },
+		{ name: "Origin", value: "https://attacker.example" },
+	]) == Err(AppError.Forbidden)
 
 	session_cookie : Session.Id -> Header
 	session_cookie = |id| {
@@ -132,6 +182,7 @@ Http := [].{
 				} else {
 					html(401, ErrorView.unauthorized(session), [])
 				}
+			AppError.Forbidden => html(403, ErrorView.forbidden(session), [])
 			AppError.BadRequest(message) => html(400, ErrorView.bad_request(session, message), [])
 			AppError.NotFound(target) => {
 				Stderr.line!("404 Not Found ${target}") ?? {}

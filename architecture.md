@@ -671,6 +671,31 @@ An optional toast may be reconsidered for a genuinely cross-page,
 non-consequential notification, but it must not replace persistent inline
 feedback.
 
+### Enhanced HTML keeps ordinary web security boundaries
+
+HTMX requests are ordinary HTTP requests with untrusted client headers. Every
+unsafe method passes an explicit CSRF check before dispatch and repeats
+authorization for the target resource; `SameSite` cookies and `HX-Request` are
+defence in depth, not authorization. This application compares `Origin` (or a
+same-origin `Referer` fallback) with the request host. A reverse-proxy
+deployment must instead compare against a trusted configured external origin,
+and deployments that cannot reliably validate origin must add a synchronizer
+token.
+
+All dynamic values enter markup through contextual escaping such as
+`Html.text` and attribute constructors. Raw HTML is prohibited by default; a
+feature that genuinely accepts markup must sanitize it with a reviewed
+allowlist before rendering. Personalized HTML, whether a full document or an
+HTMX fragment, is `private, no-store` and carries the same CSP, referrer, and
+content-type protections.
+
+The current full-document response plus `hx-select` pattern gives one
+representation per URL. If an endpoint later negotiates full documents and
+fragments from request headers, it must declare the relevant `Vary` keys (for
+example `HX-Request`, plus any authentication or content negotiation inputs)
+or disable shared caching. A cache must never serve one member's fragment,
+permissions, or session state to another.
+
 ### Removed controls need an explicit focus destination
 
 When a successful local mutation removes the control that held keyboard focus,

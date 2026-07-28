@@ -182,8 +182,14 @@ dispatch! : Server.Request, Context, Session, Route => Try(Response, AppError)
 dispatch! = |request, context, session, route|
 	match route {
 		Route.Visit(location) => visit!(context, session, location)
-		Route.Post(action) => post!(request, context, session, action)
-		Route.Put(action) => put!(request, context, session, action)
+		Route.Post(action) => {
+			Http.require_same_origin(request)?
+			post!(request, context, session, action)
+		}
+		Route.Put(action) => {
+			Http.require_same_origin(request)?
+			put!(request, context, session, action)
+		}
 		Route.Serve(asset) => Ok(asset_response(asset))
 	}
 

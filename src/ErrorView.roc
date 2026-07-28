@@ -39,6 +39,16 @@ ErrorView :: [].{
 			[home_link()],
 		)
 
+	forbidden : Session -> Html.Node
+	forbidden = |session|
+		document(
+			session,
+			Forbidden,
+			"Request forbidden",
+			"The request did not pass this site's security checks.",
+			[home_link()],
+		)
+
 	bad_request : Session, Str -> Html.Node
 	bad_request = |session, message|
 		document(
@@ -60,11 +70,12 @@ ErrorView :: [].{
 		)
 }
 
-ErrorPage := [Unauthorized, NotFound, BadRequest, ServerError].{
+ErrorPage := [Unauthorized, Forbidden, NotFound, BadRequest, ServerError].{
 	title : ErrorPage -> Str
 	title = |page|
 		match page {
 			Unauthorized => "Unauthorized"
+			Forbidden => "Forbidden"
 			NotFound => "Not Found"
 			BadRequest => "Bad Request"
 			ServerError => "Server Error"

@@ -209,4 +209,40 @@ test.describe("HTMX interactions", () => {
     ).toBeVisible();
     await expect(page.locator("#big-task-results")).toHaveCount(0);
   });
+
+  test("keeps enhanced requests inside the ordinary security boundary", async ({
+    page,
+  }) => {
+    await loginAsMara(page);
+    const response = await page.goto("/bigTask");
+    const headers = response.headers();
+
+    expect(headers["cache-control"]).toBe("private, no-store");
+    expect(headers["content-security-policy"]).toContain(
+      "default-src 'self'",
+    );
+    expect(headers["x-content-type-options"]).toBe("nosniff");
+
+    const forged = await page.context().request.post("/logout", {
+      headers: {
+        Origin: "https://attacker.example",
+        "HX-Request": "true",
+      },
+      failOnStatusCode: false,
+    });
+    expect(forged.status()).toBe(403);
+
+    await page.reload();
+    await expect(page.getByText("Mara Singh", { exact: true })).toBeVisible();
+
+    await page.goto("/task");
+    const payload = "<img src=x onerror=window.__escapedPayloadRan=true>";
+    await page.getByLabel("New task").fill(payload);
+    await page.getByRole("button", { name: "Add", exact: true }).click();
+
+    await expect(page.getByText(payload, { exact: true })).toBeVisible();
+    await expect
+      .poll(() => page.evaluate(() => window.__escapedPayloadRan))
+      .toBeUndefined();
+  });
 });

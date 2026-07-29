@@ -79,6 +79,7 @@ dev! = || {
 	run!("roc", ["test", "src/main.roc"])?
 	runWithTimezone!("roc", ["src/test.roc"])?
 
+	resetDevDatabase!()?
 	buildDistribution!("dev")?
 
 	Stdout.line!("Serving dist/roc-htmx-playground with dist/playground.db")?

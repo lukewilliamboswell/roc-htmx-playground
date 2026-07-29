@@ -28,11 +28,13 @@ Install `roc` and `sqlite3`, then run:
 roc scripts/tasks.roc dev
 ```
 
-Open <http://127.0.0.1:8000>. The development task builds assets, creates a
-fresh disposable database when needed, sets `TZ=Australia/Melbourne` to match
-the bootstrap workspace, validates the application, and starts the server.
+Open <http://127.0.0.1:8000>. The development task validates the application,
+recreates the disposable database from the checked-in schema and fixtures,
+builds the assets, sets `TZ=Australia/Melbourne` to match the bootstrap
+workspace, and starts the server. Any local development data is discarded each
+time the task starts.
 
-To recreate the database after a schema change:
+To recreate the database without starting the server:
 
 ```sh
 roc scripts/tasks.roc reset-db

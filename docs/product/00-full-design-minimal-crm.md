@@ -1,5 +1,7 @@
 # Minimal CRM — Product Requirements
 
+Document class: Enduring product design
+
 Status: Draft for validation  
 Research date: 28 July 2026
 
@@ -358,7 +360,7 @@ The initial open questions have been resolved as follows:
 9. **Reminders:** Due and overdue tasks are always visible in the CRM's work views, with no configuration. Timed external notifications, digests, and calendar synchronisation are out of scope.
 10. **Timezone:** The workspace declares one timezone, and every date-grouped view and report is evaluated and labelled in it.
 11. **Retention:** Closing a relationship never deletes it. Inactive records are archived and retained until the organisation decides they are no longer needed. Deletion is permanent, confirmed against a statement of what it removes, and is the mechanism used to fulfil an approved privacy request. The product does not attempt to decide the organisation's legal or business retention period.
-12. **Import and export:** Use the companion [Simple CRM JSON interchange format](./simple-crm-json-format.md). A file always carries a complete workspace. Export produces one; import accepts one into an empty workspace, previewed before commitment. There is no partial file and no merging import.
+12. **Import and export:** Use the companion [Simple CRM JSON interchange format](./01-full-design-json-interchange.md). A file always carries a complete workspace. Export produces one; import accepts one into an empty workspace, previewed before commitment. There is no partial file and no merging import.
 13. **Deployment and access control:** The CRM is reached only over the organisation's private network, and members are identified by the surrounding environment. The CRM does not implement sign-in or protect the network or the stored data; it does control what an identified member can do and ends a member's access immediately when withdrawn.
 14. **Weekly management questions:** The default reporting must answer: What is currently in the pipeline and where? What needs attention now? What did we win or lose, and why? These map to CRM-033 through CRM-036.
 15. **Most burdensome excluded capability:** Communication capture is the strongest candidate for the first post-MVP enhancement. Atomic CRM's lightweight BCC/forward-to-CRM model is a useful intermediate step before full email and calendar synchronisation.

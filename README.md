@@ -15,10 +15,12 @@ The current vertical slice supports:
 - company/person follow-up tasks grouped as overdue, due today, or upcoming in
   the workspace timezone.
 
-The detailed product contract is in
-[docs/product/company-enquiry-slice.md](docs/product/company-enquiry-slice.md).
-The broader research and requirements remain in
-[docs/product/minimal-crm-requirements.md](docs/product/minimal-crm-requirements.md).
+The current implemented delivery boundary is in
+[docs/product/10-slice-company-enquiry.md](docs/product/10-slice-company-enquiry.md).
+The complete product design remains in
+[docs/product/00-full-design-minimal-crm.md](docs/product/00-full-design-minimal-crm.md).
+The next proposed delivery boundary is
+[docs/product/11-slice-opportunity-qualification.md](docs/product/11-slice-opportunity-qualification.md).
 
 ## Quick start
 

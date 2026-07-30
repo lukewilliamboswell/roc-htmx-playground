@@ -1,5 +1,7 @@
 # Simple CRM JSON Interchange Format
 
+Document class: Enduring data design
+
 Status: Draft version 1  
 Purpose: Complete export, backup, restoration, and migration of the minimal CRM
 
@@ -342,7 +344,7 @@ Everything else the CRM shows a member is represented here.
 
 ## 14. Complete example
 
-See [simple-crm-example.json](./simple-crm-example.json) for a valid, compact example
+See [02-example-json-interchange.json](./02-example-json-interchange.json) for a valid, compact example
 containing:
 
 - A business customer with a company contact and company deal.

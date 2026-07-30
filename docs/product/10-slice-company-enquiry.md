@@ -1,10 +1,14 @@
 # Company-enquiry slice
 
+Document class: Delivery slice
+
+Sequence: 1
+
 This document fixes the acceptance boundary for the first CRM implementation
 slice. The full product contract remains in
-[`minimal-crm-requirements.md`](minimal-crm-requirements.md), and the portable
-data contract remains in
-[`simple-crm-json-format.md`](simple-crm-json-format.md).
+[`00-full-design-minimal-crm.md`](00-full-design-minimal-crm.md), and the
+portable data contract remains in
+[`01-full-design-json-interchange.md`](01-full-design-json-interchange.md).
 
 ## Outcome
 

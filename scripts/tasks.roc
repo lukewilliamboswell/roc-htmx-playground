@@ -17,6 +17,11 @@ TailwindTarget := {
 	checksum : Str,
 }
 
+# TODO: Restore `speed` after re-verifying the optimized full application
+# build with the pinned nightly and platform.
+deploymentOptimization : Str
+deploymentOptimization = "dev"
+
 main! : List(OsStr) => Try({}, _)
 main! = |args|
 	match args.drop_first(1) {
@@ -27,9 +32,7 @@ main! = |args|
 			match command {
 				"css" => buildCss!(Bool.False)
 				"css-watch" => buildCss!(Bool.True)
-				# TODO: Restore `speed` after re-verifying the optimized full
-				# application build with the pinned nightly and platform.
-				"build" => buildDistribution!("dev")
+				"build" => buildDistribution!(deploymentOptimization)
 				"check" => check!()
 				"check-all" => checkAll!()
 				"dev" => dev!()
@@ -248,7 +251,7 @@ release! = || {
 		"roc",
 		[
 			"build",
-			"--opt=speed",
+			"--opt=${deploymentOptimization}",
 			"--target=x64musl",
 			"--output=${bundle_root}/bin/enquiry-crm",
 			"src/main.roc",
@@ -258,7 +261,7 @@ release! = || {
 		"roc",
 		[
 			"build",
-			"--opt=speed",
+			"--opt=${deploymentOptimization}",
 			"--target=x64musl",
 			"--output=${bundle_root}/bin/enquiry-crm-admin",
 			"src/admin.roc",

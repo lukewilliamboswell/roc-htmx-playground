@@ -2,10 +2,11 @@
 
 set -euo pipefail
 
-if rg -n \
+if grep -R -n -E \
+    --include='*.roc' \
+    --exclude='Design.roc' \
     'attribute\("class"|Attribute\.attribute\("class"|class\("' \
-    src \
-    --glob '!Design.roc'
+    src
 then
     echo "Tailwind class declarations must live in src/Design.roc." >&2
     exit 1

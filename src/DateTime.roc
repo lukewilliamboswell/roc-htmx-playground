@@ -1,4 +1,11 @@
+import pf.UnixTime
+import gregorian.Time
+
 DateTime := [].{
+	now_utc! : () => Str
+	now_utc! = ||
+		(Time.unix_epoch + UnixTime.now!().seconds_since_epoch()).iso8601()
+
 	Display :: Str.{
 		from_local_storage : Str -> Display
 		from_local_storage = |value| Display.(format_local(value))

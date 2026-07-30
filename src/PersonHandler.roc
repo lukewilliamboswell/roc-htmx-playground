@@ -1,11 +1,11 @@
 import pf.Server
-import pf.Utc
 import http.Response
 
 import Actor
 import AppError
 import Company
 import CompanyStore
+import DateTime
 import Http
 import Member
 import Person
@@ -126,7 +126,7 @@ PersonHandler := [].{
 					id,
 					input,
 					version,
-					Utc.to_iso_8601(Utc.now!()),
+					DateTime.now_utc!(),
 				) {
 					Ok(_) => Ok(Web.redirect(Route.Location.PersonDetail(id)))
 					Err(Person.UpdateError.NotFound) =>
@@ -190,7 +190,7 @@ create_input! = |store, actor, companies, origin, form, input, confirmed|
 		actor.workspace.id,
 		actor.member.id,
 		input,
-		Utc.to_iso_8601(Utc.now!()),
+		DateTime.now_utc!(),
 		confirmed,
 	) {
 		Ok(id) => Ok(Web.redirect(Route.Location.PersonDetail(id)))

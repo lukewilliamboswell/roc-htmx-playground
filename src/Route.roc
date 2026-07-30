@@ -316,13 +316,14 @@ Route := [
 		is_eq : _
 	}
 
-	parse : Server.Request, Url -> Try(Route, ParseError)
-	parse = |request, url|
-		parse_parts(method_from_request(request), request.target(), url)
+	parse : Server.Request, Str, Url -> Try(Route, ParseError)
+	parse = |request, target, url|
+		parse_parts(method_from_request(request), target, url)
 
 	## Pure routing core. `parse` is the normal application entry point;
-	## `parse_parts` allows route behavior to be tested without constructing
-	## the platform's opaque `Server.Request`.
+	## the target is passed separately because the platform keeps the request
+	## representation opaque. `parse_parts` allows route behavior to be tested
+	## without constructing a `Server.Request`.
 	parse_parts : Method, Str, Url -> Try(Route, ParseError)
 	parse_parts = |method, target, url| {
 		segments = Url.path(url).split_on("/")

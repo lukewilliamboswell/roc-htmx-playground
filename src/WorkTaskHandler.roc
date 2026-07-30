@@ -1,10 +1,10 @@
 import pf.Server
-import pf.Utc
 import http.Response
 
 import Actor
 import AppError
 import Company
+import DateTime
 import Http
 import Member
 import Person
@@ -55,7 +55,7 @@ WorkTaskHandler := [].{
 			actor.workspace.id,
 			actor.member.id,
 			input,
-			Utc.to_iso_8601(Utc.now!()),
+			DateTime.now_utc!(),
 		) ? AppError.from
 		Ok(
 			match related {
@@ -74,7 +74,7 @@ WorkTaskHandler := [].{
 			actor.workspace.id,
 			actor.member.id,
 			id,
-			Utc.to_iso_8601(Utc.now!()),
+			DateTime.now_utc!(),
 		) ? AppError.from
 		Ok(Web.redirect(context.to_location()))
 	}

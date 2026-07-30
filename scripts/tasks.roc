@@ -27,7 +27,9 @@ main! = |args|
 			match command {
 				"css" => buildCss!(Bool.False)
 				"css-watch" => buildCss!(Bool.True)
-				"build" => buildDistribution!("speed")
+				# TODO: Restore `speed` after re-verifying the optimized full
+				# application build with the pinned nightly and platform.
+				"build" => buildDistribution!("dev")
 				"check" => check!()
 				"check-all" => checkAll!()
 				"dev" => dev!()

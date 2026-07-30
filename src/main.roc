@@ -1,6 +1,7 @@
 app [Context, program] {
-	pf: platform "https://github.com/roc-lang/basic-webserver/releases/download/0.14.0/9mrSfhWKEXsrPUW2oHdZZGov1oMRryvvACDT8p7E97PY.tar.zst",
+	pf: platform "../../basic-webserver/platform/main.roc",
 	http: "https://github.com/roc-lang/http/releases/download/1.0.0/6ZUwqYhCS8PU9Mo6MF7oV82ET2o7KYb57CLKDq4cq4sS.tar.zst",
+	gregorian: "https://cdn.jasperwoudenberg.com/roc-gregorian-v1.0.0-rc.2/Ce3xuHN92F5oGRuzjUTmm65jULAEj8pvvrTBmZJzE1M4.tar.zst",
 }
 
 import pf.Env
@@ -10,7 +11,6 @@ import pf.Server
 import pf.Sqlite
 import pf.Stdout
 import pf.Url
-import pf.Utc
 import http.Response
 
 import AppError
@@ -23,6 +23,7 @@ import BigTaskStore
 import Company
 import CompanyHandler
 import CompanyStore
+import DateTime
 import HomeView
 import Http
 import MemberStore
@@ -114,13 +115,17 @@ init! = || {
 	config_with_files = Server.with_file_roots(config_with_listen, [asset_files])
 	config = Server.with_native_routes(
 		config_with_files,
-		[
-			Server.static_mount_with_cache({
-				at: "/assets",
-				files: asset_files,
-				cache: Server.public_for(31_536_000),
-			}),
-		],
+		{
+			files: [
+				Server.static_mount_with_cache({
+					at: "/assets",
+					files: asset_files,
+					cache: Server.public_for(31_536_000),
+				}),
+			],
+			liveness: [],
+			readiness: [],
+		},
 	)
 
 	Ok({
@@ -145,8 +150,17 @@ respond! : Server.Request, Context => Try(Server.Outcome, [ServerErr(Str), ..])
 respond! = |request, context| {
 	log_request!(request) ? |err| ServerErr(Str.inspect(err))
 
-	response = match Url.resolve(app_origin, request.target()) {
-		Ok(url) => route_request!(request, context, url)
+	response = match resource_target(request.target()) {
+		Ok(target) =>
+			match Url.resolve(app_origin, target) {
+				Ok(url) => route_request!(request, context, target, url)
+				Err(_) =>
+					error_with_auth!(
+						request,
+						context,
+						AppError.BadRequest("Invalid request target"),
+					)
+				}
 		Err(_) =>
 			error_with_auth!(
 				request,
@@ -161,12 +175,12 @@ respond! = |request, context| {
 ## Native `/assets` requests are handled by basic-webserver before this point.
 ## The remaining app-owned file is dispatched before session lookup. Every
 ## other application response resolves authentication exactly once.
-route_request! : Server.Request, Context, Url => Response
-route_request! = |request, context, url|
-	if request.target() == "/healthz" {
+route_request! : Server.Request, Context, Str, Url => Response
+route_request! = |request, context, target, url|
+	if Url.path(url) == "/healthz" {
 		health_response!(context.db)
 	} else {
-		match Route.parse(request, url) {
+		match Route.parse(request, target, url) {
 			Ok(Route.Serve(asset)) => asset_response(asset)
 			Ok(route) => route_with_session!(request, context, route)
 			Err(parse_error) =>
@@ -542,9 +556,22 @@ shutdown! = |_reason, _context| Ok({})
 
 log_request! : Server.Request => Try({}, _)
 log_request! = |request| {
-	date = Utc.to_iso_8601(Utc.now!())
-	Stdout.line!("${date} ${Str.inspect(request.method())} ${request.target()}")
+	date = DateTime.now_utc!()
+	Stdout.line!("${date} ${Str.inspect(request.method())} ${Str.inspect(request.target())}")
 }
+
+resource_target : Server.Target -> Try(Str, [UnsupportedRequestTarget])
+resource_target = |target|
+	match target {
+		Resource({ raw_path, raw_query }) =>
+			Ok(
+				match raw_query {
+					Absent => raw_path
+					Present(query) => "${raw_path}?${query}"
+				},
+			)
+		_ => Err(UnsupportedRequestTarget)
+	}
 
 app_origin : Url
 app_origin = "http://localhost"

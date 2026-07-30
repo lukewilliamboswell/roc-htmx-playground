@@ -116,9 +116,9 @@ jobs:
       - name: Configure installed service with browser fixtures
         run: |
           sudo -u enquiry-crm sqlite3 /var/lib/enquiry-crm/playwright.sqlite \
-            ".read $GITHUB_WORKSPACE/db/migrations/001_initial.sql"
+            < "$GITHUB_WORKSPACE/db/migrations/001_initial.sql"
           sudo -u enquiry-crm sqlite3 /var/lib/enquiry-crm/playwright.sqlite \
-            ".read $GITHUB_WORKSPACE/db/test-fixtures.sql"
+            < "$GITHUB_WORKSPACE/db/test-fixtures.sql"
           printf '%s\n' \
             'DB_PATH=/var/lib/enquiry-crm/playwright.sqlite' \
             'ASSET_PATH=/opt/enquiry-crm/current/assets' \

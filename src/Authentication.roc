@@ -5,24 +5,20 @@ Authentication := [].{
 		Development({ publicOrigin : Str }),
 		Tailscale({ publicOrigin : Str }),
 	].{
-		from_config : Str, Str -> Try(Mode, [InvalidAuthMode(Str), InvalidPublicOrigin(Str)])
-		from_config = |raw_mode, raw_origin| {
-			mode = raw_mode.trim().with_ascii_lowercased()
+		is_eq : _
+
+		from_public_origin : Str -> Try(Mode, [InvalidPublicOrigin(Str)])
+		from_public_origin = |raw_origin| {
 			origin = raw_origin.trim().with_ascii_lowercased()
-			match mode {
-				"development" =>
-					if valid_public_origin(origin, Bool.True) {
-						Ok(Development({ publicOrigin: origin }))
-					} else {
-						Err(InvalidPublicOrigin(origin))
+			match Url.parse(origin) {
+				Ok(url) if valid_public_origin(origin) =>
+					match Url.scheme(url) {
+						Http if Url.host(url) == "127.0.0.1" =>
+							Ok(Development({ publicOrigin: origin }))
+						Http => Err(InvalidPublicOrigin(origin))
+						Https => Ok(Tailscale({ publicOrigin: origin }))
 					}
-				"tailscale" =>
-					if valid_public_origin(origin, Bool.False) {
-						Ok(Tailscale({ publicOrigin: origin }))
-					} else {
-						Err(InvalidPublicOrigin(origin))
-					}
-				_ => Err(InvalidAuthMode(raw_mode))
+				_ => Err(InvalidPublicOrigin(origin))
 			}
 		}
 
@@ -73,21 +69,14 @@ Authentication := [].{
 	}
 }
 
-valid_public_origin : Str, Bool -> Bool
-valid_public_origin = |origin, allow_http| {
+valid_public_origin : Str -> Bool
+valid_public_origin = |origin| {
 	match Url.parse(origin) {
-		Ok(url) => {
-			scheme_allowed = match (Url.scheme(url), allow_http) {
-				(Https, _) => Bool.True
-				(Http, Bool.True) => Bool.True
-				(Http, Bool.False) => Bool.False
-			}
-			scheme_allowed
-				and Url.path(url) == "/"
-					and Url.query(url) == None
-						and Url.fragment(url) == None
-							and Url.to_str(url) == "${origin}/"
-		}
+		Ok(url) =>
+			Url.path(url) == "/"
+				and Url.query(url) == None
+					and Url.fragment(url) == None
+						and Url.to_str(url) == "${origin}/"
 		_ => Bool.False
 	}
 }
@@ -102,20 +91,30 @@ valid_domain = |domain|
 is_ascii_whitespace : U8 -> Bool
 is_ascii_whitespace = |byte| byte == 32 or byte == 9 or byte == 10 or byte == 13
 
-expect Authentication.Mode.from_config("development", "http://127.0.0.1:8000").is_ok()
-expect Authentication.Mode.from_config("tailscale", "https://crm.example.ts.net").is_ok()
-expect Authentication.Mode.from_config("tailscale", "http://crm.example.ts.net").is_err()
-expect Authentication.Mode.from_config("unknown", "https://crm.example.ts.net").is_err()
-expect Authentication.Mode.from_config("tailscale", "https://").is_err()
-expect Authentication.Mode.from_config("tailscale", "https://crm.example/").is_err()
-expect Authentication.Mode.from_config("tailscale", "https://crm.example/path").is_err()
-expect Authentication.Mode.from_config("tailscale", "https://crm.example?query=yes").is_err()
-expect Authentication.Mode.from_config("tailscale", "https://crm.example#fragment").is_err()
-expect Authentication.Mode.from_config("tailscale", "https://user@crm.example").is_err()
-expect Authentication.Mode.from_config("tailscale", "https://crm.example:443").is_err()
-expect Authentication.Mode.from_config("tailscale", "https://crm.example:70000").is_err()
-expect Authentication.Mode.from_config("tailscale", "https://-crm.example").is_err()
-expect Authentication.Mode.from_config("tailscale", "https://crm..example").is_err()
+expect Authentication.Mode.from_public_origin("http://127.0.0.1:8000")
+	== Ok(
+		Authentication.Mode.Development({
+			publicOrigin: "http://127.0.0.1:8000",
+		}),
+	)
+expect Authentication.Mode.from_public_origin("https://crm.example.ts.net")
+	== Ok(
+		Authentication.Mode.Tailscale({
+			publicOrigin: "https://crm.example.ts.net",
+		}),
+	)
+expect Authentication.Mode.from_public_origin("http://crm.example.ts.net").is_err()
+expect Authentication.Mode.from_public_origin("http://localhost:8000").is_err()
+expect Authentication.Mode.from_public_origin("https://").is_err()
+expect Authentication.Mode.from_public_origin("https://crm.example/").is_err()
+expect Authentication.Mode.from_public_origin("https://crm.example/path").is_err()
+expect Authentication.Mode.from_public_origin("https://crm.example?query=yes").is_err()
+expect Authentication.Mode.from_public_origin("https://crm.example#fragment").is_err()
+expect Authentication.Mode.from_public_origin("https://user@crm.example").is_err()
+expect Authentication.Mode.from_public_origin("https://crm.example:443").is_err()
+expect Authentication.Mode.from_public_origin("https://crm.example:70000").is_err()
+expect Authentication.Mode.from_public_origin("https://-crm.example").is_err()
+expect Authentication.Mode.from_public_origin("https://crm..example").is_err()
 expect Authentication.tailscale_identity([
 	{ name: "Tailscale-User-Login", value: " Luke@Example.COM " },
 ]) == Ok(Authentication.Identity.{ login: "luke@example.com" })

@@ -29,13 +29,19 @@ main! = |args|
 				"css-watch" => buildCss!(Bool.True)
 				"build" => buildDistribution!("speed")
 				"check" => check!()
+				"check-all" => checkAll!()
 				"dev" => dev!()
 				"reset-db" => resetDevDatabase!()
 				"release" => release!()
+				"setup" => setup!(Bool.False)
+				"setup-ci" => setup!(Bool.True)
 				"tailwind-install" => {
 					_ = ensureTailwind!()?
 					Ok({})
 				}
+				"test-auth" => testAuth!()
+				"test-browser" => testBrowser!()
+				"test-e2e" => testE2e!()
 				"help" => usage!()
 				"--help" => usage!()
 				"-h" => usage!()
@@ -57,10 +63,16 @@ usage! = || {
 		\\  css-watch         Rebuild CSS when the design system changes
 		\\  build             Build a local runtime bundle in dist/
 		\\  check             Build CSS, format-check, type-check, and test
+		\\  check-all         Run check and all end-to-end tests
 		\\  dev               Format, validate, build dist/, and serve it
 		\\  reset-db          Recreate the disposable development database
-		\\  release           Build the versioned x64 Linux release bundle
+		\\  release           Build the identified x64 Linux release bundle
+		\\  setup             Install Node packages and Chromium
+		\\  setup-ci          Install test tooling and Linux system dependencies
 		\\  tailwind-install  Install the pinned standalone Tailwind CLI
+		\\  test-auth         Test production Tailscale authentication
+		\\  test-browser      Run the Playwright browser journeys
+		\\  test-e2e          Run the browser and authentication suites
 		,
 	)?
 
@@ -81,7 +93,6 @@ dev! = || {
 	Cmd.new_str("dist/roc-htmx-playground")
 		.env_str("DB_PATH", "dist/playground.db")
 		.env_str("ASSET_PATH", "dist/assets")
-		.env_str("AUTH_MODE", "development")
 		.env_str("PUBLIC_ORIGIN", "http://127.0.0.1:8000")
 		.env_str("TZ", "Australia/Melbourne")
 		.exec_cmd!()
@@ -128,6 +139,45 @@ check! = || {
 
 	Ok({})
 }
+
+checkAll! : () => Try({}, _)
+checkAll! = || {
+	check!()?
+	testE2e!()
+}
+
+setup! : Bool => Try({}, _)
+setup! = |include_system_dependencies| {
+	run!("npm", ["ci"])?
+	playwright_arguments = if include_system_dependencies {
+		["install", "--with-deps", "chromium"]
+	} else {
+		["install", "chromium"]
+	}
+	run!("node_modules/.bin/playwright", playwright_arguments)?
+	installCiDependencies!(include_system_dependencies)?
+	Ok({})
+}
+
+installCiDependencies! : Bool => Try({}, _)
+installCiDependencies! = |should_install|
+	if should_install {
+		run!("sudo", ["apt-get", "install", "--yes", "sqlite3"])
+	} else {
+		Ok({})
+	}
+
+testE2e! : () => Try({}, _)
+testE2e! = || {
+	testBrowser!()?
+	testAuth!()
+}
+
+testBrowser! : () => Try({}, _)
+testBrowser! = || run!("node_modules/.bin/playwright", ["test"])
+
+testAuth! : () => Try({}, _)
+testAuth! = || run!("node", ["tests/tailscale-auth-smoke.js"])
 
 checkIntegration! : Str => Try({}, _)
 checkIntegration! = |optimization| {
@@ -176,13 +226,13 @@ buildDistribution! = |optimization| {
 release! : () => Try({}, _)
 release! = || {
 	buildCss!(Bool.False)?
-	version = OsStr.display(Env.var!("RELEASE_VERSION")?).trim()
-	if version.is_empty() or version.contains("/") or version.contains("..") {
-		return Err(InvalidReleaseVersion(version))
+	release_id = OsStr.display(Env.var!("RELEASE_ID")?).trim()
+	if release_id.is_empty() or release_id.contains("/") or release_id.contains("..") {
+		return Err(InvalidReleaseId(release_id))
 	}
 
 	stage_root = "dist/release-stage"
-	bundle_name = "enquiry-crm-${version}-x64-linux"
+	bundle_name = "enquiry-crm-${release_id}-x64-linux"
 	bundle_root = "${stage_root}/${bundle_name}"
 	release_dir : Path
 	release_dir = "dist/release"
@@ -218,7 +268,7 @@ release! = || {
 	run!("cp", ["deploy/enquiry-crm.env.example", "${bundle_root}/deploy/"])?
 	run!("cp", ["LICENSE", "${bundle_root}/"])?
 	run!("cp", ["vendor/LICENSE-htmx.txt", "${bundle_root}/"])?
-	Path.utf8("${bundle_root}/RELEASE_VERSION").write_utf8!("${version}\n")?
+	Path.utf8("${bundle_root}/RELEASE_ID").write_utf8!("${release_id}\n")?
 
 	archive = "dist/release/${bundle_name}.tar.gz"
 	run!("tar", ["-C", stage_root, "-czf", archive, bundle_name])?

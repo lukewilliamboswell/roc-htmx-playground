@@ -20,7 +20,8 @@ member.
 This design relies on three boundaries:
 
 1. the application listens only on loopback;
-2. the production service uses `AUTH_MODE=tailscale`; and
+2. the production service has an HTTPS `PUBLIC_ORIGIN`, which requires
+   Tailscale identity; and
 3. only Tailscale Serve can reach the application port.
 
 Do not use Tailscale Funnel with this authentication mode. Funnel is public,
@@ -134,25 +135,28 @@ allow outbound traffic, and do not expose TCP 22, 80, 443, or 8000.
 
 ## 3. Create a release
 
-Update `VERSION` and commit it. The file contains the release version in
-`MAJOR.MINOR.PATCH` form, for example `0.2.0`.
-
 Run the **Release** workflow manually. It:
 
 1. runs the Roc checks and integration tests;
-2. builds `enquiry-crm-VERSION-x64-linux.tar.gz`;
-3. extracts the archive and installs it into the production filesystem layout
+2. derives an immutable release ID from the commit's UTC timestamp and
+   12-character Git SHA, such as `20260730T063147Z-296cd4791967`;
+3. builds `enquiry-crm-RELEASE_ID-x64-linux.tar.gz`;
+4. extracts the archive and installs it into the production filesystem layout
    on an Ubuntu 24.04 runner;
-4. runs the admin, systemd, Playwright, and Tailscale-authentication tests
+5. runs the admin, systemd, Playwright, and Tailscale-authentication tests
    against the extracted release;
-5. rehearses the documented backup, activation, migration, and restart
+6. rehearses the documented backup, activation, migration, and restart
    sequence; and
-6. creates `vVERSION` and publishes the archive only after all checks pass.
+7. creates `release-RELEASE_ID` and publishes the archive only after all checks
+   pass.
+
+The commit timestamp makes release IDs chronologically readable, while the SHA
+identifies the source exactly. Rebuilding the same commit derives the same ID.
 
 To build the same release locally:
 
 ```sh
-RELEASE_VERSION="$(sed -n '1p' VERSION)" roc scripts/tasks.roc release
+RELEASE_ID="$(ci/release_id.sh)" roc scripts/tasks.roc release
 ```
 
 The Roc compiler cross-builds the x64 Linux executables, so this command also
@@ -163,16 +167,19 @@ works on macOS.
 Download the release archive and `SHA256SUMS`, then copy them to the server:
 
 ```sh
-scp enquiry-crm-0.1.0-x64-linux.tar.gz SHA256SUMS \
+scp enquiry-crm-RELEASE_ID-x64-linux.tar.gz SHA256SUMS \
   deploy@DROPLET_MAGICDNS_NAME:
 ssh deploy@DROPLET_MAGICDNS_NAME
 ```
+
+Replace `RELEASE_ID` in these commands with the ID in the downloaded archive
+name.
 
 Verify the archive before extracting it:
 
 ```sh
 sha256sum --check SHA256SUMS
-tar -xzf enquiry-crm-0.1.0-x64-linux.tar.gz
+tar -xzf enquiry-crm-RELEASE_ID-x64-linux.tar.gz
 ```
 
 Create the dedicated runtime account and filesystem layout:
@@ -189,9 +196,9 @@ sudo install -d -o root -g root -m 0755 /opt/enquiry-crm/releases
 sudo install -d -o root -g root -m 0755 /etc/enquiry-crm
 sudo install -d -o enquiry-crm -g enquiry-crm -m 0700 /var/lib/enquiry-crm
 
-sudo mv enquiry-crm-0.1.0-x64-linux /opt/enquiry-crm/releases/0.1.0
-sudo chown -R root:root /opt/enquiry-crm/releases/0.1.0
-sudo ln -s /opt/enquiry-crm/releases/0.1.0 /opt/enquiry-crm/current
+sudo mv enquiry-crm-RELEASE_ID-x64-linux /opt/enquiry-crm/releases/RELEASE_ID
+sudo chown -R root:root /opt/enquiry-crm/releases/RELEASE_ID
+sudo ln -s /opt/enquiry-crm/releases/RELEASE_ID /opt/enquiry-crm/current
 ```
 
 Install the release's systemd unit and production configuration:
@@ -209,7 +216,9 @@ sudoedit /etc/enquiry-crm/enquiry-crm.env
 
 Set `PUBLIC_ORIGIN` to the exact HTTPS MagicDNS origin and set `TZ` to the
 workspace timezone. The example already selects the production database,
-release assets, Tailscale authentication, and loopback port 8000.
+release assets, and loopback port 8000. An HTTPS origin makes the application
+require Tailscale authentication; the only development-authentication form is
+an HTTP origin on `127.0.0.1`.
 
 Bootstrap the database and its first member:
 
@@ -297,9 +306,9 @@ release while the application is still running:
 
 ```sh
 sha256sum --check SHA256SUMS
-tar -xzf enquiry-crm-0.2.0-x64-linux.tar.gz
-sudo mv enquiry-crm-0.2.0-x64-linux /opt/enquiry-crm/releases/0.2.0
-sudo chown -R root:root /opt/enquiry-crm/releases/0.2.0
+tar -xzf enquiry-crm-RELEASE_ID-x64-linux.tar.gz
+sudo mv enquiry-crm-RELEASE_ID-x64-linux /opt/enquiry-crm/releases/RELEASE_ID
+sudo chown -R root:root /opt/enquiry-crm/releases/RELEASE_ID
 ```
 
 Stop the application before taking the backup. Uptime is less important than a
@@ -318,8 +327,10 @@ Do not continue unless the integrity check prints `ok`. Activate the release
 with a temporary symlink and atomic rename:
 
 ```sh
-sudo ln -s /opt/enquiry-crm/releases/0.2.0 /opt/enquiry-crm/.current-0.2.0
-sudo mv -Tf /opt/enquiry-crm/.current-0.2.0 /opt/enquiry-crm/current
+sudo ln -s \
+  /opt/enquiry-crm/releases/RELEASE_ID \
+  /opt/enquiry-crm/.current-RELEASE_ID
+sudo mv -Tf /opt/enquiry-crm/.current-RELEASE_ID /opt/enquiry-crm/current
 
 sudo install -o root -g root -m 0644 \
   /opt/enquiry-crm/current/deploy/enquiry-crm.service \
@@ -334,7 +345,7 @@ sudo -u enquiry-crm /opt/enquiry-crm/current/bin/enquiry-crm-admin schema check 
 sudo systemctl start enquiry-crm
 sudo systemctl status enquiry-crm
 curl --fail http://127.0.0.1:8000/healthz
-sed -n '1p' /opt/enquiry-crm/current/RELEASE_VERSION
+sed -n '1p' /opt/enquiry-crm/current/RELEASE_ID
 ```
 
 If activation, migration, schema validation, startup, or the health check

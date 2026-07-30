@@ -80,15 +80,11 @@ init! = || {
 		Stdout.line!("Database schema version must be 1, received ${schema_version.to_str()}") ? |_| Exit(2)
 		return Err(Exit(2))
 	}
-	auth_mode_value = match Env.var!("AUTH_MODE") {
-		Ok(value) => OsStr.display(value)
-		Err(_) => return Err(Exit(2))
-	}
 	public_origin = match Env.var!("PUBLIC_ORIGIN") {
 		Ok(value) => OsStr.display(value)
 		Err(_) => return Err(Exit(2))
 	}
-	auth_mode = Authentication.Mode.from_config(auth_mode_value, public_origin)
+	auth_mode = Authentication.Mode.from_public_origin(public_origin)
 		? |_| Exit(2)
 	workspace_store = WorkspaceStore.new(db)
 	workspace = WorkspaceStore.load!(workspace_store) ? |_| Exit(2)

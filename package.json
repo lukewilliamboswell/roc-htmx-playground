@@ -1,11 +1,6 @@
 {
   "name": "roc-htmx-playground",
   "private": true,
-  "scripts": {
-    "test:e2e": "npm run test:e2e:browser && npm run test:tailscale-auth",
-    "test:e2e:browser": "playwright test",
-    "test:tailscale-auth": "node tests/tailscale-auth-smoke.js"
-  },
   "devDependencies": {
     "@playwright/test": "1.62.0"
   }

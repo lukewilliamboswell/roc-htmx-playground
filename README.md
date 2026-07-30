@@ -51,9 +51,11 @@ created and maintained with the bundled `enquiry-crm-admin` executable.
 roc scripts/tasks.roc check
 
 # Chromium journeys against an isolated database and server on port 8010
-npm install
-npx playwright install chromium
-npm run test:e2e
+roc scripts/tasks.roc setup
+roc scripts/tasks.roc test-e2e
+
+# Everything above in one verification command (after setup)
+roc scripts/tasks.roc check-all
 
 # Build the executable and runtime assets under dist/
 roc scripts/tasks.roc build
@@ -62,6 +64,10 @@ roc scripts/tasks.roc build
 roc scripts/tasks.roc css
 roc scripts/tasks.roc css-watch
 ```
+
+`roc scripts/tasks.roc help` lists every project task. npm remains the locked
+dependency installer for Playwright, but `package.json` does not define a
+second task interface.
 
 The task runner downloads and verifies the pinned standalone Tailwind CSS CLI
 under `.tools/`. Tailwind class strings live only in `src/Design.roc`; views
@@ -97,7 +103,6 @@ For deployment, provide:
 ```sh
 DB_PATH=/path/to/crm.sqlite
 ASSET_PATH=/path/to/assets
-AUTH_MODE=tailscale
 PUBLIC_ORIGIN=https://machine-name.tailnet-name.ts.net
 PORT=8000
 TZ=Australia/Melbourne
@@ -105,17 +110,18 @@ TZ=Australia/Melbourne
 
 `TZ` must exactly match the timezone stored in the workspace so due-date
 grouping and local-to-UTC conversion cannot silently use the host timezone.
-The server always binds to `127.0.0.1`. In `tailscale` authentication mode it
-trusts Tailscale Serve's verified login header, maps that email to an active
-pre-provisioned member, and disables the development login and registration
-routes.
+The server always binds to `127.0.0.1`. A loopback HTTP `PUBLIC_ORIGIN` enables
+development login; an HTTPS origin requires Tailscale Serve's verified login
+header, maps that email to an active pre-provisioned member, and disables the
+development login and registration routes. Other HTTP origins are rejected.
 
 The supported production procedure, release workflow, member administration,
 systemd hardening, and Tailscale access policy are documented in
 [docs/deployment/digitalocean-tailscale.md](docs/deployment/digitalocean-tailscale.md).
 
-Production releases are versioned x64 Linux bundles. The manually triggered
-release workflow derives the version from `VERSION`, extracts and installs the
-bundle into the production filesystem layout, runs the browser and
-authentication suites against that exact release, and creates the Git tag only
-after those checks pass.
+Production releases are x64 Linux bundles identified by the commit's UTC
+timestamp and 12-character Git SHA. The manually triggered release workflow
+derives that immutable release ID, extracts and installs the bundle into the
+production filesystem layout, runs the browser and authentication suites
+against that exact release, and creates the Git tag only after those checks
+pass.

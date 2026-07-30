@@ -36,7 +36,6 @@ const server = spawn(executable, [], {
   env: {
     ...process.env,
     ASSET_PATH: assetPath,
-    AUTH_MODE: "development",
     DB_PATH: database,
     PORT: "8010",
     PUBLIC_ORIGIN: "http://127.0.0.1:8010",

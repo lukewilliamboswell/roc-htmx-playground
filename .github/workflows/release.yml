@@ -19,26 +19,23 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v7
 
-      - name: Read and validate release version
+      - name: Derive release identity
         run: |
-          release_version=$(sed -n '1p' VERSION)
-          if ! printf '%s\n' "$release_version" | grep -Eq '^[0-9]+\.[0-9]+\.[0-9]+$'; then
-            echo "VERSION must contain one version such as 0.1.0." >&2
+          release_id=$(ci/release_id.sh "$GITHUB_SHA")
+          release_tag="release-$release_id"
+          if git ls-remote --exit-code --tags origin "refs/tags/$release_tag" >/dev/null 2>&1; then
+            echo "Tag $release_tag already exists." >&2
             exit 2
           fi
-          if git ls-remote --exit-code --tags origin "refs/tags/v$release_version" >/dev/null 2>&1; then
-            echo "Tag v$release_version already exists." >&2
-            exit 2
-          fi
-          printf 'RELEASE_VERSION=%s\n' "$release_version" >> "$GITHUB_ENV"
-          printf 'RELEASE_TAG=v%s\n' "$release_version" >> "$GITHUB_ENV"
-          printf 'RELEASE_NAME=enquiry-crm-%s-x64-linux\n' "$release_version" >> "$GITHUB_ENV"
+          printf 'RELEASE_ID=%s\n' "$release_id" >> "$GITHUB_ENV"
+          printf 'RELEASE_TAG=%s\n' "$release_tag" >> "$GITHUB_ENV"
+          printf 'RELEASE_NAME=enquiry-crm-%s-x64-linux\n' "$release_id" >> "$GITHUB_ENV"
 
       - name: Install Roc
         uses: roc-lang/setup-roc@cbe782d6f165b89c87d99f50a59ac4f5f73b4427
         with:
           version: nightly-new-compiler
-          nightly-tag: nightly-2026-July-27-f4b3c60
+          nightly-tag: nightly-2026-July-29-fe0ab22
 
       - name: Install Node
         uses: actions/setup-node@v6
@@ -47,16 +44,12 @@ jobs:
           cache: npm
 
       - name: Install browser dependencies
-        run: |
-          sudo apt-get update
-          sudo apt-get install --yes sqlite3
-          npm ci
-          npx playwright install --with-deps chromium
+        run: roc scripts/tasks.roc setup-ci
 
       - name: Check source and integration tests
         run: roc scripts/tasks.roc check
 
-      - name: Build versioned x64 Linux bundle
+      - name: Build identified x64 Linux bundle
         run: roc scripts/tasks.roc release
 
       - name: Extract and inspect release artifact
@@ -71,7 +64,7 @@ jobs:
           test -f "$bundle_root/assets/styles.css"
           test -f "$bundle_root/deploy/enquiry-crm.service"
           test -f "$bundle_root/deploy/enquiry-crm.env.example"
-          test "$(sed -n '1p' "$bundle_root/RELEASE_VERSION")" = "$RELEASE_VERSION"
+          test "$(sed -n '1p' "$bundle_root/RELEASE_ID")" = "$RELEASE_ID"
           file "$bundle_root/bin/enquiry-crm" | grep -F 'ELF 64-bit'
           file "$bundle_root/bin/enquiry-crm-admin" | grep -F 'ELF 64-bit'
           printf 'BUNDLE_ROOT=%s\n' "$bundle_root" >> "$GITHUB_ENV"
@@ -110,9 +103,9 @@ jobs:
           sudo install -d -o root -g root -m 0755 /opt/enquiry-crm/releases
           sudo install -d -o root -g root -m 0755 /etc/enquiry-crm
           sudo install -d -o enquiry-crm -g enquiry-crm -m 0700 /var/lib/enquiry-crm
-          sudo cp -R "$BUNDLE_ROOT" "/opt/enquiry-crm/releases/$RELEASE_VERSION"
-          sudo chown -R root:root "/opt/enquiry-crm/releases/$RELEASE_VERSION"
-          sudo ln -s "/opt/enquiry-crm/releases/$RELEASE_VERSION" /opt/enquiry-crm/current
+          sudo cp -R "$BUNDLE_ROOT" "/opt/enquiry-crm/releases/$RELEASE_ID"
+          sudo chown -R root:root "/opt/enquiry-crm/releases/$RELEASE_ID"
+          sudo ln -s "/opt/enquiry-crm/releases/$RELEASE_ID" /opt/enquiry-crm/current
           sudo install -o root -g root -m 0644 \
             "$BUNDLE_ROOT/deploy/enquiry-crm.service" \
             /etc/systemd/system/enquiry-crm.service
@@ -129,7 +122,6 @@ jobs:
           printf '%s\n' \
             'DB_PATH=/var/lib/enquiry-crm/playwright.sqlite' \
             'ASSET_PATH=/opt/enquiry-crm/current/assets' \
-            'AUTH_MODE=development' \
             'PUBLIC_ORIGIN=http://127.0.0.1:8010' \
             'PORT=8010' \
             'TZ=Australia/Melbourne' |
@@ -143,13 +135,13 @@ jobs:
       - name: Run browser journeys against installed bundle
         env:
           E2E_BASE_URL: http://127.0.0.1:8010
-        run: npm run test:e2e:browser
+        run: roc scripts/tasks.roc test-browser
 
       - name: Run production authentication checks against bundled files
         env:
           ENQUIRY_CRM_EXECUTABLE: /opt/enquiry-crm/current/bin/enquiry-crm
           ENQUIRY_CRM_ASSET_PATH: /opt/enquiry-crm/current/assets
-        run: npm run test:tailscale-auth
+        run: roc scripts/tasks.roc test-auth
 
       - name: Rehearse documented activation and migration
         run: |
@@ -158,8 +150,8 @@ jobs:
           sudo sqlite3 /var/lib/enquiry-crm/playwright.sqlite \
             ".backup '/var/backups/enquiry-crm/pre-upgrade.sqlite'"
           test "$(sudo sqlite3 /var/backups/enquiry-crm/pre-upgrade.sqlite 'PRAGMA integrity_check;')" = ok
-          temporary_link="/opt/enquiry-crm/.current-$RELEASE_VERSION"
-          sudo ln -s "/opt/enquiry-crm/releases/$RELEASE_VERSION" "$temporary_link"
+          temporary_link="/opt/enquiry-crm/.current-$RELEASE_ID"
+          sudo ln -s "/opt/enquiry-crm/releases/$RELEASE_ID" "$temporary_link"
           sudo mv -Tf "$temporary_link" /opt/enquiry-crm/current
           sudo install -o root -g root -m 0644 \
             "/opt/enquiry-crm/current/deploy/enquiry-crm.service" \
@@ -183,7 +175,7 @@ jobs:
         run: |
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git tag --annotate "$RELEASE_TAG" --message "Enquiry CRM $RELEASE_VERSION" "$GITHUB_SHA"
+          git tag --annotate "$RELEASE_TAG" --message "Enquiry CRM $RELEASE_ID" "$GITHUB_SHA"
           git push origin "$RELEASE_TAG"
 
       - name: Publish tested release

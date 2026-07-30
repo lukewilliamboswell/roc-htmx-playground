@@ -32,7 +32,6 @@ const server = spawn(executable, [], {
   env: {
     ...process.env,
     ASSET_PATH: assetPath,
-    AUTH_MODE: "tailscale",
     DB_PATH: database,
     PORT: "8011",
     PUBLIC_ORIGIN: publicOrigin,

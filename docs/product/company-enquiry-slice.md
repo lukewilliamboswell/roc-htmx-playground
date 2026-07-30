@@ -72,7 +72,7 @@ Each implementation commit must pass:
 
 ```sh
 roc scripts/tasks.roc check
-npm run test:e2e
+roc scripts/tasks.roc test-e2e
 ```
 
 Schema-changing commits also recreate the disposable development database

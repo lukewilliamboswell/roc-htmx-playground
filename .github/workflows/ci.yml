@@ -11,7 +11,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  ROC_NIGHTLY_TAG: nightly-2026-July-27-f4b3c60
+  ROC_NIGHTLY_TAG: nightly-2026-July-29-fe0ab22
 
 jobs:
   check:
@@ -52,11 +52,8 @@ jobs:
           node-version: 22
           cache: npm
 
-      - name: Install browser test dependencies
-        run: npm ci
-
-      - name: Install Chromium
-        run: npx playwright install --with-deps chromium
+      - name: Install browser test tooling
+        run: roc scripts/tasks.roc setup-ci
 
       - name: Run browser journeys
-        run: npm run test:e2e
+        run: roc scripts/tasks.roc test-e2e

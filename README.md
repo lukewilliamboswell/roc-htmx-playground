@@ -40,9 +40,9 @@ To recreate the database without starting the server:
 roc scripts/tasks.roc reset-db
 ```
 
-There are deliberately no migrations or compatibility guarantees for old
-database files during this refactor. `db/init.sql` is the canonical schema and
-`db/test-fixtures.sql` contains representative development/test records.
+`db/migrations/` contains the versioned schema and `db/test-fixtures.sql`
+contains representative development/test records. Production databases are
+created and maintained with the bundled `enquiry-crm-admin` executable.
 
 ## Development
 
@@ -97,10 +97,25 @@ For deployment, provide:
 ```sh
 DB_PATH=/path/to/crm.sqlite
 ASSET_PATH=/path/to/assets
+AUTH_MODE=tailscale
+PUBLIC_ORIGIN=https://machine-name.tailnet-name.ts.net
+PORT=8000
 TZ=Australia/Melbourne
 ```
 
 `TZ` must exactly match the timezone stored in the workspace so due-date
 grouping and local-to-UTC conversion cannot silently use the host timezone.
-Place the server behind the organisation’s private-network access boundary and
-a reverse proxy that provides TLS.
+The server always binds to `127.0.0.1`. In `tailscale` authentication mode it
+trusts Tailscale Serve's verified login header, maps that email to an active
+pre-provisioned member, and disables the development login and registration
+routes.
+
+The supported production procedure, release workflow, member administration,
+systemd hardening, and Tailscale access policy are documented in
+[docs/deployment/digitalocean-tailscale.md](docs/deployment/digitalocean-tailscale.md).
+
+Production releases are versioned x64 Linux bundles. The manually triggered
+release workflow derives the version from `VERSION`, extracts and installs the
+bundle into the production filesystem layout, runs the browser and
+authentication suites against that exact release, and creates the Git tag only
+after those checks pass.

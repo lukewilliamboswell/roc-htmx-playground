@@ -12,6 +12,7 @@ Actor := {
 		match session.user {
 			Session.Auth.Guest => Err(LoginRequired)
 			Session.Auth.LoggedIn(member) => Ok(Actor.{ member, session, workspace })
+			Session.Auth.Trusted(member) => Ok(Actor.{ member, session, workspace })
 		}
 }
 

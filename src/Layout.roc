@@ -143,6 +143,11 @@ auth_controls = |session|
 					),
 				],
 			)
+		Session.Auth.Trusted(member) =>
+			Html.div(
+				[Design.auth],
+				[Html.span([Design.userName], [Html.text(member.name.to_str())])],
+			)
 		}
 
 attribute : Str, Str -> Attribute.Attribute

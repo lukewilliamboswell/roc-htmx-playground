@@ -62,7 +62,7 @@ CREATE TABLE members (
     member_id TEXT PRIMARY KEY,
     workspace_id TEXT NOT NULL,
     name TEXT NOT NULL UNIQUE,
-    email TEXT NOT NULL,
+    email TEXT NOT NULL COLLATE NOCASE UNIQUE,
     active INTEGER NOT NULL CHECK(active IN (0, 1)),
     FOREIGN KEY (workspace_id) REFERENCES workspaces(workspace_id)
 );
@@ -453,3 +453,5 @@ SELECT
         ELSE 'No blockers reported.'
     END
 FROM task_number;
+
+PRAGMA user_version = 1;

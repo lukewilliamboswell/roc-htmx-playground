@@ -10,7 +10,7 @@ import pf.Sqlite
 import pf.Stderr
 import pf.Stdout
 import http.Response
-import "../db/init.sql" as init_schema : Str
+import "../db/migrations/001_initial.sql" as init_schema : Str
 import "../db/test-fixtures.sql" as test_fixtures : Str
 
 import Activity
@@ -79,6 +79,8 @@ init! = || {
 		Ok({}) => {}
 	}
 	Stdout.line!("schema: ok") ? |_| Exit(3)
+	test_schema_version!(db)
+	Stdout.line!("schema version: ok") ? |_| Exit(3)
 	test_workspace!(db)
 	Stdout.line!("workspace: ok") ? |_| Exit(3)
 	test_companies!(db)
@@ -699,6 +701,18 @@ test_workspace! = |db| {
 	}
 }
 
+test_schema_version! : Sqlite.Db => {}
+test_schema_version! = |db| {
+	version : I64
+	version = Sqlite.query!({
+		db,
+		query: "PRAGMA user_version;",
+		params: {},
+		limits: Sqlite.default_query_limits,
+	}) ?? 0
+	expect version == 1
+}
+
 respond! = |_request, _context| Ok(Server.respond(Response.from_status(204)))
 
 shutdown! = |_reason, _context| Ok({})
@@ -765,6 +779,19 @@ test_sessions_and_users! = |db| {
 		_ => False
 	}
 
+	trusted_member = MemberStore.find_active_by_email!(members, " MARA@EXAMPLE.COM ")
+	expect match trusted_member {
+		Ok(member) =>
+			member.name.to_str() == "Mara Singh"
+				and member.email.to_str() == "mara@example.com"
+		_ => False
+	}
+	missing_member = MemberStore.find_active_by_email!(members, "missing@example.com")
+	expect match missing_member {
+		Err(MemberNotFound) => True
+		_ => False
+	}
+
 	legacy_users = UserStore.list!(users)
 	expect match legacy_users {
 		Ok([_, _]) => True
@@ -800,6 +827,11 @@ test_sessions_and_users! = |db| {
 		params: { memberId: ada_id },
 	})
 	expect deactivated.is_ok()
+	inactive_member = MemberStore.find_active_by_email!(members, "ada@example.com")
+	expect match inactive_member {
+		Err(InactiveMember) => True
+		_ => False
+	}
 	inactive_session = SessionStore.find!(sessions, session_id)
 	expect match inactive_session {
 		Err(Session.FindError.Inactive) => True

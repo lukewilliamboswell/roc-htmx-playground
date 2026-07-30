@@ -17,11 +17,6 @@ TailwindTarget := {
 	checksum : Str,
 }
 
-ReleaseTarget := {
-	filename : Str,
-	target : Str,
-}
-
 main! : List(OsStr) => Try({}, _)
 main! = |args|
 	match args.drop_first(1) {
@@ -64,7 +59,7 @@ usage! = || {
 		\\  check             Build CSS, format-check, type-check, and test
 		\\  dev               Format, validate, build dist/, and serve it
 		\\  reset-db          Recreate the disposable development database
-		\\  release           Build release binaries for Linux and macOS
+		\\  release           Build the versioned x64 Linux release bundle
 		\\  tailwind-install  Install the pinned standalone Tailwind CLI
 		,
 	)?
@@ -77,7 +72,7 @@ dev! = || {
 	run!("roc", ["fmt", "scripts", "src"])?
 	run!("roc", ["check", "src/main.roc"])?
 	run!("roc", ["test", "src/main.roc"])?
-	runWithTimezone!("roc", ["src/test.roc"])?
+	checkIntegration!("dev")?
 
 	resetDevDatabase!()?
 	buildDistribution!("dev")?
@@ -86,6 +81,8 @@ dev! = || {
 	Cmd.new_str("dist/roc-htmx-playground")
 		.env_str("DB_PATH", "dist/playground.db")
 		.env_str("ASSET_PATH", "dist/assets")
+		.env_str("AUTH_MODE", "development")
+		.env_str("PUBLIC_ORIGIN", "http://127.0.0.1:8000")
 		.env_str("TZ", "Australia/Melbourne")
 		.exec_cmd!()
 }
@@ -96,8 +93,8 @@ ensureDevDatabase! = || {
 	database = Path.utf8(db_path)
 
 	if !database.is_file!()? {
-		Stdout.line!("Creating ${db_path} from db/init.sql and db/test-fixtures.sql...")?
-		run!("sqlite3", [db_path, ".read db/init.sql"])?
+		Stdout.line!("Creating ${db_path} from migrations and db/test-fixtures.sql...")?
+		run!("sqlite3", [db_path, ".read db/migrations/001_initial.sql"])?
 		run!("sqlite3", [db_path, ".read db/test-fixtures.sql"])?
 	}
 
@@ -124,47 +121,38 @@ check! = || {
 	run!("ci/check_source_contracts.sh", [])?
 	run!("roc", ["fmt", "--check", "scripts", "src"])?
 	run!("roc", ["check", "src/main.roc"])?
+	run!("roc", ["check", "src/admin.roc"])?
 	run!("roc", ["test", "src/main.roc"])?
-	runWithTimezone!("roc", ["src/test.roc"])?
-	checkOptimizedIntegration!()?
+	checkIntegration!("dev")?
+	checkIntegration!("speed")?
 
 	Ok({})
 }
 
-checkOptimizedIntegration! : () => Try({}, _)
-checkOptimizedIntegration! = || {
+checkIntegration! : Str => Try({}, _)
+checkIntegration! = |optimization| {
 	output = Path.display(
 		Path.join(
 			Env.temp_dir!(),
-			"roc-htmx-playground-integration-speed",
+			"roc-htmx-playground-integration-${optimization}",
 		),
 	)
-	run!(
-		"roc",
+	build_arguments = if optimization == "dev" {
 		[
 			"build",
-			"--opt=speed",
 			"--output=${output}",
 			"src/test.roc",
-		],
-	)?
+		]
+	} else {
+		[
+			"build",
+			"--opt=${optimization}",
+			"--output=${output}",
+			"src/test.roc",
+		]
+	}
+	run!("roc", build_arguments)?
 	runWithTimezone!(output, [])?
-	Ok({})
-}
-
-release! : () => Try({}, _)
-release! = || {
-	buildCss!(Bool.False)?
-	_ = ensureDevDatabase!()?
-	dist : Path
-	dist = "dist"
-	dist.create_all!()?
-
-	checksum_lines = buildReleaseTargets!(releaseTargets, [])?
-	checksums : Path
-	checksums = "dist/SHA256SUMS"
-	checksums.write_utf8!("${Str.join_with(checksum_lines, "\n")}\n")?
-
 	Ok({})
 }
 
@@ -185,34 +173,58 @@ buildDistribution! = |optimization| {
 	Ok({})
 }
 
-buildReleaseTargets! : List(ReleaseTarget), List(Str) => Try(List(Str), _)
-buildReleaseTargets! = |remaining, checksum_lines|
-	match remaining {
-		[] => Ok(checksum_lines)
-		[target, .. as rest] => {
-			output = "dist/${target.filename}"
-			run!(
-				"roc",
-				[
-					"build",
-					"--opt=speed",
-					"--target=${target.target}",
-					"--output=${output}",
-					"src/main.roc",
-				],
-			)?
-			checksum = checksum!(output)?
-			buildReleaseTargets!(rest, checksum_lines.append("${checksum}  ${target.filename}"))
-		}
+release! : () => Try({}, _)
+release! = || {
+	buildCss!(Bool.False)?
+	version = OsStr.display(Env.var!("RELEASE_VERSION")?).trim()
+	if version.is_empty() or version.contains("/") or version.contains("..") {
+		return Err(InvalidReleaseVersion(version))
 	}
 
-releaseTargets : List(ReleaseTarget)
-releaseTargets = [
-	ReleaseTarget.{ filename: "roc-htmx-playground-x64-linux", target: "x64musl" },
-	ReleaseTarget.{ filename: "roc-htmx-playground-arm64-linux", target: "arm64musl" },
-	ReleaseTarget.{ filename: "roc-htmx-playground-x64-macos", target: "x64mac" },
-	ReleaseTarget.{ filename: "roc-htmx-playground-arm64-macos", target: "arm64mac" },
-]
+	stage_root = "dist/release-stage"
+	bundle_name = "enquiry-crm-${version}-x64-linux"
+	bundle_root = "${stage_root}/${bundle_name}"
+	release_dir : Path
+	release_dir = "dist/release"
+
+	run!("rm", ["-rf", stage_root])?
+	Path.utf8("${bundle_root}/bin").create_all!()?
+	Path.utf8("${bundle_root}/deploy").create_all!()?
+	release_dir.create_all!()?
+
+	run!(
+		"roc",
+		[
+			"build",
+			"--opt=speed",
+			"--target=x64musl",
+			"--output=${bundle_root}/bin/enquiry-crm",
+			"src/main.roc",
+		],
+	)?
+	run!(
+		"roc",
+		[
+			"build",
+			"--opt=speed",
+			"--target=x64musl",
+			"--output=${bundle_root}/bin/enquiry-crm-admin",
+			"src/admin.roc",
+		],
+	)?
+
+	run!("cp", ["-R", "dist/assets", "${bundle_root}/assets"])?
+	run!("cp", ["deploy/enquiry-crm.service", "${bundle_root}/deploy/"])?
+	run!("cp", ["deploy/enquiry-crm.env.example", "${bundle_root}/deploy/"])?
+	run!("cp", ["LICENSE", "${bundle_root}/"])?
+	run!("cp", ["vendor/LICENSE-htmx.txt", "${bundle_root}/"])?
+	Path.utf8("${bundle_root}/RELEASE_VERSION").write_utf8!("${version}\n")?
+
+	archive = "dist/release/${bundle_name}.tar.gz"
+	run!("tar", ["-C", stage_root, "-czf", archive, bundle_name])?
+	Stdout.line!(archive)?
+	Ok({})
+}
 
 run! : Str, List(Str) => Try({}, _)
 run! = |program, arguments|

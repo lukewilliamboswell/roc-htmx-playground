@@ -67,28 +67,24 @@ Http := [].{
 		match session.user {
 			Session.Auth.Guest => Err(AppError.Unauthorized)
 			Session.Auth.LoggedIn(_) => Ok({})
+			Session.Auth.Trusted(_) => Ok({})
 		}
 
-	require_same_origin : Server.Request -> Try({}, AppError)
-	require_same_origin = |request| require_same_origin_headers(request.headers())
+	require_same_origin : Server.Request, Str -> Try({}, AppError)
+	require_same_origin = |request, public_origin| require_same_origin_headers(request.headers(), public_origin)
 
-	require_same_origin_headers : List(Header) -> Try({}, AppError)
-	require_same_origin_headers = |headers| {
-		host = header_value(headers, "host")
-			? |_| AppError.Forbidden
-		http_origin = "http://${host}"
-		https_origin = "https://${host}"
-
+	require_same_origin_headers : List(Header), Str -> Try({}, AppError)
+	require_same_origin_headers = |headers, public_origin| {
 		match header_value(headers, "origin") {
 			Ok(origin) =>
-				if origin == http_origin or origin == https_origin {
+				if origin == public_origin {
 					Ok({})
 				} else {
 					Err(AppError.Forbidden)
 				}
 			Err(_) =>
 				match header_value(headers, "referer") {
-					Ok(referer) if referer.starts_with("${http_origin}/") or referer.starts_with("${https_origin}/") =>
+					Ok(referer) if referer.starts_with("${public_origin}/") =>
 						Ok({})
 					_ => Err(AppError.Forbidden)
 				}
@@ -146,14 +142,20 @@ Http := [].{
 
 	expect Http.session_id_from_headers([]) == Err(InvalidSessionCookie)
 	expect Http.require_login(Session.guest(Session.Id.from_i64(1))) == Err(AppError.Unauthorized)
-	expect Http.require_same_origin_headers([
-		{ name: "Host", value: "app.example" },
-		{ name: "Origin", value: "https://app.example" },
-	]) == Ok({})
-	expect Http.require_same_origin_headers([
-		{ name: "Host", value: "app.example" },
-		{ name: "Origin", value: "https://attacker.example" },
-	]) == Err(AppError.Forbidden)
+	expect Http.require_same_origin_headers(
+		[
+			{ name: "Host", value: "app.example" },
+			{ name: "Origin", value: "https://app.example" },
+		],
+		"https://app.example",
+	) == Ok({})
+	expect Http.require_same_origin_headers(
+		[
+			{ name: "Host", value: "app.example" },
+			{ name: "Origin", value: "https://attacker.example" },
+		],
+		"https://app.example",
+	) == Err(AppError.Forbidden)
 
 	session_cookie : Session.Id -> Header
 	session_cookie = |id| {

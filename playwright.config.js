@@ -1,5 +1,7 @@
 const { defineConfig, devices } = require("@playwright/test");
 
+const externalBaseURL = process.env.E2E_BASE_URL;
+
 module.exports = defineConfig({
   testDir: "./tests",
   fullyParallel: false,
@@ -8,7 +10,7 @@ module.exports = defineConfig({
   retries: process.env.CI ? 2 : 0,
   reporter: process.env.CI ? "github" : "list",
   use: {
-    baseURL: "http://127.0.0.1:8010",
+    baseURL: externalBaseURL || "http://127.0.0.1:8010",
     trace: "retain-on-failure",
   },
   projects: [
@@ -17,12 +19,14 @@ module.exports = defineConfig({
       use: { ...devices["Desktop Chrome"] },
     },
   ],
-  webServer: {
-    command: "node tests/start-server.js",
-    url: "http://127.0.0.1:8010",
-    reuseExistingServer: false,
-    timeout: 180_000,
-    stdout: "pipe",
-    stderr: "pipe",
-  },
+  webServer: externalBaseURL
+    ? undefined
+    : {
+        command: "node tests/start-server.js",
+        url: "http://127.0.0.1:8010",
+        reuseExistingServer: false,
+        timeout: 180_000,
+        stdout: "pipe",
+        stderr: "pipe",
+      },
 });

@@ -24,7 +24,7 @@ Session := {
 		is_eq : _
 	}
 
-	Auth := [Guest, LoggedIn(Member)].{
+	Auth := [Guest, LoggedIn(Member), Trusted(Member)].{
 		is_eq : _
 	}
 
@@ -39,11 +39,15 @@ Session := {
 	logged_in : Id, Member -> Session
 	logged_in = |id, member| Session.{ id, user: LoggedIn(member) }
 
+	trusted : Member -> Session
+	trusted = |member| Session.{ id: Id.from_i64(0), user: Trusted(member) }
+
 	is_logged_in : Session -> Bool
 	is_logged_in = |session|
 		match session.user {
 			Guest => False
 			LoggedIn(_) => True
+			Trusted(_) => True
 		}
 }
 

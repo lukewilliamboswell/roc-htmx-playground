@@ -1183,7 +1183,7 @@ Tests should follow the same boundaries:
   inline tests to cover authorization, status codes, redirects, cookies, and
   validation responses without performing I/O.
 - `src/test.roc` is the single effectful test application. It embeds the
-  canonical `db/init.sql` and `db/test-fixtures.sql`, creates an isolated
+  canonical `db/migrations/001_initial.sql` and `db/test-fixtures.sql`, creates an isolated
   temporary SQLite database, invokes
   the real stores, and exits. It uses `basic-webserver`, not `basic-cli`,
   because the two platforms currently expose different SQLite APIs and the
@@ -1260,10 +1260,17 @@ Product-facing slices follow the same request path:
 | People | `Person` | `PersonStore` | `PersonHandler`, `PersonView` |
 | Follow-up work | `WorkTask` | `WorkTaskStore` | `WorkTaskHandler`, `WorkTaskView` |
 
-`db/init.sql` is the canonical development and test schema. The platform
-integration runner loads it into a fresh database, then adds
-`db/test-fixtures.sql`. Schema evolution needs an explicit migration policy
-before persistent production databases are supported.
+`db/migrations/` is the canonical versioned schema. The platform integration
+runner loads it into a fresh database, then adds `db/test-fixtures.sql`.
+Production startup checks `PRAGMA user_version`, and the bundled admin
+executable owns database bootstrap, migration, and member provisioning.
+
+Authentication is selected once at the composition root. Development mode
+keeps the local session-backed login flow. Production Tailscale mode accepts a
+user identity only from Tailscale Serve's `Tailscale-User-Login` header, maps
+that normalized email to an active member, and does not create an application
+session. This trust boundary is valid only while the HTTP listener remains
+loopback-only and Tailscale Serve is the sole reverse proxy.
 
 The actor boundary resolves a session to one active workspace member. Stores
 receive the workspace and actor identifiers required for each mutation rather

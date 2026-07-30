@@ -15,6 +15,7 @@ import http.Response
 
 import AppError
 import Actor
+import Authentication
 import AuthHandler
 import BigTask
 import BigTaskHandler
@@ -46,6 +47,8 @@ import WorkTaskStore
 ## The composition root owns concrete adapter selection. Feature handlers only
 ## receive the stores they actually use.
 Context := {
+	authMode : Authentication.Mode,
+	db : Sqlite.Db,
 	sessionStore : SessionStore,
 	memberStore : MemberStore,
 	workspace : Workspace,
@@ -66,6 +69,27 @@ init! = || {
 		Err(_) => return Err(Exit(2))
 	}
 	db = Sqlite.open!(Sqlite.default_config(db_path)) ? |_| Exit(2)
+	schema_version : I64
+	schema_version = Sqlite.query!({
+		db,
+		query: "PRAGMA user_version;",
+		params: {},
+		limits: Sqlite.default_query_limits,
+	}) ? |_| Exit(2)
+	if schema_version != 1 {
+		Stdout.line!("Database schema version must be 1, received ${schema_version.to_str()}") ? |_| Exit(2)
+		return Err(Exit(2))
+	}
+	auth_mode_value = match Env.var!("AUTH_MODE") {
+		Ok(value) => OsStr.display(value)
+		Err(_) => return Err(Exit(2))
+	}
+	public_origin = match Env.var!("PUBLIC_ORIGIN") {
+		Ok(value) => OsStr.display(value)
+		Err(_) => return Err(Exit(2))
+	}
+	auth_mode = Authentication.Mode.from_config(auth_mode_value, public_origin)
+		? |_| Exit(2)
 	workspace_store = WorkspaceStore.new(db)
 	workspace = WorkspaceStore.load!(workspace_store) ? |_| Exit(2)
 	configured_timezone = match Env.var!("TZ") {
@@ -106,6 +130,8 @@ init! = || {
 	Ok({
 		config,
 		context: Context.{
+			authMode: auth_mode,
+			db,
 			sessionStore: SessionStore.new(db),
 			memberStore: MemberStore.new(db),
 			workspace,
@@ -126,9 +152,9 @@ respond! = |request, context| {
 	response = match Url.resolve(app_origin, request.target()) {
 		Ok(url) => route_request!(request, context, url)
 		Err(_) =>
-			Http.error_response_for!(
+			error_with_auth!(
 				request,
-				Session.anonymous,
+				context,
 				AppError.BadRequest("Invalid request target"),
 			)
 		}
@@ -138,23 +164,27 @@ respond! = |request, context| {
 
 ## Native `/assets` requests are handled by basic-webserver before this point.
 ## The remaining app-owned file is dispatched before session lookup. Every
-## application route resolves its session exactly once.
+## other application response resolves authentication exactly once.
 route_request! : Server.Request, Context, Url => Response
 route_request! = |request, context, url|
-	match Route.parse(request, url) {
-		Ok(Route.Serve(asset)) => asset_response(asset)
-		Ok(route) => route_with_session!(request, context, route)
-		Err(parse_error) =>
-			error_with_session!(
-				request,
-				context.sessionStore,
-				parse_error_to_app_error(parse_error),
-			)
-		}
+	if request.target() == "/healthz" {
+		health_response!(context.db)
+	} else {
+		match Route.parse(request, url) {
+			Ok(Route.Serve(asset)) => asset_response(asset)
+			Ok(route) => route_with_session!(request, context, route)
+			Err(parse_error) =>
+				error_with_auth!(
+					request,
+					context,
+					parse_error_to_app_error(parse_error),
+				)
+			}
+	}
 
 route_with_session! : Server.Request, Context, Route => Response
 route_with_session! = |request, context, route|
-	match SessionHandler.resolve!(request, context.sessionStore) {
+	match resolve_auth!(request, context) {
 		Err(error) => Http.error_response_for!(request, Session.anonymous, error)
 		Ok({ session, setCookie }) => {
 			response = match dispatch!(request, context, session, route) {
@@ -171,23 +201,79 @@ route_with_session! = |request, context, route|
 		}
 	}
 
-error_with_session! : Server.Request, SessionStore, AppError => Response
-error_with_session! = |request, store, error|
-	match SessionHandler.resolve!(request, store) {
-		Ok({ session, .. }) => Http.error_response_for!(request, session, error)
-		Err(session_error) => Http.error_response_for!(request, Session.anonymous, session_error)
+error_with_auth! : Server.Request, Context, AppError => Response
+error_with_auth! = |request, context, route_error|
+	match resolve_auth!(request, context) {
+		Err(auth_error) =>
+			Http.error_response_for!(request, Session.anonymous, auth_error)
+		Ok({ session, .. }) =>
+			Http.error_response_for!(request, session, route_error)
+		}
+
+resolve_auth! : Server.Request, Context => Try(SessionHandler.State, AppError)
+resolve_auth! = |request, context|
+	match context.authMode {
+		Authentication.Mode.Development(_) =>
+			SessionHandler.resolve!(request, context.sessionStore)
+		Authentication.Mode.Tailscale(_) => {
+			identity = Authentication.tailscale_identity(request.headers())
+				? |_| AppError.Forbidden
+			match MemberStore.find_active_by_email!(context.memberStore, identity.login) {
+				Ok(member) =>
+					Ok({
+						session: Session.trusted(member),
+						setCookie: Bool.False,
+					})
+				Err(MemberNotFound) => Err(AppError.Forbidden)
+				Err(InactiveMember) => Err(AppError.Forbidden)
+				Err(DbErr(error)) => Err(AppError.from(error))
+			}
+		}
 	}
+
+health_response! : Sqlite.Db => Response
+health_response! = |db| {
+	version : Try(I64, _)
+	version = Sqlite.query!({
+		db,
+		query: "PRAGMA user_version;",
+		params: {},
+		limits: Sqlite.default_query_limits,
+	})
+	match version {
+		Ok(1) =>
+			Response.from_status(200)
+				.with_headers([
+					{ name: "Content-Type", value: "text/plain; charset=utf-8" },
+					{ name: "Cache-Control", value: "no-store" },
+				])
+				.with_body("ok\n".to_utf8())
+		_ =>
+			Response.from_status(503)
+				.with_headers([
+					{ name: "Content-Type", value: "text/plain; charset=utf-8" },
+					{ name: "Cache-Control", value: "no-store" },
+				])
+				.with_body("unavailable\n".to_utf8())
+		}
+}
 
 dispatch! : Server.Request, Context, Session, Route => Try(Response, AppError)
 dispatch! = |request, context, session, route|
 	match route {
 		Route.Visit(location) => visit!(context, session, location)
 		Route.Post(action) => {
-			Http.require_same_origin(request)?
+			Http.require_same_origin(
+				request,
+				Authentication.Mode.public_origin(context.authMode),
+			)?
 			post!(request, context, session, action)
 		}
 		Route.Put(action) => {
-			Http.require_same_origin(request)?
+			Http.require_same_origin(
+				request,
+				Authentication.Mode.public_origin(context.authMode),
+			)?
 			put!(request, context, session, action)
 		}
 		Route.Serve(asset) => Ok(asset_response(asset))
@@ -199,8 +285,12 @@ visit! = |context, session, location|
 		Route.Location.AtPage(page) =>
 			match page {
 				Route.Page.Home => Ok(Http.html(200, HomeView.page(session), []))
-				Route.Page.Register => Ok(AuthHandler.register_page(session))
-				Route.Page.Login => Ok(AuthHandler.login_page(session))
+				Route.Page.Register if Authentication.Mode.is_development(context.authMode) =>
+					Ok(AuthHandler.register_page(session))
+				Route.Page.Register => Err(AppError.NotFound("registration"))
+				Route.Page.Login if Authentication.Mode.is_development(context.authMode) =>
+					Ok(AuthHandler.login_page(session))
+				Route.Page.Login => Err(AppError.NotFound("login"))
 				Route.Page.Todos =>
 					TodoHandler.page!(context.todoStore, session, Todo.Filter.empty)
 				Route.Page.TodoTree => TodoHandler.tree_page!(context.todoStore, session)
@@ -302,11 +392,15 @@ actor_from_session = |session, workspace|
 post! : Server.Request, Context, Session, Route.PostAction => Try(Response, AppError)
 post! = |request, context, session, action|
 	match action {
-		Route.PostAction.Register =>
+		Route.PostAction.Register if Authentication.Mode.is_development(context.authMode) =>
 			AuthHandler.register!(request, context.memberStore, session)
-		Route.PostAction.Login =>
+		Route.PostAction.Register => Err(AppError.Forbidden)
+		Route.PostAction.Login if Authentication.Mode.is_development(context.authMode) =>
 			AuthHandler.login!(request, context.memberStore, session)
-		Route.PostAction.Logout => AuthHandler.logout!(context.sessionStore)
+		Route.PostAction.Login => Err(AppError.Forbidden)
+		Route.PostAction.Logout if Authentication.Mode.is_development(context.authMode) =>
+			AuthHandler.logout!(context.sessionStore)
+		Route.PostAction.Logout => Err(AppError.Forbidden)
 		Route.PostAction.CreateTodo =>
 			TodoHandler.create!(request, context.todoStore)
 		Route.PostAction.DeleteTodo(id) =>

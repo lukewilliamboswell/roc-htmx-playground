@@ -15,7 +15,7 @@ SessionHandler := [].{
 
 	CookieAction := [Find(Session.Id), CreateGuest]
 
-	FindAction(err) := [Use(Session), CreateGuest, FindFailure(err)]
+	FindAction(err) := [Use(Session), CreateGuest, Inactive, FindFailure(err)]
 
 	cookie_action : Try(Session.Id, cookie_err) -> CookieAction
 	cookie_action = |parsed_id|
@@ -24,17 +24,18 @@ SessionHandler := [].{
 			Err(_) => CookieAction.CreateGuest
 		}
 
-	find_action : Try(Session, [SessionNotFound, ..err]) -> FindAction([SessionNotFound, ..err])
+	find_action : Try(Session, Session.FindError(err)) -> FindAction(err)
 	find_action = |found|
 		match found {
 			Ok(session) => FindAction.Use(session)
-			Err(SessionNotFound) => FindAction.CreateGuest
-			Err(error) => FindAction.FindFailure(error)
+			Err(Session.FindError.NotFound) => FindAction.CreateGuest
+			Err(Session.FindError.Inactive) => FindAction.Inactive
+			Err(Session.FindError.StoreFailure(error)) => FindAction.FindFailure(error)
 		}
 
 	resolve! : Server.Request, store => Try(State, AppError)
 		where [
-			store.find! : store, Session.Id => Try(Session, [SessionNotFound, ..find_err]),
+			store.find! : store, Session.Id => Try(Session, Session.FindError(find_err)),
 			store.create! : store => Try(Session.Id, create_err),
 		]
 	resolve! = |request, store|
@@ -42,7 +43,7 @@ SessionHandler := [].{
 
 	resolve_from_id! : Try(Session.Id, cookie_err), store => Try(State, AppError)
 		where [
-			store.find! : store, Session.Id => Try(Session, [SessionNotFound, ..find_err]),
+			store.find! : store, Session.Id => Try(Session, Session.FindError(find_err)),
 			store.create! : store => Try(Session.Id, create_err),
 		]
 	resolve_from_id! = |parsed_id, store| {
@@ -53,6 +54,7 @@ SessionHandler := [].{
 				match SessionHandler.find_action(found) {
 					FindAction.Use(session) => Ok({ session, setCookie: False })
 					FindAction.CreateGuest => new_guest!(store)
+					FindAction.Inactive => Err(AppError.Unauthorized)
 					FindAction.FindFailure(error) => Err(AppError.from(error))
 				}
 			}
@@ -83,12 +85,17 @@ expect match SessionHandler.cookie_action(Err(InvalidCookie)) {
 	_ => False
 }
 
-expect match SessionHandler.find_action(Err(SessionNotFound)) {
+expect match SessionHandler.find_action(Err(Session.FindError.NotFound)) {
 	SessionHandler.FindAction.CreateGuest => True
 	_ => False
 }
 
-expect match SessionHandler.find_action(Err(DatabaseUnavailable)) {
+expect match SessionHandler.find_action(Err(Session.FindError.Inactive)) {
+	SessionHandler.FindAction.Inactive => True
+	_ => False
+}
+
+expect match SessionHandler.find_action(Err(Session.FindError.StoreFailure(DatabaseUnavailable))) {
 	SessionHandler.FindAction.FindFailure(DatabaseUnavailable) => True
 	_ => False
 }

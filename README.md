@@ -1,99 +1,129 @@
-# Roc + htmx playground
+# Enquiry CRM
 
-A small server-rendered application for exploring how
-[Roc](https://www.roc-lang.org), [htmx](https://htmx.org), and SQLite fit
-together. It goes beyond a minimal example with typed routing, forms, sessions,
-database adapters, static assets, and focused htmx interactions.
+A focused, server-rendered CRM for capturing company enquiries, the people
+behind them, and accountable follow-up work. It is implemented in
+[Roc](https://www.roc-lang.org) with SQLite and progressively enhanced HTML.
 
-![The Roc and htmx playground homepage](assets/app-home.png)
+The current vertical slice supports:
 
-The playground includes:
+- active workspace members acting through typed sessions;
+- searchable company and person records;
+- duplicate review before company or person creation;
+- concurrency-safe edits with record revisions;
+- optional company association and multiple labeled email/phone methods;
+- company-scoped person capture; and
+- company/person follow-up tasks grouped as overdue, due today, or upcoming in
+  the workspace timezone.
 
-- task creation, filtering, status updates, and deletion;
-- registration, login, and shared session-aware navigation;
-- a server-rendered task hierarchy;
-- a sortable, paginated, editable data table with CSV export; and
-- native static-file serving for responsive images and SVG icons.
-
-The application uses modern Roc syntax,
-[basic-webserver 0.14.0](https://github.com/roc-lang/basic-webserver/releases/tag/0.14.0),
-and the vendored
-[HTMX 4.0.0-beta6](https://github.com/bigskysoftware/htmx/releases/tag/v4.0.0-beta6)
-browser build.
+The current implemented delivery boundary is in
+[docs/product/10-slice-company-enquiry.md](docs/product/10-slice-company-enquiry.md).
+The complete product design remains in
+[docs/product/00-full-design-minimal-crm.md](docs/product/00-full-design-minimal-crm.md).
+The next proposed delivery boundary is
+[docs/product/11-slice-opportunity-qualification.md](docs/product/11-slice-opportunity-qualification.md).
 
 ## Quick start
 
 Install `roc` and `sqlite3`, then run:
 
 ```sh
-roc scripts/tasks.roc build
-DB_PATH=dist/playground.db ./dist/roc-htmx-playground
-```
-
-Open <http://127.0.0.1:8000>.
-
-The build command assembles the executable, sample database, generated CSS,
-vendored htmx runtime, images, and icons under `dist/`. For a validated
-edit-and-run cycle, use:
-
-```sh
 roc scripts/tasks.roc dev
 ```
 
-Delete `dist/playground.db` before building if you want a fresh copy of the
-sample data. Set `ASSET_PATH` to override the default `dist/assets` static root
-when embedding the server in another deployment layout.
+Open <http://127.0.0.1:8000>. The development task validates the application,
+recreates the disposable database from the checked-in schema and fixtures,
+builds the assets, sets `TZ=Australia/Melbourne` to match the bootstrap
+workspace, and starts the server. Any local development data is discarded each
+time the task starts.
+
+To recreate the database without starting the server:
+
+```sh
+roc scripts/tasks.roc reset-db
+```
+
+`db/migrations/` contains the versioned schema and `db/test-fixtures.sql`
+contains representative development/test records. Production databases are
+created and maintained with the bundled `enquiry-crm-admin` executable.
 
 ## Development
 
-The repository includes a Roc task runner, so no npm or Make installation is
-needed:
-
 ```sh
-# Format, validate, build, and serve a development build
-roc scripts/tasks.roc dev
-
-# Assemble a development binary and all runtime files without serving
-roc scripts/tasks.roc build
-
-# Run the same generated-CSS, formatting, type, unit, and integration checks as CI
+# Generated CSS, formatting, type checking, pure tests, and fresh-SQL integration tests
 roc scripts/tasks.roc check
 
-# Rebuild CSS once, or continuously while editing the design system
+# Chromium journeys against an isolated database and server on port 8010
+roc scripts/tasks.roc setup
+roc scripts/tasks.roc test-e2e
+
+# Everything above in one verification command (after setup)
+roc scripts/tasks.roc check-all
+
+# Build the executable and runtime assets under dist/
+roc scripts/tasks.roc build
+
+# Rebuild generated CSS once or continuously
 roc scripts/tasks.roc css
 roc scripts/tasks.roc css-watch
 ```
 
+`roc scripts/tasks.roc help` lists every project task. npm remains the locked
+dependency installer for Playwright, but `package.json` does not define a
+second task interface.
+
 The task runner downloads and verifies the pinned standalone Tailwind CSS CLI
-under `.tools/`. Tailwind utilities are centralized as semantic attributes in
-`src/Design.roc`; views consume those attributes instead of assembling class
-strings throughout the application.
+under `.tools/`. Tailwind class strings live only in `src/Design.roc`; views
+consume semantic design attributes.
+
+The Playwright suite lives under `tests/`. It resets only
+`test-results/playwright.db`, builds the current source, and owns port 8010, so
+it does not disturb the development database or a server on port 8000. The
+suite asserts behavior and accessible UI text; it does not use screenshot
+baselines. Failure traces are retained under `test-results/`.
 
 ## Architecture
 
-The code is organized into typed feature slices:
+Each CRM feature follows a typed vertical slice:
 
-- domain modules define validated values and use cases;
-- handlers translate HTTP input into domain values and responses;
-- stores isolate SQLite queries and storage conversion;
-- views render typed models into HTML; and
-- `src/main.roc` composes dependencies and dispatches typed routes.
+```text
+Route -> main dispatch -> Handler -> Domain
+                              |-> Store -> SQLite
+                              `-> View  -> HTML
+```
 
-See [architecture.md](architecture.md) for the design, alternatives considered,
-and evidence gathered during the refactor.
+External strings are parsed in handlers or routing, domain modules own
+validated values and pure decisions, stores own SQL/storage conversion, and
+`src/main.roc` is the composition root. The application opens one shared SQLite
+pool and loads the single configured workspace at startup.
 
-The server opens one SQLite connection pool during initialization and shares it
-with request handlers through immutable application context. It mounts the
-assembled `dist/assets/` directory through basic-webserver's native static-file
-support, including MIME handling, file transfer, and public cache headers.
-Checked-in asset sources and licenses are documented in
-[assets/README.md](assets/README.md).
+Legacy playground routes remain directly addressable while the refactor is
+incremental, but they are no longer part of the product navigation. See
+[architecture.md](architecture.md) for the design rationale and evidence.
 
-For production deployment, put the application behind a reverse proxy such as
-Caddy or nginx to add TLS and Brotli or gzip compression.
+For deployment, provide:
 
-## Contributing
+```sh
+DB_PATH=/path/to/crm.sqlite
+ASSET_PATH=/path/to/assets
+PUBLIC_ORIGIN=https://machine-name.tailnet-name.ts.net
+PORT=8000
+TZ=Australia/Melbourne
+```
 
-Pull requests and experiments are welcome. CI runs
-`roc scripts/tasks.roc check` to verify generated CSS, formatting,
-type-checking, unit tests, and SQLite integration tests.
+`TZ` must exactly match the timezone stored in the workspace so due-date
+grouping and local-to-UTC conversion cannot silently use the host timezone.
+The server always binds to `127.0.0.1`. A loopback HTTP `PUBLIC_ORIGIN` enables
+development login; an HTTPS origin requires Tailscale Serve's verified login
+header, maps that email to an active pre-provisioned member, and disables the
+development login and registration routes. Other HTTP origins are rejected.
+
+The supported production procedure, release workflow, member administration,
+systemd hardening, and Tailscale access policy are documented in
+[docs/deployment/digitalocean-tailscale.md](docs/deployment/digitalocean-tailscale.md).
+
+Production releases are x64 Linux bundles identified by the commit's UTC
+timestamp and 12-character Git SHA. The manually triggered release workflow
+derives that immutable release ID, extracts and installs the bundle into the
+production filesystem layout, runs the browser and authentication suites
+against that exact release, and creates the Git tag only after those checks
+pass.

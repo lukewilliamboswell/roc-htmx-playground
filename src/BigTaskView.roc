@@ -8,9 +8,12 @@ import Route
 import Session
 import Web
 
-BigTaskTarget := [Body].{
+BigTaskTarget := [Results].{
 	to_selector : BigTaskTarget -> Str
-	to_selector = |_| "body"
+	to_selector = |_| "#big-task-results"
+
+	to_id : BigTaskTarget -> Str
+	to_id = |_| "big-task-results"
 }
 
 BigTaskView :: [].{
@@ -26,7 +29,9 @@ BigTaskView :: [].{
 		field : BigTask.Field,
 		label : Str,
 		value : Str,
+		original : Str,
 		validation : Str,
+		version : BigTask.Version,
 	}
 
 	page : PageModel -> Html.Node
@@ -44,8 +49,7 @@ BigTaskView :: [].{
 					],
 					[Html.text("Download CSV")],
 				),
-				table(model),
-				pagination(model),
+				results(model),
 			],
 		)
 
@@ -56,6 +60,16 @@ BigTaskView :: [].{
 			BigTask.Field.CustomerReferenceField => input_editor(model, "text")
 			BigTask.Field.DateCreatedField => input_editor(model, "date")
 		}
+
+	results : PageModel -> Html.Node
+	results = |model|
+		Html.div(
+			[
+				Attribute.id(BigTaskTarget.to_id(BigTaskTarget.Results)),
+				Web.hx_history_element,
+			],
+			[table(model), pagination(model)],
+		)
 }
 
 table : BigTaskView.PageModel -> Html.Node
@@ -138,13 +152,11 @@ sort_header = |label, column, model| {
 			attribute("aria-sort", aria_sort),
 		],
 		[
-			Html.button(
+			Web.link(
+				Route.Location.BigTasks(next_query),
 				[
-					Attribute.type("button"),
 					Design.sortableHeaderButton,
-					Web.hx_get(Route.Location.BigTasks(next_query)),
-					Web.hx_target(BigTaskTarget.Body),
-				],
+				].concat(results_navigation(Route.Location.BigTasks(next_query))),
 				[
 					Html.text(label),
 					Html.span(
@@ -205,7 +217,7 @@ page_link = |label, model, target, enabled|
 		}
 		Web.link(
 			Route.Location.BigTasks(query),
-			[Design.paginationLink],
+			[Design.paginationLink].concat(results_navigation(Route.Location.BigTasks(query))),
 			[Html.text(label)],
 		)
 	} else {
@@ -232,7 +244,9 @@ row = |task|
 						field: BigTask.Field.CustomerReferenceField,
 						label: "Customer reference for task ${task.referenceId}",
 						value: task.customerReferenceId.to_str(),
+						original: task.customerReferenceId.to_str(),
 						validation: "",
+						version: task.version,
 					}),
 				],
 			),
@@ -244,7 +258,9 @@ row = |task|
 						field: BigTask.Field.DateCreatedField,
 						label: "Date created for task ${task.referenceId}",
 						value: task.dateCreated.to_str(),
+						original: task.dateCreated.to_str(),
 						validation: "",
+						version: task.version,
 					}),
 				],
 			),
@@ -257,7 +273,9 @@ row = |task|
 						field: BigTask.Field.StatusField,
 						label: "Status for task ${task.referenceId}",
 						value: task.status.to_str(),
+						original: task.status.to_str(),
 						validation: "",
+						version: task.version,
 					}),
 				],
 			),
@@ -272,13 +290,26 @@ input_editor = |model, kind|
 		editor_attributes(model),
 		[
 			Html.input([
-				Attribute.name(model.field.form_name()),
-				Attribute.type(kind),
-				Attribute.value(model.value),
-				attribute("aria-label", model.label),
-				Design.input,
+				Attribute.type("hidden"),
+				Attribute.name("version"),
+				Attribute.value(model.version.to_str()),
 			]),
-			error_message(model.validation),
+			Html.input([
+				Attribute.type("hidden"),
+				Attribute.name("original"),
+				Attribute.value(model.original),
+			]),
+			Html.input(
+				[
+					Attribute.id(editor_control_id(model)),
+					Attribute.name(model.field.form_name()),
+					Attribute.type(kind),
+					Attribute.value(model.value),
+					attribute("aria-label", model.label),
+					Design.input,
+				].concat(validation_attributes(model)),
+			),
+			error_message(model),
 		],
 	)
 
@@ -287,12 +318,23 @@ status_editor = |model|
 	Html.form(
 		editor_attributes(model),
 		[
+			Html.input([
+				Attribute.type("hidden"),
+				Attribute.name("version"),
+				Attribute.value(model.version.to_str()),
+			]),
+			Html.input([
+				Attribute.type("hidden"),
+				Attribute.name("original"),
+				Attribute.value(model.original),
+			]),
 			Html.select(
 				[
+					Attribute.id(editor_control_id(model)),
 					Attribute.name(model.field.form_name()),
 					attribute("aria-label", model.label),
 					Design.select,
-				],
+				].concat(validation_attributes(model)),
 				[
 					status_option(BigTask.Status.Raised, model.value),
 					status_option(BigTask.Status.Completed, model.value),
@@ -301,7 +343,7 @@ status_editor = |model|
 					status_option(BigTask.Status.InProgress, model.value),
 				],
 			),
-			error_message(model.validation),
+			error_message(model),
 		],
 	)
 
@@ -309,6 +351,7 @@ editor_attributes : BigTaskView.EditorModel -> List(Attribute.Attribute)
 editor_attributes = |model|
 	[
 		Web.hx_put(Route.PutAction.UpdateBigTask(model.id, model.field)),
+		Web.hx_sync_latest,
 		attribute(
 			"hx-trigger",
 			match model.field {
@@ -332,13 +375,50 @@ status_option = |status, selected| {
 	)
 }
 
-error_message : Str -> Html.Node
-error_message = |message|
-	if message.is_empty() {
-		Html.div([], [])
+validation_attributes : BigTaskView.EditorModel -> List(Attribute.Attribute)
+validation_attributes = |model|
+	[
+		attribute("aria-describedby", editor_error_id(model)),
+		attribute(
+			"aria-invalid",
+			if model.validation.is_empty() {
+				"false"
+			} else {
+				"true"
+			},
+		),
+	]
+
+error_message : BigTaskView.EditorModel -> Html.Node
+error_message = |model|
+	if model.validation.is_empty() {
+		Html.div(
+			[
+				Attribute.id(editor_error_id(model)),
+				attribute("aria-live", "polite"),
+			],
+			[],
+		)
 	} else {
-		Html.div([Design.validation], [Html.text(message)])
+		Html.div(
+			[
+				Attribute.id(editor_error_id(model)),
+				attribute("aria-live", "polite"),
+				Design.validation,
+			],
+			[Html.text(model.validation)],
+		)
 	}
+
+editor_control_id : BigTaskView.EditorModel -> Str
+editor_control_id = |model| "${editor_id_prefix(model)}-control"
+
+editor_error_id : BigTaskView.EditorModel -> Str
+editor_error_id = |model| "${editor_id_prefix(model)}-error"
+
+editor_id_prefix : BigTaskView.EditorModel -> Str
+editor_id_prefix = |model|
+	"big-task-${BigTask.Id.to_str(model.id)}-${BigTask.Field.to_url_segment(model.field)}"
 
 empty_row : () -> Html.Node
 empty_row = ||
@@ -361,6 +441,15 @@ header_cell = |value|
 
 table_cell : Str -> Html.Node
 table_cell = |value| Html.td([Design.tableCell], [Html.text(value)])
+
+results_navigation : Route.Location -> List(Attribute.Attribute)
+results_navigation = |location|
+	[
+		Web.hx_get(location),
+		Web.hx_target(BigTaskTarget.Results),
+		Web.hx_select(BigTaskTarget.Results),
+		Web.hx_swap(Web.Swap.OuterHtml),
+	]
 
 attribute : Str, Str -> Attribute.Attribute
 attribute = |name, value| Attribute.attribute(name, value)

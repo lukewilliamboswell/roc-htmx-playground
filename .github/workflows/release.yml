@@ -1,0 +1,189 @@
+name: Release
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  release:
+    name: Build and test Linux bundle
+    runs-on: ubuntu-24.04
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Derive release identity
+        run: |
+          release_id=$(ci/release_id.sh "$GITHUB_SHA")
+          release_tag="release-$release_id"
+          if git ls-remote --exit-code --tags origin "refs/tags/$release_tag" >/dev/null 2>&1; then
+            echo "Tag $release_tag already exists." >&2
+            exit 2
+          fi
+          printf 'RELEASE_ID=%s\n' "$release_id" >> "$GITHUB_ENV"
+          printf 'RELEASE_TAG=%s\n' "$release_tag" >> "$GITHUB_ENV"
+          printf 'RELEASE_NAME=enquiry-crm-%s-x64-linux\n' "$release_id" >> "$GITHUB_ENV"
+
+      - name: Install Roc
+        uses: roc-lang/setup-roc@cbe782d6f165b89c87d99f50a59ac4f5f73b4427
+        with:
+          version: nightly-new-compiler
+          nightly-tag: nightly-2026-July-29-fe0ab22
+
+      - name: Install Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install browser dependencies
+        run: roc scripts/tasks.roc setup-ci
+
+      - name: Check source and integration tests
+        run: roc scripts/tasks.roc check
+
+      - name: Build identified x64 Linux bundle
+        run: roc scripts/tasks.roc release
+
+      - name: Extract and inspect release artifact
+        run: |
+          archive="dist/release/${RELEASE_NAME}.tar.gz"
+          test -f "$archive"
+          mkdir -p "$RUNNER_TEMP/enquiry-crm-release"
+          tar -xzf "$archive" -C "$RUNNER_TEMP/enquiry-crm-release"
+          bundle_root="$RUNNER_TEMP/enquiry-crm-release/$RELEASE_NAME"
+          test -x "$bundle_root/bin/enquiry-crm"
+          test -x "$bundle_root/bin/enquiry-crm-admin"
+          test -f "$bundle_root/assets/styles.css"
+          test -f "$bundle_root/deploy/enquiry-crm.service"
+          test -f "$bundle_root/deploy/enquiry-crm.env.example"
+          test "$(sed -n '1p' "$bundle_root/RELEASE_ID")" = "$RELEASE_ID"
+          file "$bundle_root/bin/enquiry-crm" | grep -F 'ELF 64-bit'
+          file "$bundle_root/bin/enquiry-crm-admin" | grep -F 'ELF 64-bit'
+          printf 'BUNDLE_ROOT=%s\n' "$bundle_root" >> "$GITHUB_ENV"
+
+      - name: Exercise bundled administration command
+        run: |
+          "$BUNDLE_ROOT/bin/enquiry-crm-admin" bootstrap \
+            --db "$RUNNER_TEMP/admin-ci.sqlite" \
+            --workspace-name "Bundle Test" \
+            --currency AUD \
+            --timezone Australia/Melbourne \
+            --member-name "Bundle Owner" \
+            --member-email owner@example.com
+          "$BUNDLE_ROOT/bin/enquiry-crm-admin" migrate \
+            --db "$RUNNER_TEMP/admin-ci.sqlite"
+          "$BUNDLE_ROOT/bin/enquiry-crm-admin" schema check \
+            --db "$RUNNER_TEMP/admin-ci.sqlite"
+          "$BUNDLE_ROOT/bin/enquiry-crm-admin" members list \
+            --db "$RUNNER_TEMP/admin-ci.sqlite"
+          if "$BUNDLE_ROOT/bin/enquiry-crm-admin" members add \
+            --db "$RUNNER_TEMP/admin-ci.sqlite" \
+            --name "Invalid Member" \
+            --email owner@; then
+            echo "The bundled admin command accepted an invalid member email." >&2
+            exit 1
+          fi
+
+      - name: Install bundle and systemd unit explicitly
+        run: |
+          sudo adduser \
+            --system \
+            --group \
+            --home /var/lib/enquiry-crm \
+            --no-create-home \
+            enquiry-crm
+          sudo install -d -o root -g root -m 0755 /opt/enquiry-crm/releases
+          sudo install -d -o root -g root -m 0755 /etc/enquiry-crm
+          sudo install -d -o enquiry-crm -g enquiry-crm -m 0700 /var/lib/enquiry-crm
+          sudo cp -R "$BUNDLE_ROOT" "/opt/enquiry-crm/releases/$RELEASE_ID"
+          sudo chown -R root:root "/opt/enquiry-crm/releases/$RELEASE_ID"
+          sudo ln -s "/opt/enquiry-crm/releases/$RELEASE_ID" /opt/enquiry-crm/current
+          sudo install -o root -g root -m 0644 \
+            "$BUNDLE_ROOT/deploy/enquiry-crm.service" \
+            /etc/systemd/system/enquiry-crm.service
+          sudo systemctl daemon-reload
+          test "$(systemctl is-active enquiry-crm.service || true)" != active
+          test "$(systemctl is-enabled enquiry-crm.service || true)" != enabled
+
+      - name: Configure installed service with browser fixtures
+        run: |
+          sudo -u enquiry-crm sqlite3 /var/lib/enquiry-crm/playwright.sqlite \
+            ".read $GITHUB_WORKSPACE/db/migrations/001_initial.sql"
+          sudo -u enquiry-crm sqlite3 /var/lib/enquiry-crm/playwright.sqlite \
+            ".read $GITHUB_WORKSPACE/db/test-fixtures.sql"
+          printf '%s\n' \
+            'DB_PATH=/var/lib/enquiry-crm/playwright.sqlite' \
+            'ASSET_PATH=/opt/enquiry-crm/current/assets' \
+            'PUBLIC_ORIGIN=http://127.0.0.1:8010' \
+            'PORT=8010' \
+            'TZ=Australia/Melbourne' |
+            sudo tee /etc/enquiry-crm/enquiry-crm.env >/dev/null
+          sudo chmod 0600 /etc/enquiry-crm/enquiry-crm.env
+          systemd-analyze verify /etc/systemd/system/enquiry-crm.service
+          sudo systemctl start enquiry-crm.service
+          curl --fail --retry 20 --retry-connrefused --retry-delay 1 \
+            http://127.0.0.1:8010/healthz
+
+      - name: Run browser journeys against installed bundle
+        env:
+          E2E_BASE_URL: http://127.0.0.1:8010
+        run: roc scripts/tasks.roc test-browser
+
+      - name: Run production authentication checks against bundled files
+        env:
+          ENQUIRY_CRM_EXECUTABLE: /opt/enquiry-crm/current/bin/enquiry-crm
+          ENQUIRY_CRM_ASSET_PATH: /opt/enquiry-crm/current/assets
+        run: roc scripts/tasks.roc test-auth
+
+      - name: Rehearse documented activation and migration
+        run: |
+          sudo systemctl stop enquiry-crm.service
+          sudo install -d -o root -g root -m 0700 /var/backups/enquiry-crm
+          sudo sqlite3 /var/lib/enquiry-crm/playwright.sqlite \
+            ".backup '/var/backups/enquiry-crm/pre-upgrade.sqlite'"
+          test "$(sudo sqlite3 /var/backups/enquiry-crm/pre-upgrade.sqlite 'PRAGMA integrity_check;')" = ok
+          temporary_link="/opt/enquiry-crm/.current-$RELEASE_ID"
+          sudo ln -s "/opt/enquiry-crm/releases/$RELEASE_ID" "$temporary_link"
+          sudo mv -Tf "$temporary_link" /opt/enquiry-crm/current
+          sudo install -o root -g root -m 0644 \
+            "/opt/enquiry-crm/current/deploy/enquiry-crm.service" \
+            /etc/systemd/system/enquiry-crm.service
+          sudo systemctl daemon-reload
+          sudo -u enquiry-crm /opt/enquiry-crm/current/bin/enquiry-crm-admin migrate \
+            --db /var/lib/enquiry-crm/playwright.sqlite
+          sudo -u enquiry-crm /opt/enquiry-crm/current/bin/enquiry-crm-admin schema check \
+            --db /var/lib/enquiry-crm/playwright.sqlite
+          sudo systemctl start enquiry-crm.service
+          curl --fail --retry 20 --retry-connrefused --retry-delay 1 \
+            http://127.0.0.1:8010/healthz
+
+      - name: Generate and verify release checksum
+        run: |
+          cd dist/release
+          sha256sum "${RELEASE_NAME}.tar.gz" > SHA256SUMS
+          sha256sum --check SHA256SUMS
+
+      - name: Tag tested commit
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag --annotate "$RELEASE_TAG" --message "Enquiry CRM $RELEASE_ID" "$GITHUB_SHA"
+          git push origin "$RELEASE_TAG"
+
+      - name: Publish tested release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$RELEASE_TAG" \
+            "dist/release/${RELEASE_NAME}.tar.gz" \
+            dist/release/SHA256SUMS \
+            --generate-notes \
+            --verify-tag

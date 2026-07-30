@@ -496,6 +496,331 @@ display text, and error explanations are naturally strings. Types are most
 valuable for identifiers, validated values, finite choices, and values that
 would be dangerous to interchange.
 
+## HTMX interaction architecture
+
+HTMX enhances the application's HTML navigation and forms; it does not define
+a second client-side application model. Each interaction must therefore start
+with a semantic HTML control and a server-rendered representation of the
+resulting application state.
+
+The application currently vendors HTMX `4.0.0-beta6`. Version-specific event,
+status, focus, and history behavior is provisional until HTMX 4 is stable;
+helpers name those assumptions so an upgrade has a bounded review surface.
+
+Interaction policy belongs in typed helpers only after a feature establishes
+the user intent it represents. Browser tests cover the relevant failure mode,
+including concurrency, history, accessibility, or progressive enhancement as
+applicable. This prevents convenient HTMX attributes from becoming implicit
+application-wide behavior.
+
+### Semantic controls remain the baseline
+
+A navigable state uses an anchor with a typed `href`. HTMX may add a faster
+request and bounded swap to that anchor, but disabling JavaScript, opening the
+link in a new tab, or reloading its URL must still produce a useful full page.
+Mutation controls use forms and buttons rather than pretending to be links.
+Where HTML supports the method, the form also declares its native action and
+method; methods such as `PUT` still require enhancement or a deliberate POST
+fallback.
+
+A full-page form presents one primary submit action and an adjacent secondary
+Cancel link. Cancel is navigation, not a mutation: it uses a typed location and
+returns to the record being edited or the collection that owns a new record.
+This escape route must work without browser scripting and must not submit or
+discard data through an action endpoint.
+
+When a parent record launches a creation form, carry that origin separately
+from editable relationship fields. Back and Cancel return to the validated
+origin through validation and confirmation responses even if the member
+changes the new record's relationships. Never infer navigation context from a
+mutable selection.
+
+Do not introduce a shared `hx_nav` helper that silently chooses a global target
+and swap strategy. `Web` owns typed protocol primitives; the feature view
+composes target, selection, and swap attributes beside the region whose
+ownership it understands. Ordinary links do not need HTMX enhancement when a
+full navigation already serves the task well.
+
+### A swap target owns one coherent state
+
+Target the smallest stable region that completely owns the state changed by an
+interaction. A live search owns its results fragment. Sorting and pagination
+jointly own the results collection and its navigation controls. Page chrome,
+client-only state, focus, and unrelated regions are outside that ownership.
+
+The server may still return the canonical full page. `hx-select` can select the
+owned region from that response, avoiding a second partial-rendering branch
+until measured response size or rendering cost justifies one.
+This trades some response bytes for one representation and reliable direct
+navigation.
+
+### Meaningful state participates in browser history
+
+If users may reasonably refresh, bookmark, share, or traverse back to a state,
+that state belongs in the URL. Discrete sorting and pagination navigation push
+their typed query URL. The stable results region is the history element so
+history traversal restores that region without replacing unrelated document
+state. A document has at most one `hx-history-elt`. HTMX 4 refetches a traversed
+URL and selects that same stable region, so every pushed URL must directly
+return a complete page containing the matching history element and a coherent
+document title. Restoration must tolerate a cache miss and must not depend on
+client-only state.
+
+Ephemeral UI state does not create history entries merely because HTMX can do
+so. Rapidly changing but meaningful filters use the canonical typed GET query
+URL and replace the current URL rather than pushing one entry per keystroke.
+The server reconstructs both controls and results from every represented URL.
+Do not put secrets, credentials, or unnecessarily identifying values into
+history URLs; sensitive workflow state stays server-side behind an opaque,
+authorized identifier or does not participate in browser history.
+
+### Concurrent requests express user intent
+
+Debouncing controls request frequency but does not determine which in-flight
+response is authoritative. Derived, read-only UI such as live search uses
+`Web.hx_sync_latest`, which maps the user-facing rule "newest input wins" to
+HTMX's `this:replace` synchronization. This prevents an older response from
+replacing newer input under uneven latency.
+
+Synchronization is a browser response policy, not a write-serialization
+guarantee. An aborted request may already have committed. Autosave therefore
+submits the rendered record version and original field value. In one immediate
+transaction, the store permits a stale record version only when that field is
+still unchanged, then compares the field and increments the record version.
+This lets independent field editors proceed without allowing two tabs to
+silently overwrite the same field. A stale field returns `409 Conflict` with
+the submitted value intact and the current comparison state, so the user can
+review and retry.
+
+Do not apply latest-wins where every request matters. Give each synchronization
+policy a name that states its intent, and back mutations with a server-side
+invariant. Browser synchronization cannot provide exactly-once execution.
+
+### Form fragments own validation and focus
+
+When a form or field editor replaces itself, its response must contain the
+submitted value, validation state, and accessible relationship between the
+control and its message. Controls use stable IDs so HTMX can restore focus
+after replacement. `aria-invalid` reflects the rendered validation state and
+`aria-describedby` points to a stable `aria-live="polite"` message region.
+
+Inline validation and autosave are latest-wins interactions: an older
+validation response must not overwrite a newer value.
+
+HTMX 4 swaps error responses by default, unlike HTMX 2. A validation response
+may therefore use `422` only when its HTML is shaped for the declared target.
+Unexpected server errors must not replace a local editor with a full-page
+error representation.
+
+Full-page forms use the same recovery principle at page scale. An invalid
+submission re-renders every submitted value, places a stable focusable alert
+before the form, and moves focus to that alert. Field-level messages use stable
+IDs and `aria-describedby` only when the server can identify the field that
+failed; a general error must not be falsely associated with one control.
+Native constraint validation may complement this response but does not replace
+server validation.
+
+Use native constraints only for stable invariants the browser can express
+accurately. Required controls show a visible cue as well as their semantic
+attribute. Values that improve a record without being essential remain
+optional; explanatory copy may state why they are useful, but the form must not
+turn that guidance into an extra gate.
+
+### Contextual mutations defend the action at three layers
+
+A mutation initiated inside a record context keeps the member in that context.
+Its native POST redirects to the typed containing location, while HTMX replaces
+only the stable section that owns the changed state. The native destination is
+the contract.
+
+The submitting control exposes local request status. A named first-wins policy
+may drop repeated browser submissions while one page request is pending, but it
+does not make retries safe. Prefer idempotent state transitions such as
+`open -> completed` guarded by `WHERE status = 'open'`. A non-idempotent
+operation instead needs a client operation key that the server stores with its
+result and replays for duplicate submissions.
+
+HTMX 4 error responses have an explicit destination. Full error pages expose a
+stable `Web.ErrorTarget.RequestError` summary; enhanced mutation forms use
+`Web.hx_errors_to` to place expected `400`, `403`, `404`, `409`, `422`, `429`,
+and `5xx` summaries in a dedicated local `aria-live` region. The normal
+interaction state remains in place for correction or retry. Do not use one
+blanket `4xx` policy: authentication, validation, conflict, missing context,
+and rate limiting require different user recovery even when some share a
+render target.
+
+An expired session during an enhanced request must navigate the whole window to
+the typed login location, never swap a login document into a local fragment.
+The server detects `HX-Request: true` and returns `200` with `HX-Redirect`;
+ordinary unauthorized requests remain `401`. Ordinary successful form
+redirects remain `303 See Other`. HTMX response headers are emitted on a
+successful response because error-status header processing is not a navigation
+contract.
+
+### Browser code closes only browser-owned gaps
+
+Use a JavaScript event boundary only when neither semantic HTML nor an HTTP
+response can represent the outcome. Connection loss and client-side timeout
+meet that test. They create an uncertain outcome: lack of a response does not
+prove the server failed to commit. An enhanced form opts in with
+`Web.network_errors_to(target)`; `interactions.js` listens for HTMX 4's
+`htmx:error` event and writes a persistent alert into that form's existing
+local feedback region. Its copy tells the user to check current state before
+retrying; the retry must be safe under the mutation's idempotency rule. A later
+retry clears the transport alert before issuing the request. Server-rendered
+success, validation, and operational error markup remain authoritative.
+
+Do not generalize this boundary into a client state layer. In particular, we
+reject global spinners and transient success/error toasts as the default:
+
+- a global spinner cannot accurately communicate which of several concurrent
+  requests is pending;
+- fast local interactions should not make the whole application appear busy;
+- disappearing toasts are poor primary feedback for consequential CRM actions;
+  and
+- server-rendered inline state survives long enough to inspect, associate with
+  the initiating control, and test without JavaScript.
+
+An optional toast may be reconsidered for a genuinely cross-page,
+non-consequential notification, but it must not replace persistent inline
+feedback.
+
+### Enhanced HTML keeps ordinary web security boundaries
+
+HTMX requests are ordinary HTTP requests with untrusted client headers. Every
+unsafe method passes an explicit CSRF check before dispatch and repeats
+authorization for the target resource; `SameSite` cookies and `HX-Request` are
+defence in depth, not authorization. This application compares `Origin` (or a
+same-origin `Referer` fallback) with the request host. A reverse-proxy
+deployment must instead compare against a trusted configured external origin,
+and deployments that cannot reliably validate origin must add a synchronizer
+token.
+
+All dynamic values enter markup through contextual escaping such as
+`Html.text` and attribute constructors. Raw HTML is prohibited by default; a
+feature that genuinely accepts markup must sanitize it with a reviewed
+allowlist before rendering. Personalized HTML, whether a full document or an
+HTMX fragment, is `private, no-store` and carries the same CSP, referrer, and
+content-type protections.
+
+The current full-document response plus `hx-select` pattern gives one
+representation per URL. If an endpoint later negotiates full documents and
+fragments from request headers, it must declare the relevant `Vary` keys (for
+example `HX-Request`, plus any authentication or content negotiation inputs)
+or disable shared caching. A cache must never serve one member's fragment,
+permissions, or session state to another.
+
+### Removed controls need an explicit focus destination
+
+When a successful local mutation removes the control that held keyboard focus,
+the interaction restores orientation deliberately. The owning section exposes
+a stable, programmatically focusable heading and the source opts into
+`Web.focus_after_swap`.
+
+This is not a global "focus every target" rule. Live-search input and inline
+validation preserve focus through stable element IDs, while normal navigation
+uses the browser's document behavior. Programmatic post-swap focus is reserved
+for interactions that remove the active element and can name a nearby semantic
+anchor. Error responses keep focus in place and announce their local alert
+instead. Restored focus must retain a visible focus indicator and be scrolled
+into the viewport; suppressing focus scroll without another visibility
+guarantee is not acceptable.
+
+The owning region exposes `aria-busy` for the complete request lifetime when a
+delay can be perceived. Short local progress text uses `role="status"` with a
+polite live region; errors use a persistent alert or error summary. Re-rendered
+validation keeps each message associated with its control, and a multi-field
+summary links to the affected controls rather than merely announcing an
+unactionable paragraph. These semantics supplement visible labels and status
+copy; they do not replace them.
+
+### Advanced techniques require product pressure
+
+Availability in the library is not sufficient reason to adopt a technique.
+
+| Technique | Default | Admission rule |
+| --- | --- | --- |
+| Semantic links and forms | Use | Every interaction starts with the native control and canonical typed URL that expresses its meaning. |
+| Bounded swaps | Use | The target is the smallest stable region that owns the complete changed state. |
+| Selecting from a canonical full page | Use until cost justifies a fragment | Prefer one representation and `hx-select` until measured response size or rendering cost justifies a dedicated fragment response. |
+| History updates | Use selectively | Push discrete navigation; replace rapidly changing but meaningful filter state; do neither for ephemeral presentation state. |
+| Request synchronization | Use named policies | Use latest-wins only for derived state and first-wins only for a guarded mutation. Every new strategy needs an adversarial concurrency test. |
+| Local indicators and errors | Use | Feedback belongs beside the initiating interaction and must survive long enough to inspect. HTTP and transport failures have separate owners. |
+| Focus management | Use selectively | Preserve stable focused controls; explicitly name a semantic destination only when a successful swap removes the active element. |
+| Out-of-band swaps or multi-target partials | Defer | Admit only when one server transition changes two tightly coupled representations already visible on the same page. Prefer enlarging one coherent target first. |
+| Polling, SSE, or WebSockets | Do not use by default | Use only for state that must change in an open page without member action, with a defined freshness target, stop condition, visibility behavior, and failure state. |
+| Optimistic mutation | Do not use by default | Consequential CRM state remains server-authoritative. Use only for a reversible, high-frequency action with measured latency pain and a tested rollback experience. |
+| Global request spinner | Rejected as a default | Concurrent local requests make one global busy state ambiguous. Use a local indicator where delay is perceptible. |
+| Transient toasts | Rejected as primary feedback | Consequential outcomes and errors require persistent inline evidence. A toast may supplement a genuinely cross-page, non-consequential notice. |
+| Client event bus or broad `HX-Trigger` use | Defer | Prefer response HTML. Admit an event only for browser-owned behavior or a truly decoupled consumer that cannot be represented by the response target. |
+| Global boosting or a shared navigation macro | Do not use | Enhance individual typed controls only after their target, selection, history, and fallback behavior are explicit. |
+| Infinite scrolling | Do not use for operational lists | CRM lists need knowable filters, counts, position, reload, and back behavior. Use typed, URL-addressable pagination unless observed usage proves otherwise. |
+| Preserving arbitrary DOM islands | Defer | Choose a smaller target first. Use preservation only for a named rich widget whose state cannot be server-rendered, with lifecycle tests across swaps and history. |
+
+Polling is especially inappropriate as a substitute for the work-list
+requirements. Due and overdue work is visible when a member opens or refreshes
+the CRM; timed external reminders are outside the minimal product. Likewise,
+an eventual long-running import would need explicit progress and cancellation
+requirements before any polling interval is chosen.
+
+### Consequential actions use preview and confirmation states
+
+Safeguards are proportional to consequence, scope, and reversibility. A
+low-impact reversible change may commit directly when its control states the
+outcome clearly and the resulting page offers a reliable undo. An irreversible,
+cross-record, bulk, privacy-sensitive, or hard-to-reconstruct action is a
+workflow, not button decoration, and uses a typed, navigable server-rendered
+preview.
+
+That preview:
+
+- states whether the action is reversible;
+- names the affected scope and shows dependent counts or representative records
+  when they materially change the decision;
+- presents any required choices before commitment;
+- keeps the confirm action visually distinct from cancel; and
+- remains usable without JavaScript.
+
+The commit rechecks authorization and any version, scope, or dependent-state
+assumption made by the preview. Its retry follows the operation's idempotency
+rule and the completed action is auditable. Do not use `hx-confirm` or a native
+confirm dialog as the only barrier when the decision needs dependent records,
+reassignment choices, merge field choices, or a privacy warning. Conversely,
+do not force every deletion or export through a heavyweight preview when a
+clear label, small known scope, reversibility, and undo make it safer and less
+error-prone to act directly.
+
+HTMX may enhance the server-rendered flow, but cancel, refresh, reload, and
+canonical submission remain coherent. A sensitive preview is authorized on
+every request, uses `private, no-store`, and does not leak its contents through
+the URL.
+
+### Empty states stay inside their owned representation
+
+Every full page and selected region renders its own empty state. The state
+keeps the section heading, explains the active scope or filter, and exposes the
+nearest useful action or broadening control. It must not rely on a client hook
+that runs only after a swap; direct requests, history restoration, and
+JavaScript-disabled submissions need the same explanation.
+
+### Interaction testing contract
+
+Browser tests exercise the failure mode that each interaction policy exists to
+prevent. The interaction suite covers JavaScript-disabled navigation and
+submission; uneven response latency; duplicate activation; two-tab stale
+writes; a commit whose response is lost; direct reload and history traversal;
+session expiry; forged `HX-Request` and cross-origin mutation headers; cache and
+security headers; validation association; and focus plus viewport restoration.
+Tests assert the user-visible failure and recovery rather than merely checking
+for HTMX attributes.
+
+Automated DOM assertions do not establish assistive-technology usability.
+Release checks for a new interaction pattern include keyboard-only operation,
+visible focus at normal and zoomed layouts, and a brief screen-reader pass over
+busy, status, validation, error, and post-swap focus announcements. Record
+manual findings beside the release or audit evidence rather than presenting
+them as enduring architecture.
+
 ## Suggested module dependency direction
 
 Roc intentionally disallows cyclic imports. We therefore design dependencies
@@ -658,6 +983,19 @@ Dedicated view models are useful when the screen needs data assembled from
 several domain types or needs presentation state such as validation messages,
 pagination, or selected controls.
 
+Page hierarchy is stable across features. Each full page has exactly one `h1`.
+A collection page puts its title and one page-level creation action before
+search and comparable rows. A detail page presents the record's highest-value
+summary before related collections and history. A form page states the action
+in its `h1`, then presents guidance, validation, fields, and actions in that
+order. Section-local actions remain visually and structurally scoped to their
+`h2` section rather than competing with the page purpose.
+
+Use tables for repeated records whose fields are compared across rows, with
+the record identifier rendered as a real link. Use cards and description lists
+for one record's summary. Do not make a whole table row imitate a link when an
+ordinary identifier anchor provides clearer keyboard and browser behavior.
+
 View models should remain typed:
 
 ```roc
@@ -670,6 +1008,24 @@ TodoView.PageModel := {
 
 Views generate URLs through typed routing helpers. They should not contain raw
 application paths or database representations.
+
+Promote repeated semantic controls to shared view primitives only after at
+least two feature views need the same contract. Such a primitive owns stable
+label association, required-state semantics, and baseline styling. The feature
+view still owns field-specific help, validation messages, request behavior, and
+swap boundaries so reuse does not erase interaction intent.
+
+Control IDs are stable and unique within the rendered document. A wire name is
+not automatically a safe DOM identity: when the same input vocabulary appears
+in repeated forms, the caller supplies a contextual ID while the primitive
+preserves the server-facing name. Labels, focus restoration, and fragment
+targets refer to that contextual identity.
+
+Layouts are mobile-first. The document itself does not scroll horizontally at
+the supported small viewport; actions wrap, controls fit their container, and
+cards collapse into one column. Intrinsically wide data such as a table owns
+its horizontal scrolling inside a labelled or otherwise understandable region
+instead of widening the whole page.
 
 ## Handler modules
 
@@ -804,6 +1160,12 @@ Keep platform-specific request and response details concentrated in
 `main.roc`, `Web.roc`, and small rendering helpers. Feature rules and
 repository APIs should not need broad changes.
 
+Because the pinned HTMX 4 build is a beta, an upgrade is an explicit
+compatibility change rather than a routine asset refresh. Review the release
+notes and vendored defaults, then rerun the adversarial browser suite for event
+names and payloads, status policies, history refetch, title/focus behavior,
+request cancellation, CSP compatibility, and the JavaScript-disabled baseline.
+
 ### Change the visual design
 
 Update `Design` and shared layout components. Feature views should use semantic
@@ -821,7 +1183,8 @@ Tests should follow the same boundaries:
   inline tests to cover authorization, status codes, redirects, cookies, and
   validation responses without performing I/O.
 - `src/test.roc` is the single effectful test application. It embeds the
-  canonical `test.sql`, creates an isolated temporary SQLite database, invokes
+  canonical `db/migrations/001_initial.sql` and `db/test-fixtures.sql`, creates an isolated
+  temporary SQLite database, invokes
   the real stores, and exits. It uses `basic-webserver`, not `basic-cli`,
   because the two platforms currently expose different SQLite APIs and the
   production stores use `basic-webserver`'s pooled `Sqlite.Db`.
@@ -886,44 +1249,48 @@ A module that merely renames another function without hiding details, enforcing
 a type boundary, or creating a useful seam adds navigation cost without adding
 architecture.
 
-## Architecture experiment and evaluation
+## CRM vertical slices
 
-The refactor that applies this guide is an architecture experiment. A
-successful compile or a cleaner-looking file tree is not enough to validate
-the design. We should evaluate whether the boundaries make realistic changes
-safer and easier.
+Product-facing slices follow the same request path:
 
-Before drawing conclusions, implement representative flows from more than one
-feature. Include at least:
-
-- a read-only full page;
-- an htmx fragment;
-- a validated mutation;
-- authentication or authorization;
-- a database query with typed identifiers and finite values; and
-- one use case whose pure decisions are exercised with simulated typed effect
-  outcomes and whose production adapter is exercised by the platform test.
-
-The first implementation experiment was completed in July 2026. Its results
-are evidence for the direction, not a claim that every future application must
-use exactly these modules.
-
-| Criterion | Question to answer | Evidence to collect | Result |
+| Slice | Domain | Persistence | HTTP and presentation |
 | --- | --- | --- | --- |
-| Type safety | Are page names, links, actions, IDs, statuses, and editable fields typed after boundary parsing? | Search results for raw paths and duplicated parsing; compiler errors from one deliberate type mismatch | **Validated.** Raw application paths occur in `Route.roc`; the native `/assets` mount remains an intentional platform-boundary string. Views receive typed IDs, statuses, fields, pages, locations, actions, and assets. |
-| Change locality | Does a feature change stay mostly within its domain, route, adapter, view, and handler modules? | Files changed for two representative feature changes | **Validated.** Todo and BigTask were implemented as independent domain/store/view/handler slices; shared changes were limited to `Route`, `Web`, `Http`, layout, and the composition root. |
-| Exhaustiveness | Do new route, status, or field tags reveal all affected matches? | Compiler diagnostics after adding one temporary tag | **Validated.** A temporary `Todo.Status.ArchitectureAuditOnly` tag produced three precise non-exhaustive-match errors in domain serialization and view badge rendering, then was removed. |
-| Dependency direction | Do domain and generic use-case modules avoid imports of HTTP, views, and concrete persistence adapters? | Import graph or manual module audit | **Validated.** Domain modules import no HTTP, HTML, route, or store modules. Stores import domain types; handlers compose stores and views; `main.roc` selects adapters. |
-| Static-dispatch ergonomics | Are `where` clauses small and caller-local, without broad trait-like contracts or forwarding wrappers? | Review each generic signature and list why substitution is useful | **Validated with a constraint.** `Todo.create!` asks only for effectful `insert!`; generic `Web` helpers ask for one URL/selector method each. Static dispatch clarified capability boundaries, but did not replace the functional-core testing seam. Closed errors needed explicit nominal wrappers such as `Todo.CreateError(err)`. |
-| Effect clarity | Are pure rules separate from effectful adapter and handler methods? | Audit of `->`, `=>`, and `!` at use-case boundaries | **Validated.** Route/query parsing, validation, tree construction, effect-result classification, and response decisions are pure. HTTP reads and store operations use `=>` and `!`. Roc's lack of effect polymorphism is handled by testing typed outcomes purely and the concrete interpreter separately. |
-| Runtime choices | Are values known only at runtime represented by data and explicit matches rather than misusing static dispatch? | Review routing and any configurable adapter selection | **Validated.** Requests parse to the closed `Route` union and dispatch through matches. Static dispatch is limited to compile-time-known helper and adapter types. |
-| Test value | Can important decisions be tested without effects while real SQLite paths retain integration coverage? | Test list, failures caught, and setup complexity | **Validated.** The app suite runs 251 inline expectations, including typed success/failure simulations and HTTP response decisions. The single `src/test.roc` runner loads `test.sql` and covers session creation/lookup, registration/login, Todo CRUD/filter/tree/invalid-row decoding, and BigTask count/pagination/update through the real stores. |
-| Navigation cost | Can a contributor follow a request from route to response without excessive jumping or hidden indirection? | Short walkthrough by someone who did not perform the refactor | **Partially validated.** The path is consistently `Route -> main dispatch -> Handler -> Store/View`; however, no independent contributor walkthrough has been recorded yet. |
-| Duplication | Did feature slicing or small contracts introduce repeated parsing, mapping, or rendering that should have one owner? | Duplicate-code review with decisions to keep or extract | **Validated.** Route parsing/printing, HTTP forms/responses, layout, and typed link generation each have one owner. Small feature-specific validation messages remain deliberately local. |
-| Build feedback | Do acyclic, focused modules preserve useful compiler caching and acceptable check/test times? | Before-and-after clean and incremental timings | **Validated for the current size.** The current suite runs 251 pure expectations plus one effectful SQLite runner. Exact timings vary by machine and compiler cache state; no controlled before/after clean benchmark was recorded. |
-| Upgrade exercise | Can a URL, database representation, or HTML delivery mechanism change without unrelated edits? | Perform one small change from each relevant category and record affected modules | **Partially validated.** URLs and HTML attributes have single typed owners, and SQL decoding is isolated in stores. A real replacement database or second delivery mechanism has not yet been implemented. |
+| Actor/workspace | `Member`, `Session`, `Actor`, `Workspace` | `MemberStore`, `SessionStore`, `WorkspaceStore` | authentication handlers and the composition root |
+| Companies | `Company` | `CompanyStore` | `CompanyHandler`, `CompanyView` |
+| People | `Person` | `PersonStore` | `PersonHandler`, `PersonView` |
+| Follow-up work | `WorkTask` | `WorkTaskStore` | `WorkTaskHandler`, `WorkTaskView` |
 
-The experiment also exposed costs and current toolchain sharp edges:
+`db/migrations/` is the canonical versioned schema. The platform integration
+runner loads it into a fresh database, then adds `db/test-fixtures.sql`.
+Production startup checks `PRAGMA user_version`, and the bundled admin
+executable owns database bootstrap, migration, and member provisioning.
+
+Authentication is selected once at the composition root. Development mode
+keeps the local session-backed login flow. Production Tailscale mode accepts a
+user identity only from Tailscale Serve's `Tailscale-User-Login` header, maps
+that normalized email to an active member, and does not create an application
+session. This trust boundary is valid only while the HTTP listener remains
+loopback-only and Tailscale Serve is the sole reverse proxy.
+
+The actor boundary resolves a session to one active workspace member. Stores
+receive the workspace and actor identifiers required for each mutation rather
+than consulting global request state. Company and person creation perform
+duplicate review before commitment. Company edits compare the submitted record
+version inside an immediate transaction and return the current record on a
+conflict. Person edits expose the same conflict outcome at the HTTP boundary.
+
+Follow-up due values are captured as workspace-local date-times and stored with
+their UTC instant. The runtime `TZ` must equal the workspace timezone; the
+development and integration commands pin that value explicitly. Work buckets
+are therefore evaluated against the workspace-local date rather than an
+implicit server locale.
+
+Tailwind class strings are centralized in `Design.roc`. CRM views use semantic
+design attributes only, keeping visual policy out of feature rendering.
+
+## Toolchain constraints
+
+The architecture accommodates these toolchain constraints:
 
 - contributors must learn type modules, nested opaque values, typed routing,
   static dispatch, and the domain/store/view/handler request path;
@@ -938,11 +1305,6 @@ The experiment also exposed costs and current toolchain sharp edges:
   the store integration runner must use the production platform;
 - SQLite record shorthand for parameters type-checks but fails at runtime, so
   adapter smoke tests remain necessary.
-
-After collecting this evidence, keep the rules that reduced realistic change
-risk, revise rules that created friction without value, and document exceptions.
-The intended outcome is an architecture that scales; this section deliberately
-does not assume the first implementation has achieved that.
 
 ## Decision summary
 

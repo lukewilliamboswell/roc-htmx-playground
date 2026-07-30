@@ -1,0 +1,37 @@
+[Unit]
+Description=Enquiry CRM
+Wants=network-online.target
+After=network-online.target
+
+[Service]
+Type=simple
+User=enquiry-crm
+Group=enquiry-crm
+WorkingDirectory=/opt/enquiry-crm/current
+EnvironmentFile=/etc/enquiry-crm/enquiry-crm.env
+ExecStartPre=/opt/enquiry-crm/current/bin/enquiry-crm-admin schema check
+ExecStart=/opt/enquiry-crm/current/bin/enquiry-crm
+Restart=on-failure
+RestartSec=5s
+TimeoutStopSec=30s
+UMask=0077
+
+NoNewPrivileges=yes
+PrivateDevices=yes
+PrivateTmp=yes
+ProtectClock=yes
+ProtectControlGroups=yes
+ProtectHome=yes
+ProtectHostname=yes
+ProtectKernelLogs=yes
+ProtectKernelModules=yes
+ProtectKernelTunables=yes
+ProtectSystem=strict
+ReadWritePaths=/var/lib/enquiry-crm
+RestrictAddressFamilies=AF_UNIX AF_INET AF_INET6
+RestrictNamespaces=yes
+RestrictRealtime=yes
+SystemCallArchitectures=native
+
+[Install]
+WantedBy=multi-user.target

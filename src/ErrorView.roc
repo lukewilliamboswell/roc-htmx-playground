@@ -1,3 +1,4 @@
+import pf.Attribute
 import pf.Html
 
 import Design
@@ -38,6 +39,16 @@ ErrorView :: [].{
 			[home_link()],
 		)
 
+	forbidden : Session -> Html.Node
+	forbidden = |session|
+		document(
+			session,
+			Forbidden,
+			"Request forbidden",
+			"The request did not pass this site's security checks.",
+			[home_link()],
+		)
+
 	bad_request : Session, Str -> Html.Node
 	bad_request = |session, message|
 		document(
@@ -59,11 +70,12 @@ ErrorView :: [].{
 		)
 }
 
-ErrorPage := [Unauthorized, NotFound, BadRequest, ServerError].{
+ErrorPage := [Unauthorized, Forbidden, NotFound, BadRequest, ServerError].{
 	title : ErrorPage -> Str
 	title = |page|
 		match page {
 			Unauthorized => "Unauthorized"
+			Forbidden => "Forbidden"
 			NotFound => "Not Found"
 			BadRequest => "Bad Request"
 			ServerError => "Server Error"
@@ -77,8 +89,17 @@ document = |session, page_identity, heading, message, actions|
 		page_identity,
 		[],
 		[
-			Html.h1([Design.pageTitle], [Html.text(heading)]),
-			Html.p([Design.lead], [Html.text(message)]),
+			Html.element(
+				"section",
+				[
+					Attribute.id(Web.ErrorTarget.to_id(Web.ErrorTarget.RequestError)),
+					attribute("role", "alert"),
+				],
+				[
+					Html.h1([Design.pageTitle], [Html.text(heading)]),
+					Html.p([Design.lead], [Html.text(message)]),
+				],
+			),
 			Html.div([Design.actions], actions),
 		],
 	)
@@ -90,3 +111,6 @@ home_link = ||
 		[Design.button(Design.ButtonTone.Primary, Design.ButtonSize.Regular)],
 		[Html.text("Back to home")],
 	)
+
+attribute : Str, Str -> Attribute.Attribute
+attribute = |name, value| Attribute.attribute(name, value)

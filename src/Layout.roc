@@ -29,7 +29,7 @@ Layout := [].{
 							Attribute.name("description"),
 							attribute(
 								"content",
-								"Explore a server-rendered Roc and htmx application with tasks, sessions, SQLite data, and native static assets.",
+								"A focused CRM for company enquiries, people, and accountable follow-up.",
 							),
 						]),
 						Html.title([], [Html.text(page_identity.title())]),
@@ -59,6 +59,8 @@ Layout := [].{
 		scripts = match page_identity {
 			Route.Page.Todos => [Route.Asset.Htmx]
 			Route.Page.BigTasks => [Route.Asset.Htmx]
+			Route.Page.Companies => [Route.Asset.Htmx, Route.Asset.Interactions]
+			Route.Page.People => [Route.Asset.Htmx, Route.Asset.Interactions]
 			_ => []
 		}
 
@@ -85,14 +87,13 @@ navbar = |session|
 			Html.div(
 				[Design.navInner],
 				[
-					Web.link(Route.Page.Home, [Design.brand], [Html.text("Roc + htmx")]),
+					Web.link(Route.Page.Home, [Design.brand], [Html.text("Enquiry CRM")]),
 					Html.ul(
 						[Design.navLinks],
 						[
-							nav_item("Tasks", Route.Page.Todos),
-							nav_item("Users", Route.Page.Users),
-							nav_item("Tree", Route.Page.TodoTree),
-							nav_item("BigTask", Route.Page.BigTasks),
+							nav_item("Companies", Route.Page.Companies),
+							nav_item("People", Route.Page.People),
+							nav_item("My Work", Route.Page.Work),
 						],
 					),
 					auth_controls(session),
@@ -127,12 +128,12 @@ auth_controls = |session|
 					),
 				],
 			)
-		Session.Auth.LoggedIn(name) =>
+		Session.Auth.LoggedIn(member) =>
 			Web.post_form(
 				Route.PostAction.Logout,
 				[Design.auth],
 				[
-					Html.span([Design.userName], [Html.text(name)]),
+					Html.span([Design.userName], [Html.text(member.name.to_str())]),
 					Html.button(
 						[
 							Attribute.type("submit"),
@@ -141,6 +142,11 @@ auth_controls = |session|
 						[Html.text("Logout")],
 					),
 				],
+			)
+		Session.Auth.Trusted(member) =>
+			Html.div(
+				[Design.auth],
+				[Html.span([Design.userName], [Html.text(member.name.to_str())])],
 			)
 		}
 

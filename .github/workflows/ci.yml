@@ -11,7 +11,7 @@ concurrency:
   cancel-in-progress: true
 
 env:
-  ROC_NIGHTLY_TAG: nightly-2026-July-27-f4b3c60
+  ROC_NIGHTLY_TAG: nightly-2026-July-29-fe0ab22
 
 jobs:
   check:
@@ -30,3 +30,30 @@ jobs:
 
       - name: Check formatting, types, tests, and generated CSS
         run: roc scripts/tasks.roc check
+
+  browser:
+    name: Browser journeys
+    needs: check
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v7
+
+      - name: Install Roc
+        uses: roc-lang/setup-roc@cbe782d6f165b89c87d99f50a59ac4f5f73b4427
+        with:
+          version: nightly-new-compiler
+          nightly-tag: ${{ env.ROC_NIGHTLY_TAG }}
+
+      - name: Install Node
+        uses: actions/setup-node@v6
+        with:
+          node-version: 22
+          cache: npm
+
+      - name: Install browser test tooling
+        run: roc scripts/tasks.roc setup-ci
+
+      - name: Run browser journeys
+        run: roc scripts/tasks.roc test-e2e

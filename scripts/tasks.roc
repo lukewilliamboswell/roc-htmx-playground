@@ -17,11 +17,6 @@ TailwindTarget := {
 	checksum : Str,
 }
 
-ReleaseTarget := {
-	filename : Str,
-	target : Str,
-}
-
 main! : List(OsStr) => Try({}, _)
 main! = |args|
 	match args.drop_first(1) {
@@ -32,14 +27,23 @@ main! = |args|
 			match command {
 				"css" => buildCss!(Bool.False)
 				"css-watch" => buildCss!(Bool.True)
-				"build" => buildDistribution!("speed")
+				# TODO: Restore `speed` after re-verifying the optimized full
+				# application build with the pinned nightly and platform.
+				"build" => buildDistribution!("dev")
 				"check" => check!()
+				"check-all" => checkAll!()
 				"dev" => dev!()
+				"reset-db" => resetDevDatabase!()
 				"release" => release!()
+				"setup" => setup!(Bool.False)
+				"setup-ci" => setup!(Bool.True)
 				"tailwind-install" => {
 					_ = ensureTailwind!()?
 					Ok({})
 				}
+				"test-auth" => testAuth!()
+				"test-browser" => testBrowser!()
+				"test-e2e" => testE2e!()
 				"help" => usage!()
 				"--help" => usage!()
 				"-h" => usage!()
@@ -61,9 +65,16 @@ usage! = || {
 		\\  css-watch         Rebuild CSS when the design system changes
 		\\  build             Build a local runtime bundle in dist/
 		\\  check             Build CSS, format-check, type-check, and test
+		\\  check-all         Run check and all end-to-end tests
 		\\  dev               Format, validate, build dist/, and serve it
-		\\  release           Build release binaries for Linux and macOS
+		\\  reset-db          Recreate the disposable development database
+		\\  release           Build the identified x64 Linux release bundle
+		\\  setup             Install Node packages and Chromium
+		\\  setup-ci          Install test tooling and Linux system dependencies
 		\\  tailwind-install  Install the pinned standalone Tailwind CLI
+		\\  test-auth         Test production Tailscale authentication
+		\\  test-browser      Run the Playwright browser journeys
+		\\  test-e2e          Run the browser and authentication suites
 		,
 	)?
 
@@ -75,14 +86,17 @@ dev! = || {
 	run!("roc", ["fmt", "scripts", "src"])?
 	run!("roc", ["check", "src/main.roc"])?
 	run!("roc", ["test", "src/main.roc"])?
-	run!("roc", ["src/test.roc"])?
+	checkIntegration!("dev")?
 
+	resetDevDatabase!()?
 	buildDistribution!("dev")?
 
 	Stdout.line!("Serving dist/roc-htmx-playground with dist/playground.db")?
 	Cmd.new_str("dist/roc-htmx-playground")
 		.env_str("DB_PATH", "dist/playground.db")
 		.env_str("ASSET_PATH", "dist/assets")
+		.env_str("PUBLIC_ORIGIN", "http://127.0.0.1:8000")
+		.env_str("TZ", "Australia/Melbourne")
 		.exec_cmd!()
 }
 
@@ -92,37 +106,105 @@ ensureDevDatabase! = || {
 	database = Path.utf8(db_path)
 
 	if !database.is_file!()? {
-		Stdout.line!("Creating ${db_path} from the sample data in test.sql...")?
-		run!("sqlite3", [db_path, ".read test.sql"])?
+		Stdout.line!("Creating ${db_path} from migrations and db/test-fixtures.sql...")?
+		run!("sqlite3", [db_path, ".read db/migrations/001_initial.sql"])?
+		run!("sqlite3", [db_path, ".read db/test-fixtures.sql"])?
 	}
 
 	Ok(db_path)
 }
 
+resetDevDatabase! : () => Try({}, _)
+resetDevDatabase! = || {
+	db_path = "dist/playground.db"
+	database = Path.utf8(db_path)
+
+	if database.is_file!()? {
+		Stdout.line!("Deleting disposable development database ${db_path}...")?
+		database.delete!()?
+	}
+
+	_ = ensureDevDatabase!()?
+	Ok({})
+}
+
 check! : () => Try({}, _)
 check! = || {
 	buildCss!(Bool.False)?
+	run!("ci/check_source_contracts.sh", [])?
 	run!("roc", ["fmt", "--check", "scripts", "src"])?
 	run!("roc", ["check", "src/main.roc"])?
+	run!("roc", ["check", "src/admin.roc"])?
 	run!("roc", ["test", "src/main.roc"])?
-	run!("roc", ["src/test.roc"])?
+	checkIntegration!("dev")?
+	checkIntegration!("speed")?
 
 	Ok({})
 }
 
-release! : () => Try({}, _)
-release! = || {
-	buildCss!(Bool.False)?
-	_ = ensureDevDatabase!()?
-	dist : Path
-	dist = "dist"
-	dist.create_all!()?
+checkAll! : () => Try({}, _)
+checkAll! = || {
+	check!()?
+	testE2e!()
+}
 
-	checksum_lines = buildReleaseTargets!(releaseTargets, [])?
-	checksums : Path
-	checksums = "dist/SHA256SUMS"
-	checksums.write_utf8!("${Str.join_with(checksum_lines, "\n")}\n")?
+setup! : Bool => Try({}, _)
+setup! = |include_system_dependencies| {
+	run!("npm", ["ci"])?
+	playwright_arguments = if include_system_dependencies {
+		["install", "--with-deps", "chromium"]
+	} else {
+		["install", "chromium"]
+	}
+	run!("node_modules/.bin/playwright", playwright_arguments)?
+	installCiDependencies!(include_system_dependencies)?
+	Ok({})
+}
 
+installCiDependencies! : Bool => Try({}, _)
+installCiDependencies! = |should_install|
+	if should_install {
+		run!("sudo", ["apt-get", "install", "--yes", "sqlite3"])
+	} else {
+		Ok({})
+	}
+
+testE2e! : () => Try({}, _)
+testE2e! = || {
+	testBrowser!()?
+	testAuth!()
+}
+
+testBrowser! : () => Try({}, _)
+testBrowser! = || run!("node_modules/.bin/playwright", ["test"])
+
+testAuth! : () => Try({}, _)
+testAuth! = || run!("node", ["tests/tailscale-auth-smoke.js"])
+
+checkIntegration! : Str => Try({}, _)
+checkIntegration! = |optimization| {
+	output = Path.display(
+		Path.join(
+			Env.temp_dir!(),
+			"roc-htmx-playground-integration-${optimization}",
+		),
+	)
+	build_arguments = if optimization == "dev" {
+		[
+			"build",
+			"--output=${output}",
+			"src/test.roc",
+		]
+	} else {
+		[
+			"build",
+			"--opt=${optimization}",
+			"--output=${output}",
+			"src/test.roc",
+		]
+	}
+	run!("roc", build_arguments)?
+	runWithTimezone!(output, [])?
 	Ok({})
 }
 
@@ -143,39 +225,70 @@ buildDistribution! = |optimization| {
 	Ok({})
 }
 
-buildReleaseTargets! : List(ReleaseTarget), List(Str) => Try(List(Str), _)
-buildReleaseTargets! = |remaining, checksum_lines|
-	match remaining {
-		[] => Ok(checksum_lines)
-		[target, .. as rest] => {
-			output = "dist/${target.filename}"
-			run!(
-				"roc",
-				[
-					"build",
-					"--opt=speed",
-					"--target=${target.target}",
-					"--output=${output}",
-					"src/main.roc",
-				],
-			)?
-			checksum = checksum!(output)?
-			buildReleaseTargets!(rest, checksum_lines.append("${checksum}  ${target.filename}"))
-		}
+release! : () => Try({}, _)
+release! = || {
+	buildCss!(Bool.False)?
+	release_id = OsStr.display(Env.var!("RELEASE_ID")?).trim()
+	if release_id.is_empty() or release_id.contains("/") or release_id.contains("..") {
+		return Err(InvalidReleaseId(release_id))
 	}
 
-releaseTargets : List(ReleaseTarget)
-releaseTargets = [
-	ReleaseTarget.{ filename: "roc-htmx-playground-x64-linux", target: "x64musl" },
-	ReleaseTarget.{ filename: "roc-htmx-playground-arm64-linux", target: "arm64musl" },
-	ReleaseTarget.{ filename: "roc-htmx-playground-x64-macos", target: "x64mac" },
-	ReleaseTarget.{ filename: "roc-htmx-playground-arm64-macos", target: "arm64mac" },
-]
+	stage_root = "dist/release-stage"
+	bundle_name = "enquiry-crm-${release_id}-x64-linux"
+	bundle_root = "${stage_root}/${bundle_name}"
+	release_dir : Path
+	release_dir = "dist/release"
+
+	run!("rm", ["-rf", stage_root])?
+	Path.utf8("${bundle_root}/bin").create_all!()?
+	Path.utf8("${bundle_root}/deploy").create_all!()?
+	release_dir.create_all!()?
+
+	run!(
+		"roc",
+		[
+			"build",
+			"--opt=speed",
+			"--target=x64musl",
+			"--output=${bundle_root}/bin/enquiry-crm",
+			"src/main.roc",
+		],
+	)?
+	run!(
+		"roc",
+		[
+			"build",
+			"--opt=speed",
+			"--target=x64musl",
+			"--output=${bundle_root}/bin/enquiry-crm-admin",
+			"src/admin.roc",
+		],
+	)?
+
+	run!("cp", ["-R", "dist/assets", "${bundle_root}/assets"])?
+	run!("cp", ["deploy/enquiry-crm.service", "${bundle_root}/deploy/"])?
+	run!("cp", ["deploy/enquiry-crm.env.example", "${bundle_root}/deploy/"])?
+	run!("cp", ["LICENSE", "${bundle_root}/"])?
+	run!("cp", ["vendor/LICENSE-htmx.txt", "${bundle_root}/"])?
+	Path.utf8("${bundle_root}/RELEASE_ID").write_utf8!("${release_id}\n")?
+
+	archive = "dist/release/${bundle_name}.tar.gz"
+	run!("tar", ["-C", stage_root, "-czf", archive, bundle_name])?
+	Stdout.line!(archive)?
+	Ok({})
+}
 
 run! : Str, List(Str) => Try({}, _)
 run! = |program, arguments|
 	Cmd.new_str(program)
 		.args_str(arguments)
+		.exec_cmd!()
+
+runWithTimezone! : Str, List(Str) => Try({}, _)
+runWithTimezone! = |program, arguments|
+	Cmd.new_str(program)
+		.args_str(arguments)
+		.env_str("TZ", "Australia/Melbourne")
 		.exec_cmd!()
 
 buildCss! : Bool => Try({}, _)

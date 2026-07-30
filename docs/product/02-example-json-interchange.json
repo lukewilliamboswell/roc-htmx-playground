@@ -1,0 +1,349 @@
+{
+  "format": "simple-crm",
+  "version": 1,
+  "exported_at": "2026-07-28T10:00:00+10:00",
+  "workspace": {
+    "id": "workspace-example",
+    "name": "Example CRM",
+    "currency": "AUD",
+    "timezone": "Australia/Melbourne",
+    "pipeline_stages": [
+      {
+        "id": "new",
+        "name": "New opportunity",
+        "position": 1,
+        "active": true
+      },
+      {
+        "id": "discovery",
+        "name": "Discovery",
+        "position": 2,
+        "active": true
+      },
+      {
+        "id": "proposal",
+        "name": "Proposal",
+        "position": 3,
+        "active": true
+      },
+      {
+        "id": "negotiation",
+        "name": "Negotiation",
+        "position": 4,
+        "active": true
+      }
+    ],
+    "loss_reasons": [
+      {
+        "id": "no-budget",
+        "name": "No budget",
+        "position": 1,
+        "active": true
+      },
+      {
+        "id": "no-decision",
+        "name": "No decision",
+        "position": 2,
+        "active": true
+      },
+      {
+        "id": "competitor",
+        "name": "Competitor",
+        "position": 3,
+        "active": true
+      },
+      {
+        "id": "poor-fit",
+        "name": "Poor fit",
+        "position": 4,
+        "active": true
+      },
+      {
+        "id": "timing",
+        "name": "Timing",
+        "position": 5,
+        "active": true
+      },
+      {
+        "id": "no-response",
+        "name": "No response",
+        "position": 6,
+        "active": true
+      },
+      {
+        "id": "other",
+        "name": "Other",
+        "position": 7,
+        "active": true
+      }
+    ],
+    "sources": [
+      {
+        "id": "referral",
+        "name": "Referral",
+        "position": 1,
+        "active": true
+      },
+      {
+        "id": "inbound",
+        "name": "Inbound enquiry",
+        "position": 2,
+        "active": true
+      },
+      {
+        "id": "outbound",
+        "name": "Outbound prospecting",
+        "position": 3,
+        "active": true
+      },
+      {
+        "id": "event",
+        "name": "Event",
+        "position": 4,
+        "active": true
+      },
+      {
+        "id": "partner",
+        "name": "Partner",
+        "position": 5,
+        "active": true
+      },
+      {
+        "id": "other",
+        "name": "Other",
+        "position": 6,
+        "active": true
+      }
+    ],
+    "task_types": [
+      {
+        "id": "call",
+        "name": "Call",
+        "position": 1,
+        "active": true
+      },
+      {
+        "id": "email",
+        "name": "Email",
+        "position": 2,
+        "active": true
+      },
+      {
+        "id": "meeting",
+        "name": "Meeting",
+        "position": 3,
+        "active": true
+      },
+      {
+        "id": "follow-up",
+        "name": "Follow up",
+        "position": 4,
+        "active": true
+      },
+      {
+        "id": "other",
+        "name": "Other",
+        "position": 5,
+        "active": true
+      }
+    ]
+  },
+  "users": [
+    {
+      "id": "user-alex",
+      "name": "Alex Morgan",
+      "email": "alex@example.com",
+      "active": true
+    }
+  ],
+  "companies": [
+    {
+      "id": "company-acme",
+      "name": "Acme Studio",
+      "owner_id": "user-alex",
+      "lifecycle_status": "prospect",
+      "website": "https://acme.example",
+      "phone": "+61 3 9000 0000",
+      "source_id": "referral",
+      "created_by_id": "user-alex",
+      "updated_by_id": "user-alex",
+      "created_at": "2026-07-20T09:00:00+10:00",
+      "updated_at": "2026-07-27T16:30:00+10:00"
+    }
+  ],
+  "people": [
+    {
+      "id": "person-sam",
+      "name": "Sam Lee",
+      "owner_id": "user-alex",
+      "lifecycle_status": "prospect",
+      "emails": [
+        {
+          "value": "sam@acme.example",
+          "label": "work",
+          "primary": true
+        }
+      ],
+      "phones": [
+        {
+          "value": "+61 400 000 001",
+          "label": "mobile",
+          "primary": true
+        }
+      ],
+      "job_title": "Director",
+      "company_id": "company-acme",
+      "source_id": "referral",
+      "created_by_id": "user-alex",
+      "updated_by_id": "user-alex",
+      "created_at": "2026-07-20T09:05:00+10:00",
+      "updated_at": "2026-07-27T16:30:00+10:00"
+    },
+    {
+      "id": "person-jordan",
+      "name": "Jordan Patel",
+      "owner_id": "user-alex",
+      "lifecycle_status": "prospect",
+      "emails": [
+        {
+          "value": "jordan@example.net",
+          "label": "personal",
+          "primary": true
+        }
+      ],
+      "source_id": "inbound",
+      "created_by_id": "user-alex",
+      "updated_by_id": "user-alex",
+      "created_at": "2026-07-25T11:15:00+10:00",
+      "updated_at": "2026-07-28T08:45:00+10:00"
+    }
+  ],
+  "deals": [
+    {
+      "id": "deal-acme-redesign",
+      "title": "Acme website redesign",
+      "customer": {
+        "type": "company",
+        "id": "company-acme"
+      },
+      "contact_person_ids": [
+        "person-sam"
+      ],
+      "owner_id": "user-alex",
+      "status": "open",
+      "stage_id": "proposal",
+      "value": 18000,
+      "expected_close_on": "2026-08-15",
+      "source_id": "referral",
+      "created_by_id": "user-alex",
+      "updated_by_id": "user-alex",
+      "created_at": "2026-07-21T14:00:00+10:00",
+      "updated_at": "2026-07-27T16:31:00+10:00"
+    },
+    {
+      "id": "deal-jordan-consulting",
+      "title": "Jordan consulting engagement",
+      "customer": {
+        "type": "person",
+        "id": "person-jordan"
+      },
+      "contact_person_ids": [],
+      "owner_id": "user-alex",
+      "status": "open",
+      "stage_id": "discovery",
+      "expected_close_on": "2026-08-30",
+      "source_id": "inbound",
+      "created_by_id": "user-alex",
+      "updated_by_id": "user-alex",
+      "created_at": "2026-07-25T11:20:00+10:00",
+      "updated_at": "2026-07-28T08:45:00+10:00"
+    }
+  ],
+  "activities": [
+    {
+      "id": "activity-acme-stage-discovery",
+      "type": "stage-change",
+      "occurred_at": "2026-07-24T10:00:00+10:00",
+      "created_by_id": "user-alex",
+      "related_to": [
+        {
+          "type": "deal",
+          "id": "deal-acme-redesign"
+        }
+      ],
+      "subject": "Deal moved to Discovery",
+      "change": {
+        "field": "stage_id",
+        "from": "new",
+        "to": "discovery"
+      },
+      "created_at": "2026-07-24T10:00:00+10:00"
+    },
+    {
+      "id": "activity-acme-call",
+      "type": "call",
+      "occurred_at": "2026-07-27T16:00:00+10:00",
+      "created_by_id": "user-alex",
+      "related_to": [
+        {
+          "type": "person",
+          "id": "person-sam"
+        },
+        {
+          "type": "company",
+          "id": "company-acme"
+        },
+        {
+          "type": "deal",
+          "id": "deal-acme-redesign"
+        }
+      ],
+      "subject": "Proposal review",
+      "outcome": "Sam requested a revised delivery schedule.",
+      "created_at": "2026-07-27T16:30:00+10:00"
+    },
+    {
+      "id": "activity-acme-stage-proposal",
+      "type": "stage-change",
+      "occurred_at": "2026-07-27T16:31:00+10:00",
+      "created_by_id": "user-alex",
+      "related_to": [
+        {
+          "type": "deal",
+          "id": "deal-acme-redesign"
+        }
+      ],
+      "subject": "Deal moved to Proposal",
+      "change": {
+        "field": "stage_id",
+        "from": "discovery",
+        "to": "proposal"
+      },
+      "created_at": "2026-07-27T16:31:00+10:00"
+    }
+  ],
+  "tasks": [
+    {
+      "id": "task-acme-revision",
+      "subject": "Send revised delivery schedule",
+      "type_id": "email",
+      "status": "open",
+      "due_at": "2026-07-29T10:00:00+10:00",
+      "assigned_to_id": "user-alex",
+      "related_to": [
+        {
+          "type": "person",
+          "id": "person-sam"
+        },
+        {
+          "type": "deal",
+          "id": "deal-acme-redesign"
+        }
+      ],
+      "created_by_id": "user-alex",
+      "updated_by_id": "user-alex",
+      "created_at": "2026-07-27T16:32:00+10:00",
+      "updated_at": "2026-07-27T16:32:00+10:00"
+    }
+  ]
+}

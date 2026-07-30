@@ -6,7 +6,9 @@ import http.Response
 
 import AppError
 import ErrorView
+import Route
 import Session
+import Web
 
 ## HTTP representation concerns shared by feature handlers and the application
 ## entry point. Domain and view modules deliberately do not import this module.
@@ -17,7 +19,16 @@ Http := [].{
 	html = |status, node, extra_headers|
 		Response.from_status(status)
 			.with_headers(
-				[{ name: "Content-Type", value: "text/html; charset=utf-8" }].concat(extra_headers),
+				[
+					{ name: "Content-Type", value: "text/html; charset=utf-8" },
+					{ name: "Cache-Control", value: "private, no-store" },
+					{
+						name: "Content-Security-Policy",
+						value: "default-src 'self'; base-uri 'none'; connect-src 'self'; form-action 'self'; frame-ancestors 'none'; img-src 'self'; script-src 'self'; style-src 'self'",
+					},
+					{ name: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+					{ name: "X-Content-Type-Options", value: "nosniff" },
+				].concat(extra_headers),
 			)
 			.with_body(Html.render(node).to_utf8())
 
@@ -56,6 +67,35 @@ Http := [].{
 		match session.user {
 			Session.Auth.Guest => Err(AppError.Unauthorized)
 			Session.Auth.LoggedIn(_) => Ok({})
+			Session.Auth.Trusted(_) => Ok({})
+		}
+
+	require_same_origin : Server.Request, Str -> Try({}, AppError)
+	require_same_origin = |request, public_origin| require_same_origin_headers(request.headers(), public_origin)
+
+	require_same_origin_headers : List(Header), Str -> Try({}, AppError)
+	require_same_origin_headers = |headers, public_origin| {
+		match header_value(headers, "origin") {
+			Ok(origin) =>
+				if origin == public_origin {
+					Ok({})
+				} else {
+					Err(AppError.Forbidden)
+				}
+			Err(_) =>
+				match header_value(headers, "referer") {
+					Ok(referer) if referer.starts_with("${public_origin}/") =>
+						Ok({})
+					_ => Err(AppError.Forbidden)
+				}
+			}
+	}
+
+	header_value : List(Header), Str -> Try(Str, [MissingHeader])
+	header_value = |headers, expected|
+		match headers.find_first(|header| header.name.with_ascii_lowercased() == expected) {
+			Ok(header) => Ok(header.value)
+			Err(_) => Err(MissingHeader)
 		}
 
 	session_id : Server.Request -> Try(Session.Id, [InvalidSessionCookie])
@@ -102,6 +142,20 @@ Http := [].{
 
 	expect Http.session_id_from_headers([]) == Err(InvalidSessionCookie)
 	expect Http.require_login(Session.guest(Session.Id.from_i64(1))) == Err(AppError.Unauthorized)
+	expect Http.require_same_origin_headers(
+		[
+			{ name: "Host", value: "app.example" },
+			{ name: "Origin", value: "https://app.example" },
+		],
+		"https://app.example",
+	) == Ok({})
+	expect Http.require_same_origin_headers(
+		[
+			{ name: "Host", value: "app.example" },
+			{ name: "Origin", value: "https://attacker.example" },
+		],
+		"https://app.example",
+	) == Err(AppError.Forbidden)
 
 	session_cookie : Session.Id -> Header
 	session_cookie = |id| {
@@ -111,8 +165,26 @@ Http := [].{
 
 	error_response! : Session, AppError => Response
 	error_response! = |session, error|
+		error_response_for_headers!([], session, error)
+
+	error_response_for! : Server.Request, Session, AppError => Response
+	error_response_for! = |request, session, error|
+		error_response_for_headers!(request.headers(), session, error)
+
+	error_response_for_headers! : List(Header), Session, AppError => Response
+	error_response_for_headers! = |headers, session, error|
 		match error {
-			AppError.Unauthorized => html(401, ErrorView.unauthorized(session), [])
+			AppError.Unauthorized =>
+				if is_htmx_request(headers) {
+					html(
+						200,
+						ErrorView.unauthorized(session),
+						[Web.hx_redirect_header(Route.Page.Login)],
+					)
+				} else {
+					html(401, ErrorView.unauthorized(session), [])
+				}
+			AppError.Forbidden => html(403, ErrorView.forbidden(session), [])
 			AppError.BadRequest(message) => html(400, ErrorView.bad_request(session, message), [])
 			AppError.NotFound(target) => {
 				Stderr.line!("404 Not Found ${target}") ?? {}
@@ -123,4 +195,15 @@ Http := [].{
 				html(500, ErrorView.server_error(session), [])
 			}
 		}
+
+	is_htmx_request : List(Header) -> Bool
+	is_htmx_request = |headers|
+		headers.find_first(
+			|header|
+				header.name.with_ascii_lowercased() == "hx-request"
+					and header.value.with_ascii_lowercased() == "true",
+		).is_ok()
 }
+
+expect Http.is_htmx_request([{ name: "HX-Request", value: "true" }])
+expect !Http.is_htmx_request([{ name: "HX-Request", value: "false" }])

@@ -1,0 +1,7 @@
+{
+  "name": "roc-htmx-playground",
+  "private": true,
+  "devDependencies": {
+    "@playwright/test": "1.62.0"
+  }
+}

@@ -16,6 +16,12 @@ Design :: [].{
 	pageTitle : Attribute.Attribute
 	pageTitle = class("mb-6 text-3xl font-bold tracking-tight text-slate-950")
 
+	backLinkedPageTitle : Attribute.Attribute
+	backLinkedPageTitle = class("mt-4")
+
+	pageHeader : Attribute.Attribute
+	pageHeader = class("flex flex-wrap items-center justify-between gap-4")
+
 	lead : Attribute.Attribute
 	lead = class("-mt-4 max-w-2xl text-lg leading-8 text-slate-600")
 
@@ -24,6 +30,12 @@ Design :: [].{
 
 	hero : Attribute.Attribute
 	hero = class("grid overflow-hidden rounded-2xl bg-slate-950 shadow-xl lg:grid-cols-2")
+
+	crmHero : Attribute.Attribute
+	crmHero = class("overflow-hidden rounded-2xl bg-slate-950 shadow-xl")
+
+	crmHeroCopy : Attribute.Attribute
+	crmHeroCopy = class("p-8 sm:p-12 lg:p-16")
 
 	heroCopy : Attribute.Attribute
 	heroCopy = class("flex flex-col justify-center p-8 sm:p-12 lg:p-16")
@@ -116,17 +128,32 @@ Design :: [].{
 	form : Attribute.Attribute
 	form = class("max-w-md")
 
+	recordForm : Attribute.Attribute
+	recordForm = class("max-w-2xl rounded-xl border border-slate-200 bg-white p-6 shadow-sm")
+
+	newRecordForm : Attribute.Attribute
+	newRecordForm = class("mt-6 max-w-2xl rounded-xl border border-slate-200 bg-white p-6 shadow-sm")
+
+	searchForm : Attribute.Attribute
+	searchForm = class("mt-6")
+
+	searchControls : Attribute.Attribute
+	searchControls = class("mb-5 mt-2 flex flex-col gap-2 sm:flex-row")
+
 	field : Attribute.Attribute
 	field = class("mb-4 space-y-2")
 
 	label : Attribute.Attribute
 	label = class("block text-sm font-medium text-slate-700")
 
+	requiredHint : Attribute.Attribute
+	requiredHint = class("font-normal text-slate-500")
+
 	input : Attribute.Attribute
 	input = class("block w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-950 shadow-sm outline-none transition placeholder:text-slate-500 focus:border-blue-500 focus:ring-4 focus:ring-blue-100")
 
 	searchInput : Attribute.Attribute
-	searchInput = class("mb-5 block w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-950 shadow-sm outline-none transition placeholder:text-slate-500 focus:border-blue-500 focus:ring-4 focus:ring-blue-100")
+	searchInput = class("block min-w-0 flex-1 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-950 shadow-sm outline-none transition placeholder:text-slate-500 focus:border-blue-500 focus:ring-4 focus:ring-blue-100")
 
 	select : Attribute.Attribute
 	select = class("block w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-950 shadow-sm outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100")
@@ -175,6 +202,132 @@ Design :: [].{
 
 	emptyState : Attribute.Attribute
 	emptyState = class("px-4 py-10 text-center text-sm text-slate-500")
+
+	emptyStatePanel : Attribute.Attribute
+	emptyStatePanel = class("rounded-xl border border-slate-200 bg-white px-4 py-10 text-center shadow-sm")
+
+	emptyStateText : Attribute.Attribute
+	emptyStateText = class("text-sm text-slate-600")
+
+	emptyStateActions : Attribute.Attribute
+	emptyStateActions = class("mt-4 flex justify-center")
+
+	detailGrid : Attribute.Attribute
+	detailGrid = class("grid gap-6 lg:grid-cols-3")
+
+	detailPrimaryCard : Attribute.Attribute
+	detailPrimaryCard = class("rounded-xl border border-slate-200 bg-white p-5 shadow-sm lg:col-span-2")
+
+	detailCard : Attribute.Attribute
+	detailCard = class("rounded-xl border border-slate-200 bg-white p-5 shadow-sm")
+
+	sectionHeading : Attribute.Attribute
+	sectionHeading = class("text-lg font-semibold")
+
+	contentSection : Attribute.Attribute
+	contentSection = class("mt-6 rounded-xl border border-slate-200 bg-white p-5 shadow-sm")
+
+	contentSectionText : Attribute.Attribute
+	contentSectionText = class("mt-2 text-sm text-slate-600")
+
+	recordLink : Attribute.Attribute
+	recordLink = class("font-semibold text-blue-700 hover:underline")
+
+	secondaryText : Attribute.Attribute
+	secondaryText = class("text-sm text-slate-600")
+
+	detailList : Attribute.Attribute
+	detailList = class("mt-4 grid gap-4 sm:grid-cols-2")
+
+	detailTerm : Attribute.Attribute
+	detailTerm = class("text-sm font-medium text-slate-500")
+
+	detailValue : Attribute.Attribute
+	detailValue = class("mt-1 text-sm text-slate-900")
+
+	warningPanel : Attribute.Attribute
+	warningPanel = class("mb-6 rounded-xl border border-amber-300 bg-amber-50 p-5")
+
+	warningPanelSpaced : Attribute.Attribute
+	warningPanelSpaced = class("mt-6 rounded-xl border border-amber-300 bg-amber-50 p-5")
+
+	warningHeading : Attribute.Attribute
+	warningHeading = class("font-semibold text-amber-950")
+
+	warningSectionHeading : Attribute.Attribute
+	warningSectionHeading = class("text-lg font-semibold text-amber-950")
+
+	warningText : Attribute.Attribute
+	warningText = class("mt-1 text-sm text-amber-900")
+
+	matchList : Attribute.Attribute
+	matchList = class("mt-4 space-y-3")
+
+	matchItem : Attribute.Attribute
+	matchItem = class("rounded-lg bg-white p-3")
+
+	contactList : Attribute.Attribute
+	contactList = class("mt-4 space-y-3")
+
+	contactRow : Attribute.Attribute
+	contactRow = class("flex flex-wrap items-center justify-between gap-3 rounded-lg border border-slate-200 p-3")
+
+	contactMeta : Attribute.Attribute
+	contactMeta = class("text-xs font-medium uppercase tracking-wide text-slate-500")
+
+	contactActions : Attribute.Attribute
+	contactActions = class("flex flex-wrap items-center justify-end gap-3")
+
+	inlineForm : Attribute.Attribute
+	inlineForm = class("mt-4 grid gap-3 rounded-lg bg-slate-50 p-4 sm:grid-cols-2")
+
+	inlineFormAction : Attribute.Attribute
+	inlineFormAction = class("self-start justify-self-start sm:self-end")
+
+	checkboxLabel : Attribute.Attribute
+	checkboxLabel = class("flex items-center gap-2 text-sm text-slate-700")
+
+	fullWidthField : Attribute.Attribute
+	fullWidthField = class("sm:col-span-2")
+
+	dangerLinkButton : Attribute.Attribute
+	dangerLinkButton = class("text-sm font-medium text-red-700 hover:underline")
+
+	workGrid : Attribute.Attribute
+	workGrid = class("mt-6 grid gap-6 lg:grid-cols-3")
+
+	workBucket : Attribute.Attribute
+	workBucket = class("rounded-xl border border-slate-200 bg-white p-5 shadow-sm")
+
+	overdueBucket : Attribute.Attribute
+	overdueBucket = class("rounded-xl border border-red-200 bg-red-50 p-5 shadow-sm")
+
+	taskList : Attribute.Attribute
+	taskList = class("mt-4 space-y-3")
+
+	taskItem : Attribute.Attribute
+	taskItem = class("rounded-lg border border-slate-200 bg-white p-4")
+
+	taskSubject : Attribute.Attribute
+	taskSubject = class("font-semibold text-slate-950")
+
+	taskDue : Attribute.Attribute
+	taskDue = class("mt-1 text-sm font-medium text-slate-700")
+
+	taskRelated : Attribute.Attribute
+	taskRelated = class("mt-1 text-sm text-slate-500")
+
+	taskMeta : Attribute.Attribute
+	taskMeta = class("mt-2 space-y-1 text-sm text-slate-600")
+
+	taskActions : Attribute.Attribute
+	taskActions = class("mt-3")
+
+	taskRequestStatus : Attribute.Attribute
+	taskRequestStatus = class("htmx-indicator ml-2")
+
+	activityMeta : Attribute.Attribute
+	activityMeta = class("mt-1 text-xs text-slate-500")
 
 	todoForm : Attribute.Attribute
 	todoForm = class("mt-6 grid gap-3 rounded-xl border border-slate-200 bg-white p-4 shadow-sm md:grid-cols-12")

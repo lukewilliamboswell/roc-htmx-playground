@@ -1,3 +1,5 @@
+import Member
+
 Session := {
 	id : Id,
 	user : Auth,
@@ -22,9 +24,11 @@ Session := {
 		is_eq : _
 	}
 
-	Auth := [Guest, LoggedIn(Str)].{
+	Auth := [Guest, LoggedIn(Member), Trusted(Member)].{
 		is_eq : _
 	}
+
+	FindError(err) := [NotFound, Inactive, StoreFailure(err)]
 
 	anonymous : Session
 	anonymous = Session.{ id: Id.from_i64(0), user: Guest }
@@ -32,14 +36,18 @@ Session := {
 	guest : Id -> Session
 	guest = |id| Session.{ id, user: Guest }
 
-	logged_in : Id, Str -> Session
-	logged_in = |id, username| Session.{ id, user: LoggedIn(username) }
+	logged_in : Id, Member -> Session
+	logged_in = |id, member| Session.{ id, user: LoggedIn(member) }
+
+	trusted : Member -> Session
+	trusted = |member| Session.{ id: Id.from_i64(0), user: Trusted(member) }
 
 	is_logged_in : Session -> Bool
 	is_logged_in = |session|
 		match session.user {
 			Guest => False
 			LoggedIn(_) => True
+			Trusted(_) => True
 		}
 }
 

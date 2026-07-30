@@ -1,2 +1,13 @@
 @import "tailwindcss" source(none);
 @source "Design.roc";
+
+.request-transport-error {
+    margin-top: 0.5rem;
+    border: 1px solid #fecaca;
+    border-radius: 0.5rem;
+    background: #fef2f2;
+    padding: 0.5rem 0.75rem;
+    color: #b91c1c;
+    font-size: 0.875rem;
+    font-weight: 500;
+}

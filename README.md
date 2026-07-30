@@ -24,15 +24,7 @@ The next proposed delivery boundary is
 
 ## Quick start
 
-Install `roc` and `sqlite3`. Until the next `basic-webserver` release is
-available, check out its compatible integration commit beside this repository:
-
-```sh
-git clone https://github.com/roc-lang/basic-webserver.git ../basic-webserver
-git -C ../basic-webserver checkout fd3911b1c97b8e21b100973d16d78083dfbe2ebb
-```
-
-Then run:
+Install `roc` and `sqlite3`, then run:
 
 ```sh
 roc scripts/tasks.roc dev

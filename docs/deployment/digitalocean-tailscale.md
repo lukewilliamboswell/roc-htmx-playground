@@ -43,13 +43,23 @@ DigitalOcean backups. Log in as root, patch it, and create the operator account:
 ```sh
 apt update
 apt upgrade -y
-apt install -y curl rsync sqlite3 unattended-upgrades
+apt install -y curl sqlite3 unattended-upgrades
 adduser deploy
 usermod -aG sudo deploy
-rsync --archive --chown=deploy:deploy ~/.ssh /home/deploy/
+install -d -o deploy -g deploy -m 0700 /home/deploy/.ssh
+install -o deploy -g deploy -m 0600 \
+  /root/.ssh/authorized_keys \
+  /home/deploy/.ssh/authorized_keys
 ```
 
-Verify `ssh deploy@DROPLET_IP` in a second terminal before changing SSH:
+These commands copy only the public keys that DigitalOcean placed in root's
+`authorized_keys`; they do not copy a private SSH key from the operator's
+computer. The named account keeps routine work unprivileged and makes privilege
+escalation explicit even though `deploy` can administer the machine with
+`sudo`.
+
+Verify `ssh deploy@DROPLET_IP` in a second terminal before disabling direct
+root login:
 
 ```sh
 sudo tee /etc/ssh/sshd_config.d/99-hardening.conf >/dev/null <<'EOF'
@@ -63,10 +73,28 @@ sudo systemctl restart ssh
 
 ## 2. Establish the tailnet
 
-Create the tailnet with the identity provider appropriate for the organisation,
-invite the intended users, and enable MagicDNS. Define
-`tag:enquiry-crm-app` before joining the server. This example grants CRM HTTPS
-to explicit users and requires administrators to reauthenticate for SSH:
+There is no separate network-creation form. If the organisation does not
+already have a tailnet:
+
+1. Open [Tailscale Get Started](https://tailscale.com/start) and sign in with
+   the identity provider that should own the deployment. The first sign-in
+   creates the tailnet. A company-domain identity is appropriate for an
+   organisation; a public email identity creates a personal tailnet.
+2. Choose **Business use** or **Personal use** when prompted, install Tailscale
+   on the operator's computer, and authenticate it with the same account.
+3. Open the [admin console](https://login.tailscale.com/admin). MagicDNS is
+   enabled by default; keep it enabled. Optionally give the tailnet a clearer
+   display name under **Settings > General**.
+4. Open **Users** and invite every person who should use the CRM. Users outside
+   the tailnet's identity-provider domain can be invited by email or with a
+   one-time invitation link.
+
+If an appropriate organisational tailnet already exists, use it instead of
+creating another one and complete only the user and policy steps.
+
+Before joining the server, open **Access controls** in the admin console and
+define `tag:enquiry-crm-app`. This example grants CRM HTTPS to explicit users
+and requires administrators to reauthenticate for SSH:
 
 ```json
 {

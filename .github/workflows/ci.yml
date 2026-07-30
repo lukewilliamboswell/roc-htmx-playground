@@ -17,22 +17,10 @@ jobs:
   check:
     name: Check
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: roc-htmx-playground
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7
-        with:
-          path: roc-htmx-playground
-
-      - name: Checkout compatible basic-webserver
-        uses: actions/checkout@v7
-        with:
-          repository: roc-lang/basic-webserver
-          ref: fd3911b1c97b8e21b100973d16d78083dfbe2ebb
-          path: basic-webserver
 
       - name: Install Roc
         uses: roc-lang/setup-roc@cbe782d6f165b89c87d99f50a59ac4f5f73b4427
@@ -47,22 +35,10 @@ jobs:
     name: Browser journeys
     needs: check
     runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: roc-htmx-playground
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7
-        with:
-          path: roc-htmx-playground
-
-      - name: Checkout compatible basic-webserver
-        uses: actions/checkout@v7
-        with:
-          repository: roc-lang/basic-webserver
-          ref: fd3911b1c97b8e21b100973d16d78083dfbe2ebb
-          path: basic-webserver
 
       - name: Install Roc
         uses: roc-lang/setup-roc@cbe782d6f165b89c87d99f50a59ac4f5f73b4427
@@ -75,7 +51,6 @@ jobs:
         with:
           node-version: 22
           cache: npm
-          cache-dependency-path: roc-htmx-playground/package-lock.json
 
       - name: Install browser test tooling
         run: roc scripts/tasks.roc setup-ci

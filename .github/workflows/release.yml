@@ -14,22 +14,10 @@ jobs:
   release:
     name: Build and test Linux bundle
     runs-on: ubuntu-24.04
-    defaults:
-      run:
-        working-directory: roc-htmx-playground
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7
-        with:
-          path: roc-htmx-playground
-
-      - name: Checkout compatible basic-webserver
-        uses: actions/checkout@v7
-        with:
-          repository: roc-lang/basic-webserver
-          ref: fd3911b1c97b8e21b100973d16d78083dfbe2ebb
-          path: basic-webserver
 
       - name: Derive release identity
         run: |
@@ -54,7 +42,6 @@ jobs:
         with:
           node-version: 22
           cache: npm
-          cache-dependency-path: roc-htmx-playground/package-lock.json
 
       - name: Install browser dependencies
         run: roc scripts/tasks.roc setup-ci
@@ -129,9 +116,9 @@ jobs:
       - name: Configure installed service with browser fixtures
         run: |
           sudo -u enquiry-crm sqlite3 /var/lib/enquiry-crm/playwright.sqlite \
-            ".read $GITHUB_WORKSPACE/roc-htmx-playground/db/migrations/001_initial.sql"
+            ".read $GITHUB_WORKSPACE/db/migrations/001_initial.sql"
           sudo -u enquiry-crm sqlite3 /var/lib/enquiry-crm/playwright.sqlite \
-            ".read $GITHUB_WORKSPACE/roc-htmx-playground/db/test-fixtures.sql"
+            ".read $GITHUB_WORKSPACE/db/test-fixtures.sql"
           printf '%s\n' \
             'DB_PATH=/var/lib/enquiry-crm/playwright.sqlite' \
             'ASSET_PATH=/opt/enquiry-crm/current/assets' \

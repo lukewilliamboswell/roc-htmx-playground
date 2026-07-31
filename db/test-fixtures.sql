@@ -1,7 +1,4 @@
--- Feature-specific CRM fixtures are added alongside their implementation.
---
--- The legacy playground rows currently remain in the baseline migration because the hidden
--- demo routes still exercise them. They will disappear with those routes.
+-- Deterministic CRM fixtures used by development and browser tests.
 
 INSERT INTO companies (
     company_id,

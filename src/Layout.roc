@@ -35,7 +35,7 @@ Layout := [].{
 						Html.title([], [Html.text(page_identity.title())]),
 						Html.link([
 							Attribute.rel("icon"),
-							Web.asset_href(Route.Asset.TasksIcon),
+							Web.asset_href(Route.Asset.AppIcon),
 							attribute("type", "image/svg+xml"),
 						]),
 						Html.link([
@@ -57,8 +57,6 @@ Layout := [].{
 	page : Session, Route.Page, List(Html.Node) -> Html.Node
 	page = |session, page_identity, children| {
 		scripts = match page_identity {
-			Route.Page.Todos => [Route.Asset.Htmx]
-			Route.Page.BigTasks => [Route.Asset.Htmx]
 			Route.Page.Companies => [Route.Asset.Htmx, Route.Asset.Interactions]
 			Route.Page.People => [Route.Asset.Htmx, Route.Asset.Interactions]
 			_ => []
@@ -115,38 +113,25 @@ auth_controls = |session|
 		Session.Auth.Guest =>
 			Html.div(
 				[Design.auth],
-				[
-					Web.link(
-						Route.Page.Login,
-						[Design.button(Design.ButtonTone.Outline, Design.ButtonSize.Small)],
-						[Html.text("Login")],
-					),
-					Web.link(
-						Route.Page.Register,
-						[Design.button(Design.ButtonTone.Primary, Design.ButtonSize.Small)],
-						[Html.text("Register")],
-					),
-				],
+				[],
 			)
-		Session.Auth.LoggedIn(member) =>
-			Web.post_form(
-				Route.PostAction.Logout,
-				[Design.auth],
-				[
-					Html.span([Design.userName], [Html.text(member.name.to_str())]),
-					Html.button(
-						[
-							Attribute.type("submit"),
-							Design.button(Design.ButtonTone.Outline, Design.ButtonSize.Small),
-						],
-						[Html.text("Logout")],
-					),
-				],
-			)
-		Session.Auth.Trusted(member) =>
+		Session.Auth.Trusted(member, source) =>
 			Html.div(
 				[Design.auth],
-				[Html.span([Design.userName], [Html.text(member.name.to_str())])],
+				[
+					Html.span(
+						[Design.userName],
+						[
+							Html.text(
+								if source == Session.IdentitySource.Development {
+									"${member.name.to_str()} (dev mode)"
+								} else {
+									member.name.to_str()
+								},
+							),
+						],
+					),
+				],
 			)
 		}
 

@@ -60,13 +60,12 @@ avoiding image-baseline churn for this server-rendered UI.
 
 ## Temporary compatibility boundaries
 
-- The existing application-managed login remains the request identity adapter
-  for this slice. It is not the final surrounding-environment identity model.
-- Existing database files and demo rows are disposable. The checked-in SQL
-  initialization file is the only schema authority during this refactor.
-- Todo, Tree, and BigTask remain temporarily reachable by their existing URLs
-  after the CRM becomes the default navigation. They are not CRM concepts and
-  will be removed by later slices.
+- Development and production resolve active members through the same trusted
+  identity adapter. The development proxy injects a selectable fixture member.
+- Existing database files are disposable unless development is started with
+  `--keep-db`; versioned migrations are the schema authority.
+- Legacy playground authentication and demo routes are outside this product
+  slice and have been removed.
 - Deals, task completion, configurable settings, import/export, archiving,
   deletion, merging, privacy workflows, and reporting are outside this slice.
 

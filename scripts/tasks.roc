@@ -17,6 +17,11 @@ TailwindTarget := {
 	checksum : Str,
 }
 
+DevOptions := {
+	memberEmail : Str,
+	keepDb : Bool,
+}
+
 # TODO: Restore `speed` after re-verifying the optimized full application
 # build with the pinned nightly and platform.
 deploymentOptimization : Str
@@ -26,7 +31,7 @@ main! : List(OsStr) => Try({}, _)
 main! = |args|
 	match args.drop_first(1) {
 		[] => usage!()
-		[command_arg, ..] => {
+		[command_arg, .. as command_args] => {
 			command = OsStr.display(command_arg)
 
 			match command {
@@ -35,7 +40,7 @@ main! = |args|
 				"build" => buildDistribution!(deploymentOptimization)
 				"check" => check!()
 				"check-all" => checkAll!()
-				"dev" => dev!()
+				"dev" => dev!(command_args.map(OsStr.display))
 				"reset-db" => resetDevDatabase!()
 				"release" => release!()
 				"setup" => setup!(Bool.False)
@@ -69,7 +74,8 @@ usage! = || {
 		\\  build             Build a local runtime bundle in dist/
 		\\  check             Build CSS, format-check, type-check, and test
 		\\  check-all         Run check and all end-to-end tests
-		\\  dev               Format, validate, build dist/, and serve it
+		\\  dev [--member-email EMAIL] [--keep-db]
+		\\                    Serve as Mara by default; optionally preserve the DB
 		\\  reset-db          Recreate the disposable development database
 		\\  release           Build the identified x64 Linux release bundle
 		\\  setup             Install Node packages and Chromium
@@ -84,23 +90,69 @@ usage! = || {
 	Ok({})
 }
 
-dev! : () => Try({}, _)
-dev! = || {
+dev! : List(Str) => Try({}, _)
+dev! = |args| {
+	options = parse_dev_options(
+		args,
+		DevOptions.{
+			memberEmail: "mara@example.com",
+			keepDb: Bool.False,
+		},
+	)?
 	run!("roc", ["fmt", "scripts", "src"])?
 	run!("roc", ["check", "src/main.roc"])?
 	run!("roc", ["test", "src/main.roc"])?
 	checkIntegration!("dev")?
 
-	resetDevDatabase!()?
-	buildDistribution!("dev")?
+	if options.keepDb {
+		db_path = ensureDevDatabase!()?
+		buildDistribution!("dev")?
+		Stdout.line!("Preserving and migrating ${db_path}")?
+	} else {
+		resetDevDatabase!()?
+		buildDistribution!("dev")?
+		Stdout.line!("Reset dist/playground.db from development fixtures")?
+	}
 
-	Stdout.line!("Serving dist/roc-htmx-playground with dist/playground.db")?
-	Cmd.new_str("dist/roc-htmx-playground")
-		.env_str("DB_PATH", "dist/playground.db")
-		.env_str("ASSET_PATH", "dist/assets")
-		.env_str("PUBLIC_ORIGIN", "http://127.0.0.1:8000")
-		.env_str("TZ", "Australia/Melbourne")
+	Cmd.new_str("node")
+		.args_str(["scripts/dev-server.js", "--member-email", options.memberEmail])
 		.exec_cmd!()
+}
+
+parse_dev_options : List(Str), DevOptions -> Try(DevOptions, _)
+parse_dev_options = |args, options|
+	match args {
+		[] => Ok(options)
+		["--keep-db", .. as rest] =>
+			parse_dev_options(
+				rest,
+				DevOptions.{
+					memberEmail: options.memberEmail,
+					keepDb: Bool.True,
+				},
+			)
+		["--member-email", email, .. as rest] if !email.trim().is_empty() =>
+			parse_dev_options(
+				rest,
+				DevOptions.{
+					memberEmail: email.trim(),
+					keepDb: options.keepDb,
+				},
+			)
+		["--member-email", ..] => Err(MissingDevMemberEmail)
+		[unknown, ..] => Err(UnknownDevOption(unknown))
+	}
+
+expect {
+	options = parse_dev_options(
+		["--member-email", "theo@example.com", "--keep-db"],
+		DevOptions.{ memberEmail: "mara@example.com", keepDb: Bool.False },
+	)
+	match options {
+		Ok(parsed) =>
+			parsed.memberEmail == "theo@example.com" and parsed.keepDb
+		_ => False
+	}
 }
 
 ensureDevDatabase! : () => Try(Str, _)
@@ -111,6 +163,7 @@ ensureDevDatabase! = || {
 	if !database.is_file!()? {
 		Stdout.line!("Creating ${db_path} from migrations and db/test-fixtures.sql...")?
 		run!("sqlite3", [db_path, ".read db/migrations/001_initial.sql"])?
+		run!("sqlite3", [db_path, ".read db/migrations/002_remove_legacy_auth_and_demos.sql"])?
 		run!("sqlite3", [db_path, ".read db/test-fixtures.sql"])?
 	}
 
@@ -182,7 +235,11 @@ testBrowser! : () => Try({}, _)
 testBrowser! = || run!("node_modules/.bin/playwright", ["test"])
 
 testAuth! : () => Try({}, _)
-testAuth! = || run!("node", ["tests/tailscale-auth-smoke.js"])
+testAuth! = || {
+	run!("node", ["tests/migration-smoke.js"])?
+	run!("node", ["tests/dev-auth-smoke.js"])?
+	run!("node", ["tests/tailscale-auth-smoke.js"])
+}
 
 checkIntegration! : Str => Try({}, _)
 checkIntegration! = |optimization| {
@@ -214,7 +271,7 @@ checkIntegration! = |optimization| {
 buildDistribution! : Str => Try({}, _)
 buildDistribution! = |optimization| {
 	buildCss!(Bool.False)?
-	_ = ensureDevDatabase!()?
+	db_path = ensureDevDatabase!()?
 	run!(
 		"roc",
 		[
@@ -224,6 +281,16 @@ buildDistribution! = |optimization| {
 			"src/main.roc",
 		],
 	)?
+	run!(
+		"roc",
+		[
+			"build",
+			"--opt=${optimization}",
+			"--output=dist/enquiry-crm-admin",
+			"src/admin.roc",
+		],
+	)?
+	run!("dist/enquiry-crm-admin", ["migrate", "--db", db_path])?
 
 	Ok({})
 }
@@ -298,6 +365,7 @@ buildCss! : Bool => Try({}, _)
 buildCss! = |watch| {
 	assets : Path
 	assets = "dist/assets"
+	run!("rm", ["-rf", "dist/assets"])?
 	assets.create_all!()?
 	run!("cp", ["-R", "assets/.", "dist/assets"])?
 	run!("cp", ["vendor/htmx-4-0-0-beta6.min.js", "dist/assets/htmx.min.js"])?

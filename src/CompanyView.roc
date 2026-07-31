@@ -106,7 +106,7 @@ CompanyView :: [].{
 							[
 								Html.h2([Design.sectionHeading], [Html.text("Relationship")]),
 								detail_list([
-									("Lifecycle", company.lifecycle.to_label()),
+									("Relationship status", company.lifecycle.to_label()),
 									("Owner", company.ownerName),
 									("Source", display_optional(company.sourceName)),
 									("Website", display_optional(company.website)),
@@ -167,7 +167,7 @@ edit_form_page = |actor, company, form, validation, conflict|
 							[Design.warningText],
 							[
 								Html.text(
-									"The form below contains your attempted values. The current saved lifecycle is ${company.lifecycle.to_label()} and the current owner is ${company.ownerName}. Review and submit again to apply your values.",
+									"The form below contains your attempted values. The current saved relationship status is ${company.lifecycle.to_label()} and the current owner is ${company.ownerName}. Review and submit again to apply your values.",
 								),
 							],
 						),
@@ -199,17 +199,7 @@ edit_form_page = |actor, company, form, validation, conflict|
 						form.owner,
 						actor.workspace.members.map(|member| (member.id.to_str(), member.name.to_str())),
 					),
-					FormView.select_field(
-						"Lifecycle",
-						Route.CompanyInput.Lifecycle,
-						form.lifecycle,
-						[
-							("lead", "Lead"),
-							("prospect", "Prospect"),
-							("customer", "Customer"),
-							("inactive", "Inactive"),
-						],
-					),
+					lifecycle_field(form.lifecycle),
 					FormView.select_field(
 						"Source",
 						Route.CompanyInput.Source,
@@ -342,17 +332,7 @@ company_form_page = |actor, form, validation, matches|
 						form.owner,
 						actor.workspace.members.map(|member| (member.id.to_str(), member.name.to_str())),
 					),
-					FormView.select_field(
-						"Lifecycle",
-						Route.CompanyInput.Lifecycle,
-						form.lifecycle,
-						[
-							("lead", "Lead"),
-							("prospect", "Prospect"),
-							("customer", "Customer"),
-							("inactive", "Inactive"),
-						],
-					),
+					lifecycle_field(form.lifecycle),
 					FormView.select_field(
 						"Source",
 						Route.CompanyInput.Source,
@@ -508,7 +488,7 @@ company_table = |companies, filter|
 									[],
 									[
 										header_cell("Company"),
-										header_cell("Lifecycle"),
+										header_cell("Relationship status"),
 										header_cell("Owner"),
 										header_cell("Last changed"),
 									],
@@ -643,6 +623,83 @@ display_optional = |value|
 	} else {
 		value
 	}
+
+lifecycle_field : Str -> Html.Node
+lifecycle_field = |selected| {
+	field_name = Route.CompanyInput.to_name(Route.CompanyInput.Lifecycle)
+	help_id = "company-lifecycle-help"
+	Html.div(
+		[Design.field],
+		[
+			Html.label(
+				[Attribute.for_(field_name), Design.label],
+				[Html.text("Relationship status")],
+			),
+			Html.p(
+				[Attribute.id(help_id), Design.fieldHelp],
+				[
+					Html.text(
+						"How established is your relationship with this company? This is separate from the stage of any deal.",
+					),
+				],
+			),
+			Html.select(
+				[
+					Attribute.id(field_name),
+					Attribute.name(field_name),
+					attribute("aria-describedby", help_id),
+					Design.select,
+				],
+				[
+					("lead", "Lead"),
+					("prospect", "Prospect"),
+					("customer", "Customer"),
+					("inactive", "Inactive"),
+				].map(
+					|(value, label)|
+						Html.option(
+							if value == selected {
+								[Attribute.value(value), attribute("selected", "")]
+							} else {
+								[Attribute.value(value)]
+							},
+							[Html.text(label)],
+						),
+				),
+			),
+			Html.element(
+				"details",
+				[Design.helpDisclosure],
+				[
+					Html.element(
+						"summary",
+						[Design.helpSummary],
+						[Html.text("What do these statuses mean?")],
+					),
+					Html.ul(
+						[Design.helpList],
+						[
+							lifecycle_help_item("Lead", "Newly identified and not yet qualified."),
+							lifecycle_help_item("Prospect", "A plausible customer you are actively exploring."),
+							lifecycle_help_item("Customer", "Has an established buying relationship with you."),
+							lifecycle_help_item("Inactive", "Not currently being pursued or maintained."),
+						],
+					),
+				],
+			),
+		],
+	)
+}
+
+lifecycle_help_item : Str, Str -> Html.Node
+lifecycle_help_item = |status, description|
+	Html.li(
+		[],
+		[
+			Html.span([Design.helpTerm], [Html.text("${status} — ")]),
+			Html.text(description),
+		],
+	)
 
 validation_summary : Str, Str -> Html.Node
 validation_summary = |id, message|

@@ -11,6 +11,10 @@ module.exports = defineConfig({
   reporter: process.env.CI ? "github" : "list",
   use: {
     baseURL: externalBaseURL || "http://127.0.0.1:8010",
+    extraHTTPHeaders: {
+      "Tailscale-User-Login":
+        process.env.E2E_MEMBER_EMAIL || "mara@example.com",
+    },
     trace: "retain-on-failure",
   },
   projects: [

@@ -1,10 +1,10 @@
 const { test, expect } = require("@playwright/test");
 
-async function loginAsMara(page) {
-  await page.goto("/login");
-  await page.getByLabel("Username").fill("Mara Singh");
-  await page.getByRole("button", { name: "Login", exact: true }).click();
-  await expect(page.getByText("Mara Singh", { exact: true })).toBeVisible();
+async function expectDevelopmentMember(page) {
+  await page.goto("/");
+  await expect(
+    page.getByText("Mara Singh (dev mode)", { exact: true }),
+  ).toBeVisible();
 }
 
 async function expectNoDocumentOverflow(page) {
@@ -16,10 +16,31 @@ async function expectNoDocumentOverflow(page) {
 }
 
 test.describe("CRM journeys", () => {
+  test("uses the development proxy identity and exposes no local auth UI", async ({
+    page,
+  }) => {
+    await page.setExtraHTTPHeaders({
+      "Tailscale-User-Login": "theo@example.com",
+    });
+    await page.goto("/");
+
+    await expect(
+      page.getByText("Mara Singh (dev mode)", { exact: true }),
+    ).toBeVisible();
+    await expect(page.getByRole("link", { name: "Login" })).toHaveCount(0);
+    await expect(page.getByRole("link", { name: "Register" })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Logout" })).toHaveCount(0);
+
+    for (const path of ["/login", "/register", "/task", "/treeview", "/user", "/bigTask"]) {
+      const response = await page.goto(path);
+      expect(response.status()).toBe(404);
+    }
+  });
+
   test("preserves a company display name and provides submitted search", async ({
     page,
   }) => {
-    await loginAsMara(page);
+    await expectDevelopmentMember(page);
     await page.goto("/companies/new");
 
     await page
@@ -82,7 +103,7 @@ test.describe("CRM journeys", () => {
   test("previews canonical company-name matches before creating", async ({
     page,
   }) => {
-    await loginAsMara(page);
+    await expectDevelopmentMember(page);
     await page.goto("/companies/new");
 
     await page.getByLabel("Company name").fill("Acme Studios Pty Ltd");
@@ -107,10 +128,59 @@ test.describe("CRM journeys", () => {
     ).toBeVisible();
   });
 
+  test("explains company relationship statuses in the form", async ({
+    page,
+  }) => {
+    await expectDevelopmentMember(page);
+    await page.goto("/companies/new");
+
+    const status = page.getByLabel("Relationship status", { exact: true });
+    await expect(status).toHaveValue("lead");
+    await expect(status).toHaveAttribute(
+      "aria-describedby",
+      "company-lifecycle-help",
+    );
+    await expect(page.locator("#company-lifecycle-help")).toHaveText(
+      "How established is your relationship with this company? This is separate from the stage of any deal.",
+    );
+
+    await page
+      .getByText("What do these statuses mean?", { exact: true })
+      .click();
+    await expect(
+      page.getByText("Lead — Newly identified and not yet qualified.", {
+        exact: true,
+      }),
+    ).toBeVisible();
+    await expect(
+      page.getByText(
+        "Prospect — A plausible customer you are actively exploring.",
+        { exact: true },
+      ),
+    ).toBeVisible();
+    await expect(
+      page.getByText(
+        "Customer — Has an established buying relationship with you.",
+        { exact: true },
+      ),
+    ).toBeVisible();
+    await expect(
+      page.getByText(
+        "Inactive — Not currently being pursued or maintained.",
+        { exact: true },
+      ),
+    ).toBeVisible();
+
+    await page.goto("/companies/company-acme/edit");
+    await expect(
+      page.getByLabel("Relationship status", { exact: true }),
+    ).toHaveValue("prospect");
+  });
+
   test("preserves CRM form values and focuses server validation", async ({
     page,
   }) => {
-    await loginAsMara(page);
+    await expectDevelopmentMember(page);
     await page.goto("/companies/new");
 
     await page
@@ -181,7 +251,7 @@ test.describe("CRM journeys", () => {
     const context = await browser.newContext({ javaScriptEnabled: false });
     const page = await context.newPage();
 
-    await loginAsMara(page);
+    await expectDevelopmentMember(page);
     await page.goto("/companies/new");
     const newCompanyForm = page.locator("form");
     await expect(
@@ -240,7 +310,7 @@ test.describe("CRM journeys", () => {
     });
     const page = await context.newPage();
 
-    await loginAsMara(page);
+    await expectDevelopmentMember(page);
     await page.goto("/companies");
     await expectNoDocumentOverflow(page);
     await expect(
@@ -280,7 +350,7 @@ test.describe("CRM journeys", () => {
   });
 
   test("keeps CRM page hierarchy predictable", async ({ page }) => {
-    await loginAsMara(page);
+    await expectDevelopmentMember(page);
 
     await page.goto("/companies");
     await expect(page.getByRole("heading", { level: 1 })).toHaveCount(1);
@@ -334,7 +404,7 @@ test.describe("CRM journeys", () => {
   test("maintains primary contacts and exposes task responsibility", async ({
     page,
   }) => {
-    await loginAsMara(page);
+    await expectDevelopmentMember(page);
     await page.goto("/people/new");
 
     await page
@@ -552,7 +622,7 @@ test.describe("CRM journeys", () => {
     const context = await browser.newContext({ javaScriptEnabled: false });
     const page = await context.newPage();
 
-    await loginAsMara(page);
+    await expectDevelopmentMember(page);
     await page.goto("/people/new");
     await page
       .getByRole("textbox", { name: "Name", exact: true })

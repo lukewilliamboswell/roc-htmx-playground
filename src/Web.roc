@@ -205,29 +205,12 @@ Web := [].{
 				[{ name: "Location", value: location.to_href() }].concat(headers),
 			)
 
-	hx_push_header : location -> Header
-		where [
-			location.to_href : location -> Str,
-		]
-	hx_push_header = |location| {
-		name: "HX-Push-Url",
-		value: location.to_href(),
-	}
-
-	hx_redirect_header : location -> Header
-		where [
-			location.to_href : location -> Str,
-		]
-	hx_redirect_header = |location| {
-		name: "HX-Redirect",
-		value: location.to_href(),
-	}
 }
 
 expect {
-	response = Web.redirect(Route.Page.Todos)
+	response = Web.redirect(Route.Page.Home)
 	headers = Response.headers(response)
 	Response.status(response) == 303
 		and headers.find_first(|header| header.name == "Location")
-			== Ok({ name: "Location", value: "/task" })
+			== Ok({ name: "Location", value: "/" })
 }

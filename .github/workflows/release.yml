@@ -118,6 +118,8 @@ jobs:
           sudo -u enquiry-crm sqlite3 /var/lib/enquiry-crm/playwright.sqlite \
             < "$GITHUB_WORKSPACE/db/migrations/001_initial.sql"
           sudo -u enquiry-crm sqlite3 /var/lib/enquiry-crm/playwright.sqlite \
+            < "$GITHUB_WORKSPACE/db/migrations/002_remove_legacy_auth_and_demos.sql"
+          sudo -u enquiry-crm sqlite3 /var/lib/enquiry-crm/playwright.sqlite \
             < "$GITHUB_WORKSPACE/db/test-fixtures.sql"
           printf '%s\n' \
             'DB_PATH=/var/lib/enquiry-crm/playwright.sqlite' \

@@ -16,6 +16,7 @@ fs.rmSync(database, { force: true });
 
 for (const sqlFile of [
   "db/migrations/001_initial.sql",
+  "db/migrations/002_remove_legacy_auth_and_demos.sql",
   "db/test-fixtures.sql",
 ]) {
   execFileSync("sqlite3", [database, `.read ${sqlFile}`], {
@@ -31,18 +32,27 @@ if (!process.env.ENQUIRY_CRM_SKIP_BUILD) {
   });
 }
 
-const server = spawn(executable, [], {
-  cwd: root,
-  env: {
-    ...process.env,
-    ASSET_PATH: assetPath,
-    DB_PATH: database,
-    PORT: "8010",
-    PUBLIC_ORIGIN: "http://127.0.0.1:8010",
-    TZ: "Australia/Melbourne",
+const server = spawn(
+  process.execPath,
+  [
+    path.join(root, "scripts", "dev-server.js"),
+    "--member-email",
+    "mara@example.com",
+  ],
+  {
+    cwd: root,
+    env: {
+      ...process.env,
+      DEV_PUBLIC_PORT: "8010",
+      DEV_BACKEND_PORT: "8012",
+      ENQUIRY_CRM_ASSET_PATH: assetPath,
+      ENQUIRY_CRM_DATABASE: database,
+      ENQUIRY_CRM_EXECUTABLE: executable,
+      TZ: "Australia/Melbourne",
+    },
+    stdio: "inherit",
   },
-  stdio: "inherit",
-});
+);
 
 function stop(signal) {
   if (!server.killed) {

@@ -149,6 +149,21 @@ Design :: [].{
 	requiredHint : Attribute.Attribute
 	requiredHint = class("font-normal text-slate-500")
 
+	fieldHelp : Attribute.Attribute
+	fieldHelp = class("text-sm leading-6 text-slate-600")
+
+	helpDisclosure : Attribute.Attribute
+	helpDisclosure = class("text-sm text-slate-600")
+
+	helpSummary : Attribute.Attribute
+	helpSummary = class("w-fit cursor-pointer font-medium text-blue-700 hover:underline focus-visible:rounded-sm focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-600")
+
+	helpList : Attribute.Attribute
+	helpList = class("mt-3 space-y-2 border-l-2 border-slate-200 pl-4")
+
+	helpTerm : Attribute.Attribute
+	helpTerm = class("font-medium text-slate-800")
+
 	input : Attribute.Attribute
 	input = class("block w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-950 shadow-sm outline-none transition placeholder:text-slate-500 focus:border-blue-500 focus:ring-4 focus:ring-blue-100")
 

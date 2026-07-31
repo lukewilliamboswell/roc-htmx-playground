@@ -52,7 +52,7 @@ jobs:
       - name: Install browser dependencies
         run: roc scripts/tasks.roc setup-ci
 
-      - name: Check source and integration tests
+      - name: Check model, source, and integration tests
         run: roc scripts/tasks.roc check
 
       - name: Build identified x64 Linux bundle

@@ -17,6 +17,12 @@ the verified login in `Tailscale-User-Login`, and the application permits that
 login only when the normalized email belongs to an active, pre-provisioned CRM
 member.
 
+This runbook is operational evidence for controls `CTL-001`, `CTL-010`,
+`CTL-012`, `CTL-014`, and `CTL-021`, and verification cases `VER-006` and
+`VER-008`. Their authoritative definitions and risk relationships are in the
+[risk/control model](../model/03-risks-controls.sysml) and
+[verification model](../model/04-verification.sysml).
+
 This design relies on three boundaries:
 
 1. the application listens only on loopback;

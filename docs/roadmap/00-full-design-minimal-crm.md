@@ -1,5 +1,9 @@
 # Minimal CRM — Product Requirements
 
+> Target-state roadmap. This document describes intended product scope, not
+> implemented behavior. The authoritative as-built baseline is the SysML model
+> under [`../model/`](../model/).
+
 Document class: Enduring product design
 
 Status: Draft for validation  

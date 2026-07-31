@@ -1,5 +1,9 @@
 # Simple CRM JSON Interchange Format
 
+> Target-state roadmap. This proposed interchange contract is not implemented
+> unless the authoritative SysML model under [`../model/`](../model/) says
+> otherwise.
+
 Document class: Enduring data design
 
 Status: Draft version 1  

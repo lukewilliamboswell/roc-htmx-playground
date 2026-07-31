@@ -66,8 +66,7 @@ Http := [].{
 	require_login = |session|
 		match session.user {
 			Session.Auth.Guest => Err(AppError.Unauthorized)
-			Session.Auth.LoggedIn(_) => Ok({})
-			Session.Auth.Trusted(_) => Ok({})
+			Session.Auth.Trusted(_, _) => Ok({})
 		}
 
 	require_same_origin : Server.Request, Str -> Try({}, AppError)
@@ -98,28 +97,6 @@ Http := [].{
 			Err(_) => Err(MissingHeader)
 		}
 
-	session_id : Server.Request -> Try(Session.Id, [InvalidSessionCookie])
-	session_id = |request| session_id_from_headers(request.headers())
-
-	session_id_from_headers : List(Header) -> Try(Session.Id, [InvalidSessionCookie])
-	session_id_from_headers = |headers| {
-		header = headers
-			.find_first(|item| item.name.with_ascii_lowercased() == "cookie")
-			.map_err(|_| InvalidSessionCookie)?
-		cookie = header.value.split_on(";")
-			.find_first(|item| item.trim().starts_with("sessionId="))
-			.map_err(|_| InvalidSessionCookie)?
-		parts = cookie.trim().split_on("=")
-		match parts {
-			["sessionId", value] =>
-				match Session.Id.from_str(value) {
-					Ok(id) => Ok(id)
-					Err(_) => Err(InvalidSessionCookie)
-				}
-			_ => Err(InvalidSessionCookie)
-		}
-	}
-
 	expect {
 		form = Http.parse_form("username=Ada+Lovelace&email=ada%40example.com".to_utf8())
 		match form {
@@ -130,17 +107,6 @@ Http := [].{
 		}
 	}
 
-	expect {
-		parsed = Http.session_id_from_headers([
-			{ name: "Cookie", value: "theme=dark; sessionId=42; compact=true" },
-		])
-		match parsed {
-			Ok(id) => Session.Id.to_i64(id) == 42
-			Err(_) => False
-		}
-	}
-
-	expect Http.session_id_from_headers([]) == Err(InvalidSessionCookie)
 	expect Http.require_login(Session.guest(Session.Id.from_i64(1))) == Err(AppError.Unauthorized)
 	expect Http.require_same_origin_headers(
 		[
@@ -157,12 +123,6 @@ Http := [].{
 		"https://app.example",
 	) == Err(AppError.Forbidden)
 
-	session_cookie : Session.Id -> Header
-	session_cookie = |id| {
-		name: "Set-Cookie",
-		value: "sessionId=${id.to_str()}; Path=/; HttpOnly; SameSite=Lax",
-	}
-
 	error_response! : Session, AppError => Response
 	error_response! = |session, error|
 		error_response_for_headers!([], session, error)
@@ -172,18 +132,10 @@ Http := [].{
 		error_response_for_headers!(request.headers(), session, error)
 
 	error_response_for_headers! : List(Header), Session, AppError => Response
-	error_response_for_headers! = |headers, session, error|
+	error_response_for_headers! = |_headers, session, error|
 		match error {
 			AppError.Unauthorized =>
-				if is_htmx_request(headers) {
-					html(
-						200,
-						ErrorView.unauthorized(session),
-						[Web.hx_redirect_header(Route.Page.Login)],
-					)
-				} else {
-					html(401, ErrorView.unauthorized(session), [])
-				}
+				html(401, ErrorView.unauthorized(session), [])
 			AppError.Forbidden => html(403, ErrorView.forbidden(session), [])
 			AppError.BadRequest(message) => html(400, ErrorView.bad_request(session, message), [])
 			AppError.NotFound(target) => {

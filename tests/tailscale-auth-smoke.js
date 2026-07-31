@@ -19,6 +19,7 @@ fs.rmSync(database, { force: true });
 
 for (const sqlFile of [
   "db/migrations/001_initial.sql",
+  "db/migrations/002_remove_legacy_auth_and_demos.sql",
   "db/test-fixtures.sql",
 ]) {
   execFileSync("sqlite3", [database, `.read ${sqlFile}`], {
@@ -77,6 +78,7 @@ async function run() {
   assert.equal(member.status, 200);
   const memberBody = await member.text();
   assert.match(memberBody, /Mara Singh/);
+  assert.doesNotMatch(memberBody, /dev mode/i);
   assert.doesNotMatch(memberBody, />Logout</);
 
   const loginRoute = await fetch(`${localOrigin}/login`, {
@@ -105,12 +107,14 @@ async function run() {
   assert.doesNotMatch(unknownRouteBody, />Login</);
   assert.doesNotMatch(unknownRouteBody, />Register</);
 
-  const spoofedOrigin = await fetch(`${localOrigin}/logout`, {
+  const spoofedOrigin = await fetch(`${localOrigin}/companies/preview`, {
     method: "POST",
     headers: {
+      "Content-Type": "application/x-www-form-urlencoded",
       Origin: "https://attacker.example",
       "Tailscale-User-Login": "mara@example.com",
     },
+    body: "name=",
   });
   assert.equal(spoofedOrigin.status, 403);
 }

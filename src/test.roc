@@ -12,27 +12,20 @@ import pf.Stderr
 import pf.Stdout
 import http.Response
 import "../db/migrations/001_initial.sql" as init_schema : Str
+import "../db/migrations/002_remove_legacy_auth_and_demos.sql" as remove_legacy_schema : Str
 import "../db/test-fixtures.sql" as test_fixtures : Str
 
 import Activity
-import BigTask
-import BigTaskStore
 import Actor
 import Company
 import CompanyHandler
 import CompanyStore
 import Http
 import Member
-import MemberStore
 import Person
 import PersonHandler
 import PersonStore
 import Session
-import SessionStore
-import Todo
-import TodoStore
-import User
-import UserStore
 import Workspace
 import WorkspaceStore
 import WorkTask
@@ -72,6 +65,13 @@ init! = || {
 		}
 		Ok({}) => {}
 	}
+	match load_schema!(db, remove_legacy_schema.split_on(";")) {
+		Err(error) => {
+			Stderr.line!("migration failed: ${Str.inspect(error)}") ? |_| Exit(2)
+			return Err(Exit(2))
+		}
+		Ok({}) => {}
+	}
 	match load_schema!(db, test_fixtures.split_on(";")) {
 		Err(error) => {
 			Stderr.line!("fixtures failed: ${Str.inspect(error)}") ? |_| Exit(2)
@@ -90,12 +90,6 @@ init! = || {
 	Stdout.line!("people: ok") ? |_| Exit(3)
 	test_work_tasks!(db)
 	Stdout.line!("work tasks: ok") ? |_| Exit(3)
-	test_sessions_and_users!(db)
-	Stdout.line!("sessions and users: ok") ? |_| Exit(3)
-	test_todos!(db)
-	Stdout.line!("todos: ok") ? |_| Exit(3)
-	test_big_tasks!(db)
-	Stdout.line!("big tasks: ok") ? |_| Exit(3)
 	Err(Exit(0))
 }
 
@@ -272,7 +266,7 @@ test_companies! = |db| {
 	}
 
 	actor = match Actor.from_session(
-		Session.logged_in(Session.Id.from_i64(99), member),
+		Session.trusted(member, Session.IdentitySource.Development),
 		workspace,
 	) {
 		Ok(value) => value
@@ -675,7 +669,7 @@ valid_work_task = |subject, due_local, assignee_id, related|
 logged_in_actor : Workspace, Member -> Actor
 logged_in_actor = |workspace, member|
 	match Actor.from_session(
-		Session.logged_in(Session.Id.from_i64(99), member),
+		Session.trusted(member, Session.IdentitySource.Development),
 		workspace,
 	) {
 		Ok(actor) => actor
@@ -711,7 +705,7 @@ test_schema_version! = |db| {
 		params: {},
 		limits: Sqlite.default_query_limits,
 	}) ?? 0
-	expect version == 1
+	expect version == 2
 }
 
 respond! = |_request, _context| Ok(Server.respond(Response.from_status(204)))
@@ -732,253 +726,3 @@ load_schema! = |db, statements|
 			}
 		}
 	}
-
-test_sessions_and_users! : Sqlite.Db => {}
-test_sessions_and_users! = |db| {
-	sessions = SessionStore.new(db)
-	members = MemberStore.new(db)
-	users = UserStore.new(db)
-
-	created = SessionStore.create!(sessions)
-	expect match created {
-		Ok(id) => id.to_i64() == 1
-		Err(_) => False
-	}
-	session_id = created ?? Session.Id.from_i64(0)
-
-	guest = SessionStore.find!(sessions, session_id)
-	expect match guest {
-		Ok(session) => !session.is_logged_in()
-		Err(_) => False
-	}
-
-	registration = Member.register("Ada", "ada@example.com")
-	registered = match registration {
-		Ok(value) => MemberStore.register!(members, value)
-		Err(_) => Err(MemberAlreadyExists)
-	}
-	expect registered.is_ok()
-
-	duplicate_registration = Member.register("Ada", "other@example.com")
-	duplicate = match duplicate_registration {
-		Ok(value) => MemberStore.register!(members, value)
-		Err(_) => Err(MemberAlreadyExists)
-	}
-	expect match duplicate {
-		Err(MemberAlreadyExists) => True
-		_ => False
-	}
-
-	listed = MemberStore.list_active!(members)
-	expect match listed {
-		Ok([member1, member2, member3]) =>
-			[member1, member2, member3].any(
-				|member|
-					member.name.to_str() == "Ada"
-						and member.email.to_str() == "ada@example.com",
-			)
-		_ => False
-	}
-
-	trusted_member = MemberStore.find_active_by_email!(members, " MARA@EXAMPLE.COM ")
-	expect match trusted_member {
-		Ok(member) =>
-			member.name.to_str() == "Mara Singh"
-				and member.email.to_str() == "mara@example.com"
-		_ => False
-	}
-	missing_member = MemberStore.find_active_by_email!(members, "missing@example.com")
-	expect match missing_member {
-		Err(MemberNotFound) => True
-		_ => False
-	}
-
-	legacy_users = UserStore.list!(users)
-	expect match legacy_users {
-		Ok([_, _]) => True
-		_ => False
-	}
-
-	logged_in = match registration {
-		Ok(value) => MemberStore.login!(members, session_id, value.name)
-		Err(_) => Err(MemberNotFound)
-	}
-	expect logged_in.is_ok()
-	resolved = SessionStore.find!(sessions, session_id)
-	expect match resolved {
-		Ok(session) =>
-			match session.user {
-				Session.Auth.LoggedIn(member) => member.name.to_str() == "Ada"
-				_ => False
-			}
-		Err(_) => False
-	}
-
-	ada_id = match resolved {
-		Ok(session) =>
-			match session.user {
-				Session.Auth.LoggedIn(member) => member.id.to_str()
-				_ => ""
-			}
-		Err(_) => ""
-	}
-	deactivated = Sqlite.execute!({
-		db,
-		query: "UPDATE members SET active = 0 WHERE member_id = :memberId;",
-		params: { memberId: ada_id },
-	})
-	expect deactivated.is_ok()
-	inactive_member = MemberStore.find_active_by_email!(members, "ada@example.com")
-	expect match inactive_member {
-		Err(InactiveMember) => True
-		_ => False
-	}
-	inactive_session = SessionStore.find!(sessions, session_id)
-	expect match inactive_session {
-		Err(Session.FindError.Inactive) => True
-		_ => False
-	}
-
-	missing = SessionStore.find!(sessions, Session.Id.from_i64(999))
-	expect match missing {
-		Err(Session.FindError.NotFound) => True
-		_ => False
-	}
-}
-
-test_todos! : Sqlite.Db => {}
-test_todos! = |db| {
-	store = TodoStore.new(db)
-
-	alpha_created = Todo.create!(store, "Alpha task", Todo.Status.NotStarted)
-	expect alpha_created.is_ok()
-	beta_created = Todo.create!(store, "Beta task", Todo.Status.InProgress)
-	expect beta_created.is_ok()
-
-	alpha = TodoStore.list!(store, Todo.Filter.from_str("Alpha"))
-	expect match alpha {
-		Ok([todo]) => todo.task.to_str() == "Alpha task"
-		_ => False
-	}
-
-	beta = TodoStore.list!(store, Todo.Filter.from_str("Beta"))
-	expect match beta {
-		Ok([todo]) => todo.task.to_str() == "Beta task"
-		_ => False
-	}
-
-	first_id = match alpha {
-		Ok([first]) => first.id
-		_ => Todo.Id.from_i64(0)
-	}
-	second_id = match beta {
-		Ok([second]) => second.id
-		_ => Todo.Id.from_i64(0)
-	}
-
-	status_updated = TodoStore.update_status!(store, first_id, Todo.Status.Completed)
-	expect status_updated.is_ok()
-	updated = TodoStore.list!(store, Todo.Filter.from_str("Alpha"))
-	expect match updated {
-		Ok([todo]) => todo.status == Todo.Status.Completed
-		_ => False
-	}
-
-	tree = TodoStore.tree!(store, User.Id.from_i64(1))
-	expect match tree {
-		Ok(
-			Todo.Tree.Node(
-				root,
-				[
-					Todo.Tree.Node(first_child, []),
-					Todo.Tree.Node(second_child, [Todo.Tree.Node(grandchild, [])]),
-				],
-			),
-		) =>
-			root.id == Todo.Id.from_i64(0)
-				and first_child.id == Todo.Id.from_i64(1)
-					and second_child.id == Todo.Id.from_i64(2)
-						and grandchild.id == Todo.Id.from_i64(3)
-		_ => False
-	}
-
-	deleted = TodoStore.delete!(store, second_id)
-	expect deleted.is_ok()
-	after_delete = TodoStore.list!(store, Todo.Filter.from_str("Beta"))
-	expect match after_delete {
-		Ok([]) => True
-		_ => False
-	}
-
-	invalid_insert = Sqlite.execute!({
-		db,
-		query: "INSERT INTO tasks (id, task, status) VALUES (99, 'Invalid', 'Unknown');",
-		params: {},
-	})
-	expect invalid_insert.is_ok()
-	invalid_row = TodoStore.list!(store, Todo.Filter.from_str("Invalid"))
-	expect match invalid_row {
-		Err(InvalidStoredStatus("Unknown")) => True
-		_ => False
-	}
-}
-
-test_big_tasks! : Sqlite.Db => {}
-test_big_tasks! = |db| {
-	store = BigTaskStore.new(db)
-
-	total = BigTaskStore.total!(store)
-	expect total == Ok(100)
-
-	query = BigTask.Query.{
-		page: BigTask.Page.from_i64(2),
-		items: BigTask.ItemsPerPage.from_i64(10),
-		sortBy: BigTask.SortColumn.ById,
-		sortDirection: BigTask.SortDirection.Ascending,
-	}
-	second_page = BigTaskStore.list!(store, query)
-	expect match second_page {
-		Ok([first, ..]) => first.id == BigTask.Id.from_i64(10)
-		_ => False
-	}
-
-	id = BigTask.Id.from_i64(1)
-	customer_updated = apply_update!(store, id, BigTask.Version.initial, "41137", BigTask.update(BigTask.Field.CustomerReferenceField, "789"))
-	expect customer_updated == Ok(BigTask.Version.from_i64(2))
-	date_updated = apply_update!(store, id, BigTask.Version.initial, "2025-08-06", BigTask.update(BigTask.Field.DateCreatedField, "2026-07-28"))
-	expect date_updated == Ok(BigTask.Version.from_i64(3))
-	big_task_status_updated = apply_update!(store, id, BigTask.Version.initial, "In-Progress", BigTask.update(BigTask.Field.StatusField, "Approved"))
-	expect big_task_status_updated == Ok(BigTask.Version.from_i64(4))
-
-	stale_update = apply_update!(store, id, BigTask.Version.initial, "In-Progress", BigTask.update(BigTask.Field.StatusField, "Deferred"))
-	expect stale_update.is_err()
-
-	updated = BigTaskStore.list!(
-		store,
-		BigTask.Query.{
-			page: BigTask.Page.from_i64(1),
-			items: BigTask.ItemsPerPage.from_i64(2),
-			sortBy: BigTask.SortColumn.ById,
-			sortDirection: BigTask.SortDirection.Ascending,
-		},
-	)
-	expect match updated {
-		Ok([_, task]) =>
-			task.id == id
-				and BigTask.CustomerReference.to_str(task.customerReferenceId) == "789"
-					and BigTask.Date.to_str(task.dateCreated) == "2026-07-28"
-						and task.status == BigTask.Status.Approved
-		_ => False
-	}
-}
-
-apply_update! : BigTaskStore, BigTask.Id, BigTask.Version, Str, Try(BigTask.Update, err) => Try(BigTask.Version, [InvalidUpdate, BigTaskUpdateErr(BigTask.UpdateError(Sqlite.QueryError))])
-apply_update! = |store, id, version, original, update|
-	match update {
-		Err(_) => Err(InvalidUpdate)
-		Ok(value) =>
-			match BigTaskStore.update!(store, id, version, original, value) {
-				Err(error) => Err(BigTaskUpdateErr(error))
-				Ok(next_version) => Ok(next_version)
-			}
-		}

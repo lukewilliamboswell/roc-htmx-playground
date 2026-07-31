@@ -1,10 +1,9 @@
 const { test, expect } = require("@playwright/test");
 
-async function loginAsMara(page) {
-  await page.goto("/login");
-  await page.getByLabel("Username").fill("Mara Singh");
-  await page.getByRole("button", { name: "Login", exact: true }).click();
+async function expectDevelopmentMember(page) {
+  await page.goto("/");
   await expect(page.getByText("Mara Singh", { exact: true })).toBeVisible();
+  await expect(page.getByText("Dev mode", { exact: true })).toBeVisible();
 }
 
 async function expectNoDocumentOverflow(page) {
@@ -16,10 +15,30 @@ async function expectNoDocumentOverflow(page) {
 }
 
 test.describe("CRM journeys", () => {
+  test("uses the development proxy identity and exposes no local auth UI", async ({
+    page,
+  }) => {
+    await page.setExtraHTTPHeaders({
+      "Tailscale-User-Login": "theo@example.com",
+    });
+    await page.goto("/");
+
+    await expect(page.getByText("Mara Singh", { exact: true })).toBeVisible();
+    await expect(page.getByText("Dev mode", { exact: true })).toBeVisible();
+    await expect(page.getByRole("link", { name: "Login" })).toHaveCount(0);
+    await expect(page.getByRole("link", { name: "Register" })).toHaveCount(0);
+    await expect(page.getByRole("button", { name: "Logout" })).toHaveCount(0);
+
+    for (const path of ["/login", "/register", "/task", "/treeview", "/user", "/bigTask"]) {
+      const response = await page.goto(path);
+      expect(response.status()).toBe(404);
+    }
+  });
+
   test("preserves a company display name and provides submitted search", async ({
     page,
   }) => {
-    await loginAsMara(page);
+    await expectDevelopmentMember(page);
     await page.goto("/companies/new");
 
     await page
@@ -82,7 +101,7 @@ test.describe("CRM journeys", () => {
   test("previews canonical company-name matches before creating", async ({
     page,
   }) => {
-    await loginAsMara(page);
+    await expectDevelopmentMember(page);
     await page.goto("/companies/new");
 
     await page.getByLabel("Company name").fill("Acme Studios Pty Ltd");
@@ -107,10 +126,59 @@ test.describe("CRM journeys", () => {
     ).toBeVisible();
   });
 
+  test("explains company relationship statuses in the form", async ({
+    page,
+  }) => {
+    await expectDevelopmentMember(page);
+    await page.goto("/companies/new");
+
+    const status = page.getByLabel("Relationship status", { exact: true });
+    await expect(status).toHaveValue("lead");
+    await expect(status).toHaveAttribute(
+      "aria-describedby",
+      "company-lifecycle-help",
+    );
+    await expect(page.locator("#company-lifecycle-help")).toHaveText(
+      "How established is your relationship with this company? This is separate from the stage of any deal.",
+    );
+
+    await page
+      .getByText("What do these statuses mean?", { exact: true })
+      .click();
+    await expect(
+      page.getByText("Lead — Newly identified and not yet qualified.", {
+        exact: true,
+      }),
+    ).toBeVisible();
+    await expect(
+      page.getByText(
+        "Prospect — A plausible customer you are actively exploring.",
+        { exact: true },
+      ),
+    ).toBeVisible();
+    await expect(
+      page.getByText(
+        "Customer — Has an established buying relationship with you.",
+        { exact: true },
+      ),
+    ).toBeVisible();
+    await expect(
+      page.getByText(
+        "Inactive — Not currently being pursued or maintained.",
+        { exact: true },
+      ),
+    ).toBeVisible();
+
+    await page.goto("/companies/company-acme/edit");
+    await expect(
+      page.getByLabel("Relationship status", { exact: true }),
+    ).toHaveValue("prospect");
+  });
+
   test("preserves CRM form values and focuses server validation", async ({
     page,
   }) => {
-    await loginAsMara(page);
+    await expectDevelopmentMember(page);
     await page.goto("/companies/new");
 
     await page
@@ -181,7 +249,7 @@ test.describe("CRM journeys", () => {
     const context = await browser.newContext({ javaScriptEnabled: false });
     const page = await context.newPage();
 
-    await loginAsMara(page);
+    await expectDevelopmentMember(page);
     await page.goto("/companies/new");
     const newCompanyForm = page.locator("form");
     await expect(
@@ -217,7 +285,7 @@ test.describe("CRM journeys", () => {
 
     await page.goto("/people/new?company=company-acme");
     await expect(
-      page.getByRole("link", { name: "← Acme Studio", exact: true }),
+      page.getByRole("link", { name: "Acme Studio", exact: true }),
     ).toHaveAttribute("href", "/companies/company-acme");
     await page
       .locator("form")
@@ -240,20 +308,26 @@ test.describe("CRM journeys", () => {
     });
     const page = await context.newPage();
 
-    await loginAsMara(page);
+    await expectDevelopmentMember(page);
     await page.goto("/companies");
     await expectNoDocumentOverflow(page);
     await expect(
       page.getByRole("link", { name: "New company", exact: true }),
     ).toBeVisible();
 
-    const tableRegion = page.locator("div.overflow-x-auto");
-    await expect(tableRegion).toBeVisible();
-    const tableWidths = await tableRegion.evaluate((region) => ({
-      client: region.clientWidth,
-      scroll: region.scrollWidth,
+    // The record list is one table at every width. On a small screen its
+    // elements lay out as blocks, so each row reads as a card of labelled
+    // lines instead of a column-per-field row that has to scroll sideways.
+    const row = page.locator("tr").filter({ hasText: "Acme Studio" });
+    await expect(row).toHaveCSS("display", "block");
+    await expect(page.locator("thead")).toBeHidden();
+    await expect(row.getByText("Owner", { exact: true })).toBeVisible();
+
+    const rowWidths = await row.evaluate((element) => ({
+      row: element.getBoundingClientRect().width,
+      viewport: document.documentElement.clientWidth,
     }));
-    expect(tableWidths.scroll).toBeGreaterThanOrEqual(tableWidths.client);
+    expect(rowWidths.row).toBeLessThanOrEqual(rowWidths.viewport);
 
     await page.goto("/people/new");
     await expectNoDocumentOverflow(page);
@@ -280,7 +354,7 @@ test.describe("CRM journeys", () => {
   });
 
   test("keeps CRM page hierarchy predictable", async ({ page }) => {
-    await loginAsMara(page);
+    await expectDevelopmentMember(page);
 
     await page.goto("/companies");
     await expect(page.getByRole("heading", { level: 1 })).toHaveCount(1);
@@ -294,6 +368,15 @@ test.describe("CRM journeys", () => {
     await expect(
       page.getByRole("link", { name: "Acme Studio", exact: true }),
     ).toBeVisible();
+
+    // At this width the same markup is a real table, so column headers are
+    // exposed and associated rather than repeated inside every cell.
+    await expect(
+      page.getByRole("columnheader", { name: "Owner", exact: true }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("row").filter({ hasText: "Acme Studio" }),
+    ).toHaveCount(1);
 
     await page.goto("/companies/company-acme");
     await expect(page.getByRole("heading", { level: 1 })).toHaveCount(1);
@@ -334,7 +417,7 @@ test.describe("CRM journeys", () => {
   test("maintains primary contacts and exposes task responsibility", async ({
     page,
   }) => {
-    await loginAsMara(page);
+    await expectDevelopmentMember(page);
     await page.goto("/people/new");
 
     await page
@@ -552,7 +635,7 @@ test.describe("CRM journeys", () => {
     const context = await browser.newContext({ javaScriptEnabled: false });
     const page = await context.newPage();
 
-    await loginAsMara(page);
+    await expectDevelopmentMember(page);
     await page.goto("/people/new");
     await page
       .getByRole("textbox", { name: "Name", exact: true })

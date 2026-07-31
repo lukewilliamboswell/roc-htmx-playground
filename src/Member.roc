@@ -58,43 +58,6 @@ Member := {
 		is_eq : _
 	}
 
-	Registration := {
-		name : Name,
-		email : Email,
-	}.{
-		is_eq : _
-	}
-
-	RegisterError(err) := [InvalidRegistration, StoreFailure(err)]
-
-	LoginError(err) := [InvalidName, StoreFailure(err)]
-
-	register : Str, Str -> Try(Registration, [NameWasEmpty, EmailWasEmpty])
-	register = |name, email|
-		match Name.from_str(name) {
-			Err(NameWasEmpty) => Err(NameWasEmpty)
-			Ok(valid_name) =>
-				match Email.from_str(email) {
-					Err(EmailWasEmpty) => Err(EmailWasEmpty)
-					Ok(valid_email) =>
-						Ok(Registration.{ name: valid_name, email: valid_email })
-					}
-			}
-
-	complete_registration : Try({}, err) -> Try({}, RegisterError(err))
-	complete_registration = |stored|
-		match stored {
-			Ok({}) => Ok({})
-			Err(error) => Err(RegisterError.StoreFailure(error))
-		}
-
-	complete_login : Try({}, err) -> Try({}, LoginError(err))
-	complete_login = |stored|
-		match stored {
-			Ok({}) => Ok({})
-			Err(error) => Err(LoginError.StoreFailure(error))
-		}
-
 	from_storage : Str, Str, Str, I64 -> Member
 	from_storage = |id, name, email, active|
 		Member.{
@@ -105,8 +68,6 @@ Member := {
 		}
 }
 
-expect Member.register("  Ada  ", " ada@example.com ").is_ok()
-expect Member.register(" ", "ada@example.com") == Err(NameWasEmpty)
 expect match Member.Id.from_str("member-ada") {
 	Ok(id) => id.to_str() == "member-ada"
 	Err(_) => False

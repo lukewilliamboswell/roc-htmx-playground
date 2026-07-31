@@ -14,19 +14,8 @@ ErrorView :: [].{
 			session,
 			Unauthorized,
 			"Unauthorized",
-			"You need to be signed in to view this page.",
-			[
-				Web.link(
-					Route.Page.Login,
-					[Design.button(Design.ButtonTone.Primary, Design.ButtonSize.Regular)],
-					[Html.text("Login")],
-				),
-				Web.link(
-					Route.Page.Register,
-					[Design.button(Design.ButtonTone.Outline, Design.ButtonSize.Regular)],
-					[Html.text("Register")],
-				),
-			],
+			"Your trusted network identity does not have access to this workspace.",
+			[home_link()],
 		)
 
 	not_found : Session -> Html.Node
@@ -86,6 +75,7 @@ document : Session, ErrorPage, Str, Str, List(Html.Node) -> Html.Node
 document = |session, page_identity, heading, message, actions|
 	Layout.document(
 		session,
+		Layout.Section.Unsectioned,
 		page_identity,
 		[],
 		[

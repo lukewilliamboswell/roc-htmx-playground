@@ -6,6 +6,7 @@ import Actor
 import Company
 import Design
 import FormView
+import Icon
 import Layout
 import Person
 import Route
@@ -83,19 +84,20 @@ CompanyView :: [].{
 			actor.session,
 			Route.Page.Companies,
 			[
-				Web.link(
-					Route.Page.Companies,
-					[Design.navLink],
-					[Html.text("← Companies")],
-				),
+				Layout.back_link(Route.Page.Companies, "Companies"),
 				Html.h1(
 					[Design.pageTitle, Design.backLinkedPageTitle],
 					[Html.text(company.name.to_str())],
 				),
-				Web.link(
-					Route.Location.CompanyEdit(company.id),
-					[Design.button(Design.ButtonTone.Outline, Design.ButtonSize.Regular)],
-					[Html.text("Edit company")],
+				Html.div(
+					[Design.pageActions],
+					[
+						Web.link(
+							Route.Location.CompanyEdit(company.id),
+							[Design.button(Design.ButtonTone.Outline, Design.ButtonSize.Regular)],
+							[Html.text("Edit company")],
+						),
+					],
 				),
 				Html.div(
 					[Design.detailGrid],
@@ -106,7 +108,7 @@ CompanyView :: [].{
 							[
 								Html.h2([Design.sectionHeading], [Html.text("Relationship")]),
 								detail_list([
-									("Lifecycle", company.lifecycle.to_label()),
+									("Relationship status", company.lifecycle.to_label()),
 									("Owner", company.ownerName),
 									("Source", display_optional(company.sourceName)),
 									("Website", display_optional(company.website)),
@@ -148,11 +150,7 @@ edit_form_page = |actor, company, form, validation, conflict|
 		actor.session,
 		Route.Page.Companies,
 		[
-			Web.link(
-				Route.Location.CompanyDetail(company.id),
-				[Design.navLink],
-				[Html.text("← ${company.name.to_str()}")],
-			),
+			Layout.back_link(Route.Location.CompanyDetail(company.id), company.name.to_str()),
 			Html.h1([Design.pageTitle, Design.backLinkedPageTitle], [Html.text("Edit company")]),
 			if conflict {
 				Html.element(
@@ -167,7 +165,7 @@ edit_form_page = |actor, company, form, validation, conflict|
 							[Design.warningText],
 							[
 								Html.text(
-									"The form below contains your attempted values. The current saved lifecycle is ${company.lifecycle.to_label()} and the current owner is ${company.ownerName}. Review and submit again to apply your values.",
+									"The form below contains your attempted values. The current saved relationship status is ${company.lifecycle.to_label()} and the current owner is ${company.ownerName}. Review and submit again to apply your values.",
 								),
 							],
 						),
@@ -199,17 +197,7 @@ edit_form_page = |actor, company, form, validation, conflict|
 						form.owner,
 						actor.workspace.members.map(|member| (member.id.to_str(), member.name.to_str())),
 					),
-					FormView.select_field(
-						"Lifecycle",
-						Route.CompanyInput.Lifecycle,
-						form.lifecycle,
-						[
-							("lead", "Lead"),
-							("prospect", "Prospect"),
-							("customer", "Customer"),
-							("inactive", "Inactive"),
-						],
-					),
+					lifecycle_field(form.lifecycle),
 					FormView.select_field(
 						"Source",
 						Route.CompanyInput.Source,
@@ -309,7 +297,7 @@ company_form_page = |actor, form, validation, matches|
 		actor.session,
 		Route.Page.CompanyNew,
 		[
-			Web.link(Route.Page.Companies, [Design.navLink], [Html.text("← Companies")]),
+			Layout.back_link(Route.Page.Companies, "Companies"),
 			Html.h1([Design.pageTitle, Design.backLinkedPageTitle], [Html.text("New company")]),
 			Html.p(
 				[Design.lead],
@@ -342,17 +330,7 @@ company_form_page = |actor, form, validation, matches|
 						form.owner,
 						actor.workspace.members.map(|member| (member.id.to_str(), member.name.to_str())),
 					),
-					FormView.select_field(
-						"Lifecycle",
-						Route.CompanyInput.Lifecycle,
-						form.lifecycle,
-						[
-							("lead", "Lead"),
-							("prospect", "Prospect"),
-							("customer", "Customer"),
-							("inactive", "Inactive"),
-						],
-					),
+					lifecycle_field(form.lifecycle),
 					FormView.select_field(
 						"Source",
 						Route.CompanyInput.Source,
@@ -508,7 +486,7 @@ company_table = |companies, filter|
 									[],
 									[
 										header_cell("Company"),
-										header_cell("Lifecycle"),
+										header_cell("Relationship status"),
 										header_cell("Owner"),
 										header_cell("Last changed"),
 									],
@@ -531,6 +509,7 @@ company_empty_state = |filter|
 		[Design.emptyStatePanel],
 		if filter.to_str().is_empty() {
 			[
+				Html.span([Design.emptyStateIcon], [Icon.inbox(Design.emptyStateIconGlyph)]),
 				Html.p(
 					[Design.emptyStateText],
 					[Html.text("No companies have been recorded yet. Use New company to capture the first relationship.")],
@@ -538,6 +517,7 @@ company_empty_state = |filter|
 			]
 		} else {
 			[
+				Html.span([Design.emptyStateIcon], [Icon.searchOff(Design.emptyStateIconGlyph)]),
 				Html.p(
 					[Design.emptyStateText],
 					[Html.text("No companies match “${filter.to_str()}”. Clear the search to see every company.")],
@@ -562,26 +542,39 @@ company_row = |company|
 		[Design.tableRow],
 		[
 			Html.td(
-				[Design.tableCell],
+				[Design.tableCellPrimary],
 				[
 					Web.link(
 						Route.Location.CompanyDetail(company.id),
-						[Design.recordLink],
-						[Html.text(company.name.to_str())],
+						[Design.recordCardLink],
+						[
+							Html.text(company.name.to_str()),
+							Icon.chevronRight(Design.recordCardChevron),
+						],
 					),
 				],
 			),
-			Html.td(
-				[Design.tableCell],
-				[
-					Html.span(
-						[Design.badge(Design.BadgeTone.Neutral)],
-						[Html.text(company.lifecycle.to_label())],
-					),
-				],
+			labelled_cell(
+				"Status",
+				Html.span(
+					[Design.badge(Design.BadgeTone.Neutral)],
+					[Html.text(company.lifecycle.to_label())],
+				),
 			),
-			Html.td([Design.tableCell], [Html.text(company.ownerName)]),
-			Html.td([Design.tableCell], [Html.text(company.updatedAt.to_str())]),
+			labelled_cell("Owner", Html.text(company.ownerName)),
+			labelled_cell("Last changed", Html.text(company.updatedAt.to_str())),
+		],
+	)
+
+## Below `sm` the header row is hidden, so each cell carries its own column
+## name; from `sm` up the label is hidden and the header row names the column.
+labelled_cell : Str, Html.Node -> Html.Node
+labelled_cell = |label, value|
+	Html.td(
+		[Design.tableCell],
+		[
+			Html.span([Design.cellLabel], [Html.text(label)]),
+			value,
 		],
 	)
 
@@ -643,6 +636,83 @@ display_optional = |value|
 	} else {
 		value
 	}
+
+lifecycle_field : Str -> Html.Node
+lifecycle_field = |selected| {
+	field_name = Route.CompanyInput.to_name(Route.CompanyInput.Lifecycle)
+	help_id = "company-lifecycle-help"
+	Html.div(
+		[Design.field],
+		[
+			Html.label(
+				[Attribute.for_(field_name), Design.label],
+				[Html.text("Relationship status")],
+			),
+			Html.p(
+				[Attribute.id(help_id), Design.fieldHelp],
+				[
+					Html.text(
+						"How established is your relationship with this company? This is separate from the stage of any deal.",
+					),
+				],
+			),
+			Html.select(
+				[
+					Attribute.id(field_name),
+					Attribute.name(field_name),
+					attribute("aria-describedby", help_id),
+					Design.select,
+				],
+				[
+					("lead", "Lead"),
+					("prospect", "Prospect"),
+					("customer", "Customer"),
+					("inactive", "Inactive"),
+				].map(
+					|(value, label)|
+						Html.option(
+							if value == selected {
+								[Attribute.value(value), attribute("selected", "")]
+							} else {
+								[Attribute.value(value)]
+							},
+							[Html.text(label)],
+						),
+				),
+			),
+			Html.element(
+				"details",
+				[Design.helpDisclosure],
+				[
+					Html.element(
+						"summary",
+						[Design.helpSummary],
+						[Html.text("What do these statuses mean?")],
+					),
+					Html.ul(
+						[Design.helpList],
+						[
+							lifecycle_help_item("Lead", "Newly identified and not yet qualified."),
+							lifecycle_help_item("Prospect", "A plausible customer you are actively exploring."),
+							lifecycle_help_item("Customer", "Has an established buying relationship with you."),
+							lifecycle_help_item("Inactive", "Not currently being pursued or maintained."),
+						],
+					),
+				],
+			),
+		],
+	)
+}
+
+lifecycle_help_item : Str, Str -> Html.Node
+lifecycle_help_item = |status, description|
+	Html.li(
+		[],
+		[
+			Html.span([Design.helpTerm], [Html.text("${status} — ")]),
+			Html.text(description),
+		],
+	)
 
 validation_summary : Str, Str -> Html.Node
 validation_summary = |id, message|

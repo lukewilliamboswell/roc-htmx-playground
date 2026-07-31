@@ -16,10 +16,6 @@ import http.Response
 import AppError
 import Actor
 import Authentication
-import AuthHandler
-import BigTask
-import BigTaskHandler
-import BigTaskStore
 import Company
 import CompanyHandler
 import CompanyStore
@@ -32,13 +28,6 @@ import PersonHandler
 import PersonStore
 import Route
 import Session
-import SessionHandler
-import SessionStore
-import Todo
-import TodoHandler
-import TodoStore
-import UserHandler
-import UserStore
 import Workspace
 import WorkspaceStore
 import WorkTask
@@ -50,12 +39,8 @@ import WorkTaskStore
 Context := {
 	authMode : Authentication.Mode,
 	db : Sqlite.Db,
-	sessionStore : SessionStore,
 	memberStore : MemberStore,
 	workspace : Workspace,
-	userStore : UserStore,
-	todoStore : TodoStore,
-	bigTaskStore : BigTaskStore,
 	companyStore : CompanyStore,
 	personStore : PersonStore,
 	workTaskStore : WorkTaskStore,
@@ -77,8 +62,8 @@ init! = || {
 		params: {},
 		limits: Sqlite.default_query_limits,
 	}) ? |_| Exit(2)
-	if schema_version != 1 {
-		Stdout.line!("Database schema version must be 1, received ${schema_version.to_str()}") ? |_| Exit(2)
+	if schema_version != 2 {
+		Stdout.line!("Database schema version must be 2, received ${schema_version.to_str()}") ? |_| Exit(2)
 		return Err(Exit(2))
 	}
 	public_origin = match Env.var!("PUBLIC_ORIGIN") {
@@ -133,12 +118,8 @@ init! = || {
 		context: Context.{
 			authMode: auth_mode,
 			db,
-			sessionStore: SessionStore.new(db),
 			memberStore: MemberStore.new(db),
 			workspace,
-			userStore: UserStore.new(db),
-			todoStore: TodoStore.new(db),
-			bigTaskStore: BigTaskStore.new(db),
 			companyStore: CompanyStore.new(db),
 			personStore: PersonStore.new(db),
 			workTaskStore: WorkTaskStore.new(db),
@@ -196,50 +177,43 @@ route_with_session! : Server.Request, Context, Route => Response
 route_with_session! = |request, context, route|
 	match resolve_auth!(request, context) {
 		Err(error) => Http.error_response_for!(request, Session.anonymous, error)
-		Ok({ session, setCookie }) => {
-			response = match dispatch!(request, context, session, route) {
+		Ok(session) =>
+			match dispatch!(request, context, session, route) {
 				Ok(value) => value
 				Err(error) => Http.error_response_for!(request, session, error)
 			}
-
-			if setCookie {
-				cookie = Http.session_cookie(session.id)
-				Response.add_header(response, cookie.name, cookie.value)
-			} else {
-				response
-			}
 		}
-	}
 
 error_with_auth! : Server.Request, Context, AppError => Response
 error_with_auth! = |request, context, route_error|
 	match resolve_auth!(request, context) {
 		Err(auth_error) =>
 			Http.error_response_for!(request, Session.anonymous, auth_error)
-		Ok({ session, .. }) =>
+		Ok(session) =>
 			Http.error_response_for!(request, session, route_error)
 		}
 
-resolve_auth! : Server.Request, Context => Try(SessionHandler.State, AppError)
-resolve_auth! = |request, context|
-	match context.authMode {
-		Authentication.Mode.Development(_) =>
-			SessionHandler.resolve!(request, context.sessionStore)
-		Authentication.Mode.Tailscale(_) => {
-			identity = Authentication.tailscale_identity(request.headers())
-				? |_| AppError.Forbidden
-			match MemberStore.find_active_by_email!(context.memberStore, identity.login) {
-				Ok(member) =>
-					Ok({
-						session: Session.trusted(member),
-						setCookie: Bool.False,
-					})
-				Err(MemberNotFound) => Err(AppError.Forbidden)
-				Err(InactiveMember) => Err(AppError.Forbidden)
-				Err(DbErr(error)) => Err(AppError.from(error))
-			}
-		}
+resolve_auth! : Server.Request, Context => Try(Session, AppError)
+resolve_auth! = |request, context| {
+	identity = Authentication.tailscale_identity(request.headers())
+		? |_| AppError.Forbidden
+	match MemberStore.find_active_by_email!(context.memberStore, identity.login) {
+		Ok(member) =>
+			Ok(
+				Session.trusted(
+					member,
+					if Authentication.Mode.is_development(context.authMode) {
+						Session.IdentitySource.Development
+					} else {
+						Session.IdentitySource.Production
+					},
+				),
+			)
+		Err(MemberNotFound) => Err(AppError.Forbidden)
+		Err(InactiveMember) => Err(AppError.Forbidden)
+		Err(DbErr(error)) => Err(AppError.from(error))
 	}
+}
 
 health_response! : Sqlite.Db => Response
 health_response! = |db| {
@@ -251,7 +225,7 @@ health_response! = |db| {
 		limits: Sqlite.default_query_limits,
 	})
 	match version {
-		Ok(1) =>
+		Ok(2) =>
 			Response.from_status(200)
 				.with_headers([
 					{ name: "Content-Type", value: "text/plain; charset=utf-8" },
@@ -279,13 +253,6 @@ dispatch! = |request, context, session, route|
 			)?
 			post!(request, context, session, action)
 		}
-		Route.Put(action) => {
-			Http.require_same_origin(
-				request,
-				Authentication.Mode.public_origin(context.authMode),
-			)?
-			put!(request, context, session, action)
-		}
 		Route.Serve(asset) => Ok(asset_response(asset))
 	}
 
@@ -295,16 +262,6 @@ visit! = |context, session, location|
 		Route.Location.AtPage(page) =>
 			match page {
 				Route.Page.Home => Ok(Http.html(200, HomeView.page(session), []))
-				Route.Page.Register if Authentication.Mode.is_development(context.authMode) =>
-					Ok(AuthHandler.register_page(session))
-				Route.Page.Register => Err(AppError.NotFound("registration"))
-				Route.Page.Login if Authentication.Mode.is_development(context.authMode) =>
-					Ok(AuthHandler.login_page(session))
-				Route.Page.Login => Err(AppError.NotFound("login"))
-				Route.Page.Todos =>
-					TodoHandler.page!(context.todoStore, session, Todo.Filter.empty)
-				Route.Page.TodoTree => TodoHandler.tree_page!(context.todoStore, session)
-				Route.Page.Users => UserHandler.page!(context.userStore, session)
 				Route.Page.Companies =>
 					CompanyHandler.page!(
 						context.companyStore,
@@ -334,16 +291,7 @@ visit! = |context, session, location|
 						context.workTaskStore,
 						actor_from_session(session, context.workspace)?,
 					)
-				Route.Page.BigTasks =>
-					BigTaskHandler.page!(context.bigTaskStore, BigTask.Query.default, session)
 				}
-		Route.Location.TodoList => TodoHandler.list!(context.todoStore, Todo.Filter.empty)
-		Route.Location.TodoSearch(filter) =>
-			TodoHandler.page!(context.todoStore, session, filter)
-		Route.Location.TodoNewCompatibility => Ok(TodoHandler.new_compatibility())
-		Route.Location.BigTasks(query) =>
-			BigTaskHandler.page!(context.bigTaskStore, query, session)
-		Route.Location.BigTaskCsv => Ok(BigTaskHandler.csv())
 		Route.Location.CompanySearch(filter) =>
 			CompanyHandler.page!(
 				context.companyStore,
@@ -402,19 +350,6 @@ actor_from_session = |session, workspace|
 post! : Server.Request, Context, Session, Route.PostAction => Try(Response, AppError)
 post! = |request, context, session, action|
 	match action {
-		Route.PostAction.Register if Authentication.Mode.is_development(context.authMode) =>
-			AuthHandler.register!(request, context.memberStore, session)
-		Route.PostAction.Register => Err(AppError.Forbidden)
-		Route.PostAction.Login if Authentication.Mode.is_development(context.authMode) =>
-			AuthHandler.login!(request, context.memberStore, session)
-		Route.PostAction.Login => Err(AppError.Forbidden)
-		Route.PostAction.Logout if Authentication.Mode.is_development(context.authMode) =>
-			AuthHandler.logout!(context.sessionStore)
-		Route.PostAction.Logout => Err(AppError.Forbidden)
-		Route.PostAction.CreateTodo =>
-			TodoHandler.create!(request, context.todoStore)
-		Route.PostAction.DeleteTodo(id) =>
-			TodoHandler.delete!(context.todoStore, id)
 		Route.PostAction.PreviewCompany =>
 			CompanyHandler.preview!(
 				request,
@@ -503,30 +438,9 @@ post! = |request, context, session, action|
 			)
 		}
 
-put! : Server.Request, Context, Session, Route.PutAction => Try(Response, AppError)
-put! = |request, context, session, action|
-	match action {
-		Route.PutAction.CompleteTodo(id) =>
-			TodoHandler.update!(context.todoStore, id, Todo.Status.Completed)
-		Route.PutAction.StartTodo(id) =>
-			TodoHandler.update!(context.todoStore, id, Todo.Status.InProgress)
-		Route.PutAction.UpdateBigTask(id, field) =>
-			BigTaskHandler.update!(
-				request,
-				context.bigTaskStore,
-				session,
-				id,
-				field,
-			)
-		}
-
 parse_error_to_app_error : Route.ParseError -> AppError
 parse_error_to_app_error = |error|
 	match error {
-		Route.ParseError.InvalidTodoId(value) =>
-			AppError.BadRequest("Expected a valid task id, received ${value}")
-		Route.ParseError.InvalidBigTaskId(value) =>
-			AppError.BadRequest("Expected a valid BigTask id, received ${value}")
 		Route.ParseError.NotFound(target) => AppError.NotFound(target)
 	}
 
@@ -540,15 +454,8 @@ asset_response = |asset|
 		Route.Asset.Stylesheet => Response.from_status(404)
 		Route.Asset.Htmx => Response.from_status(404)
 		Route.Asset.Interactions => Response.from_status(404)
-		Route.Asset.PlanningDesk => Response.from_status(404)
-		Route.Asset.PlanningDesk480 => Response.from_status(404)
-		Route.Asset.PlanningDesk640 => Response.from_status(404)
-		Route.Asset.PlanningDesk720 => Response.from_status(404)
-		Route.Asset.PlanningDesk960 => Response.from_status(404)
-		Route.Asset.TasksIcon => Response.from_status(404)
-		Route.Asset.UsersIcon => Response.from_status(404)
-		Route.Asset.TreeIcon => Response.from_status(404)
-		Route.Asset.TableIcon => Response.from_status(404)
+		Route.Asset.AppIcon => Response.from_status(404)
+		Route.Asset.Hero(_) => Response.from_status(404)
 	}
 
 shutdown! : Server.ShutdownReason, Context => Try({}, [Exit(I64), ..])

@@ -8,11 +8,12 @@ import pf.Path
 import pf.Sqlite
 import pf.Stdout
 import "../db/migrations/001_initial.sql" as initial_migration : Str
+import "../db/migrations/002_remove_legacy_auth_and_demos.sql" as remove_legacy_migration : Str
 
 import Authentication
 
 latest_schema_version : I64
-latest_schema_version = 1
+latest_schema_version = 2
 
 main! : List(OsStr) => Try({}, _)
 main! = |raw_args| {
@@ -169,6 +170,9 @@ apply_migrations! = |db_path| {
 	if version == 0 {
 		execute_statements!(db_path, initial_migration.split_on(";"))?
 	}
+	if version <= 1 {
+		execute_statements!(db_path, remove_legacy_migration.split_on(";"))?
+	}
 	schema_check!(db_path)
 }
 
@@ -226,15 +230,10 @@ clear_development_rows! = |db_path|
 			"DELETE FROM people",
 			"DELETE FROM company_revisions",
 			"DELETE FROM companies",
-			"DELETE FROM sessions",
 			"DELETE FROM members",
 			"DELETE FROM sources",
 			"DELETE FROM task_types",
 			"DELETE FROM workspaces",
-			"DELETE FROM TaskHeirachy",
-			"DELETE FROM BigTask",
-			"DELETE FROM tasks",
-			"DELETE FROM users",
 		],
 	)
 

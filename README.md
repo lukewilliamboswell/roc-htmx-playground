@@ -6,7 +6,7 @@ behind them, and accountable follow-up work. It is implemented in
 
 The current vertical slice supports:
 
-- active workspace members acting through typed sessions;
+- active workspace members resolved from a trusted network identity;
 - searchable company and person records;
 - duplicate review before company or person creation;
 - concurrency-safe edits with record revisions;
@@ -32,9 +32,19 @@ roc scripts/tasks.roc dev
 
 Open <http://127.0.0.1:8000>. The development task validates the application,
 recreates the disposable database from the checked-in schema and fixtures,
-builds the assets, sets `TZ=Australia/Melbourne` to match the bootstrap
-workspace, and starts the server. Any local development data is discarded each
-time the task starts.
+builds the assets, and starts a loopback development proxy. The proxy injects
+Mara's trusted identity by default, and the navbar labels it as development
+mode. Any local development data is discarded each time the task starts.
+
+Use Theo's identity, or preserve the current database while switching users:
+
+```sh
+roc scripts/tasks.roc dev --member-email theo@example.com
+roc scripts/tasks.roc dev --member-email theo@example.com --keep-db
+```
+
+`--keep-db` applies forward migrations without replacing `dist/playground.db`.
+The selected email must belong to an active member in that database.
 
 To recreate the database without starting the server:
 
@@ -96,9 +106,7 @@ validated values and pure decisions, stores own SQL/storage conversion, and
 `src/main.roc` is the composition root. The application opens one shared SQLite
 pool and loads the single configured workspace at startup.
 
-Legacy playground routes remain directly addressable while the refactor is
-incremental, but they are no longer part of the product navigation. See
-[architecture.md](architecture.md) for the design rationale and evidence.
+See [architecture.md](architecture.md) for the design rationale and evidence.
 
 For deployment, provide:
 
@@ -112,10 +120,12 @@ TZ=Australia/Melbourne
 
 `TZ` must exactly match the timezone stored in the workspace so due-date
 grouping and local-to-UTC conversion cannot silently use the host timezone.
-The server always binds to `127.0.0.1`. A loopback HTTP `PUBLIC_ORIGIN` enables
-development login; an HTTPS origin requires Tailscale Serve's verified login
-header, maps that email to an active pre-provisioned member, and disables the
-development login and registration routes. Other HTTP origins are rejected.
+The server always binds to `127.0.0.1`. Both environments use the same trusted
+identity header and active-member lookup. In development, the bundled loopback
+proxy strips any client-supplied identity before injecting the selected member.
+In production, Tailscale Serve supplies the verified identity. The application
+does not provide local login, registration, logout, or cookie sessions. Other
+HTTP origins are rejected.
 
 The supported production procedure, release workflow, member administration,
 systemd hardening, and Tailscale access policy are documented in

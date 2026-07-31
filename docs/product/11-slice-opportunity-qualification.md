@@ -216,14 +216,13 @@ relationship-only task from a direct deal task.
 
 ## Temporary compatibility boundaries
 
-- The application-managed development login and Tailscale production identity
-  adapter remain unchanged.
-- Existing database files and demo rows remain disposable. The checked-in SQL
-  initialization file is the only schema authority.
+- Development and production share the trusted identity/member lookup; the
+  development proxy selects which fixture member it injects.
+- Existing database files are disposable unless development is started with
+  `--keep-db`; versioned migrations are the schema authority.
 - Existing person and company task URLs remain valid. Adding deal tasks must
   extend the task model without changing the meaning of those links.
-- Todo, Tree, and BigTask remain temporarily reachable by their existing URLs
-  and remain outside the CRM domain.
+- Legacy playground authentication and demo routes have been removed.
 
 ## Green change rule
 

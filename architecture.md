@@ -27,7 +27,7 @@ only on loopback. In development, `scripts/dev-server.js` starts the application
 on a private loopback port and exposes a second loopback proxy. That proxy
 removes any client-supplied identity header and injects the member selected by
 `roc scripts/tasks.roc dev --member-email EMAIL`. The navbar adds a `Dev mode` badge
-only when `PUBLIC_ORIGIN` selects development mode.
+only when the configured public origin selects development mode.
 
 This makes the application-side authorization path identical in development
 and production while keeping the source of trust environment-specific.
@@ -58,6 +58,27 @@ experiments do not remain in the runtime schema.
 Development resets the fixture database by default. `--keep-db` preserves it,
 applies forward migrations, and makes it possible to stop the server and restart
 as another member without losing state.
+
+## Configuration and AI boundary
+
+The server and administration executable load the same required, versioned JSON
+configuration through `SERVER_CONFIG_PATH`. Server-wide settings and
+feature-specific provider credentials are validated once at startup. A disabled
+feature requires no provider configuration and is not rendered or routed.
+
+Business-card images are resized and stripped of metadata in the browser, then
+sent to the application in a same-origin multipart request. The application
+enforces a short-lived, one-use member/workspace grant, JPEG and size checks,
+per-member rate limits, and member/workspace concurrency limits before making
+the provider request. Provider routing requires zero data retention and denies
+data collection; failure to satisfy those requirements fails the scan.
+
+Prompts and the structured-output schema are flat files under `prompts/` and
+are embedded into the executable with Roc imports. Each run stores permanent
+operational metadata and prompt/release identifiers, but never stores the card
+image, extracted contact details, API key, or raw provider response. The person
+record is written only after the member reviews and submits the normal create
+form.
 
 ## Verification
 

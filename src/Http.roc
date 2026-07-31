@@ -15,6 +15,19 @@ import Web
 Http := [].{
 	Header : { name : Str, value : Str }
 
+	Upload : {
+		fieldName : Str,
+		contentType : Str,
+		data : List(U8),
+	}
+
+	Multipart : {
+		fields : Dict(Str, Str),
+		files : List(Upload),
+	}
+
+	MultipartError := [BodyTooLarge, BodyReadFailed, MalformedMultipart, TooManyParts, FieldTooLarge]
+
 	html : U16, Html.Node, List(Header) -> Response
 	html = |status, node, extra_headers|
 		Response.from_status(status)
@@ -24,7 +37,7 @@ Http := [].{
 					{ name: "Cache-Control", value: "private, no-store" },
 					{
 						name: "Content-Security-Policy",
-						value: "default-src 'self'; base-uri 'none'; connect-src 'self'; form-action 'self'; frame-ancestors 'none'; img-src 'self'; script-src 'self'; style-src 'self'",
+						value: "default-src 'self'; base-uri 'none'; connect-src 'self'; form-action 'self'; frame-ancestors 'none'; img-src 'self' blob:; script-src 'self'; style-src 'self'",
 					},
 					{ name: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
 					{ name: "X-Content-Type-Options", value: "nosniff" },
@@ -61,6 +74,34 @@ Http := [].{
 	parse_form = |body|
 		MultipartFormData.parse_form_url_encoded(body)
 			.map_err(|_| AppError.BadRequest("Malformed URL-encoded form data"))
+
+	read_multipart! : Server.Request => Try(Multipart, MultipartError)
+	read_multipart! = |request| {
+		body = request.body().with_limit(7 * 1024 * 1024).read_all!()
+			? |_| BodyReadFailed
+		parse_multipart(request.headers(), body)
+	}
+
+	parse_multipart : List(Header), List(U8) -> Try(Multipart, MultipartError)
+	parse_multipart = |headers, body| {
+		if body.len() > 7 * 1024 * 1024 {
+			return Err(BodyTooLarge)
+		}
+		# RFC 7578 permits the final boundary without a trailing CRLF. The
+		# platform parser currently expects one, while browser-compatible
+		# serializers such as Node's FormData omit it.
+		parser_body = if List.ends_with(body, [45, 45]) {
+			body.concat([13, 10])
+		} else {
+			body
+		}
+		parts = MultipartFormData.parse_multipart_form_data({ headers, body: parser_body })
+			? |_| MalformedMultipart
+		if parts.len() > 32 {
+			return Err(TooManyParts)
+		}
+		decode_parts(parts, { fields: Dict.empty(), files: [] })
+	}
 
 	require_login : Session -> Try({}, AppError)
 	require_login = |session|
@@ -155,6 +196,58 @@ Http := [].{
 				header.name.with_ascii_lowercased() == "hx-request"
 					and header.value.with_ascii_lowercased() == "true",
 		).is_ok()
+}
+
+decode_parts : List(MultipartFormData.FormData), Http.Multipart -> Try(Http.Multipart, Http.MultipartError)
+decode_parts = |parts, decoded|
+	match parts {
+		[] => Ok(decoded)
+		[part, .. as rest] => {
+			disposition = Str.from_utf8(part.disposition)
+				? |_| Http.MultipartError.MalformedMultipart
+			name = disposition_parameter(disposition, "name")
+				? |_| Http.MultipartError.MalformedMultipart
+			if disposition_parameter(disposition, "filename").is_ok() {
+				content_type = Str.from_utf8(part.type)
+					? |_| Http.MultipartError.MalformedMultipart
+				decode_parts(
+					rest,
+					{
+						..decoded,
+						files: decoded.files.append({
+							fieldName: name,
+							contentType: content_type.trim().with_ascii_lowercased(),
+							data: part.data,
+						}),
+					},
+				)
+			} else {
+				if part.data.len() > 64 * 1024 {
+					return Err(Http.MultipartError.FieldTooLarge)
+				}
+				value = Str.from_utf8(part.data)
+					? |_| Http.MultipartError.MalformedMultipart
+				decode_parts(
+					rest,
+					{ ..decoded, fields: decoded.fields.insert(name, value) },
+				)
+			}
+		}
+	}
+
+disposition_parameter : Str, Str -> Try(Str, [MissingDispositionParameter])
+disposition_parameter = |disposition, expected| {
+	prefix = "${expected}="
+	segment = disposition.split_on(";")
+		.map(Str.trim)
+		.find_first(|value| value.starts_with(prefix))
+		? |_| MissingDispositionParameter
+	raw = Str.join_with(segment.split_on("=").drop_first(1), "=").trim()
+	match raw.split_on("\"") {
+		["", value, ..] => Ok(value)
+		[value] if !value.is_empty() => Ok(value)
+		_ => Err(MissingDispositionParameter)
+	}
 }
 
 expect Http.is_htmx_request([{ name: "HX-Request", value: "true" }])

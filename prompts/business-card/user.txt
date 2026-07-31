@@ -1,0 +1,4 @@
+Extract the primary contact's details from this business-card image.
+
+Return all fields required by the supplied JSON schema. Do not add information
+that is not visible in the image.

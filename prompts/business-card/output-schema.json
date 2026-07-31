@@ -1,0 +1,114 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "properties": {
+    "full_name": {
+      "type": ["string", "null"],
+      "maxLength": 200
+    },
+    "first_name": {
+      "type": ["string", "null"],
+      "maxLength": 100
+    },
+    "last_name": {
+      "type": ["string", "null"],
+      "maxLength": 100
+    },
+    "job_title": {
+      "type": ["string", "null"],
+      "maxLength": 200
+    },
+    "company": {
+      "type": ["string", "null"],
+      "maxLength": 200
+    },
+    "emails": {
+      "type": "array",
+      "maxItems": 5,
+      "items": {
+        "type": "string",
+        "maxLength": 320
+      }
+    },
+    "phone_numbers": {
+      "type": "array",
+      "maxItems": 5,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "properties": {
+          "display": {
+            "type": "string",
+            "maxLength": 64
+          },
+          "e164": {
+            "type": ["string", "null"],
+            "pattern": "^\\+[1-9][0-9]{1,14}$"
+          },
+          "type": {
+            "type": "string",
+            "enum": ["mobile", "work", "fax", "home", "other", "unknown"]
+          }
+        },
+        "required": ["display", "e164", "type"]
+      }
+    },
+    "website": {
+      "type": ["string", "null"],
+      "maxLength": 2048
+    },
+    "address": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "street": {
+          "type": ["string", "null"],
+          "maxLength": 300
+        },
+        "city": {
+          "type": ["string", "null"],
+          "maxLength": 200
+        },
+        "state_or_region": {
+          "type": ["string", "null"],
+          "maxLength": 200
+        },
+        "postal_code": {
+          "type": ["string", "null"],
+          "maxLength": 40
+        },
+        "country": {
+          "type": ["string", "null"],
+          "maxLength": 200
+        }
+      },
+      "required": ["street", "city", "state_or_region", "postal_code", "country"]
+    },
+    "overall_confidence": {
+      "type": "number",
+      "minimum": 0,
+      "maximum": 1
+    },
+    "warnings": {
+      "type": "array",
+      "maxItems": 10,
+      "items": {
+        "type": "string",
+        "maxLength": 500
+      }
+    }
+  },
+  "required": [
+    "full_name",
+    "first_name",
+    "last_name",
+    "job_title",
+    "company",
+    "emails",
+    "phone_numbers",
+    "website",
+    "address",
+    "overall_confidence",
+    "warnings"
+  ]
+}

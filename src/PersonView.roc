@@ -15,6 +15,11 @@ import WorkTask
 import WorkTaskView
 
 PersonView :: [].{
+	PhoneInput : {
+		label : Str,
+		value : Str,
+	}
+
 	Form := {
 		name : Str,
 		company : Str,
@@ -23,10 +28,31 @@ PersonView :: [].{
 		lifecycle : Str,
 		source : Str,
 		context : Str,
-		email : Str,
-		phone : Str,
+		emails : List(Str),
+		phones : List(PhoneInput),
 		originCompany : Str,
+		aiRunId : Str,
 	}
+
+	ScannerReview : {
+		company : Str,
+		website : Str,
+		address : Str,
+		confidence : I64,
+		warnings : List(Str),
+	}
+
+	Scanner := [
+		Hidden,
+		Ready(
+			{
+				grantId : Str,
+				message : Str,
+				error : Bool,
+				review : [NoReview, Review(ScannerReview)],
+			},
+		),
+	]
 
 	page : Actor, List(Person), Person.Filter -> Html.Node
 	page = |actor, people, filter|
@@ -127,11 +153,15 @@ PersonView :: [].{
 
 	new_page : Actor, List(Company), [None, Some(Company)], Form, Str, List(Person.Match) -> Html.Node
 	new_page = |actor, companies, origin, form, validation, matches|
-		form_page(actor, companies, origin, None, form, validation, matches)
+		form_page(actor, companies, origin, None, form, validation, matches, Scanner.Hidden)
+
+	new_page_with_scanner : Actor, List(Company), [None, Some(Company)], Form, Str, List(Person.Match), Scanner -> Html.Node
+	new_page_with_scanner = |actor, companies, origin, form, validation, matches, scanner|
+		form_page(actor, companies, origin, None, form, validation, matches, scanner)
 
 	edit_page : Actor, List(Company), Person, Form, Str -> Html.Node
 	edit_page = |actor, companies, person, form, validation|
-		form_page(actor, companies, None, Some(person), form, validation, [])
+		form_page(actor, companies, None, Some(person), form, validation, [], Scanner.Hidden)
 }
 
 activity_section : List(Activity) -> Html.Node
@@ -164,8 +194,8 @@ activity_section = |history|
 		],
 	)
 
-form_page : Actor, List(Company), [None, Some(Company)], [None, Some(Person)], PersonView.Form, Str, List(Person.Match) -> Html.Node
-form_page = |actor, companies, origin, existing, form, validation, matches| {
+form_page : Actor, List(Company), [None, Some(Company)], [None, Some(Person)], PersonView.Form, Str, List(Person.Match), PersonView.Scanner -> Html.Node
+form_page = |actor, companies, origin, existing, form, validation, matches, scanner| {
 	editing = match existing {
 		Some(_) => True
 		None => False
@@ -219,6 +249,11 @@ form_page = |actor, companies, origin, existing, form, validation, matches| {
 					],
 				)
 			},
+			if editing {
+				Html.text("")
+			} else {
+				scanner_panel(scanner)
+			},
 			if validation.is_empty() {
 				Html.text("")
 			} else {
@@ -235,7 +270,7 @@ form_page = |actor, companies, origin, existing, form, validation, matches| {
 					None if matches.is_empty() => Route.PostAction.PreviewPerson
 					None => Route.PostAction.CreatePerson
 				},
-				[Design.newRecordForm],
+				[Attribute.id("person-record-form"), Design.newRecordForm],
 				[
 					match existing {
 						Some(person) =>
@@ -293,13 +328,7 @@ form_page = |actor, companies, origin, existing, form, validation, matches| {
 					if editing {
 						Html.text("")
 					} else {
-						Html.div(
-							[],
-							[
-								FormView.text_field("Email", Route.PersonInput.Email, form.email, "ada@example.com"),
-								FormView.text_field("Phone", Route.PersonInput.Phone, form.phone, "+61 3 9000 0000"),
-							],
-						)
+						new_contact_fields(form)
 					},
 					Html.div(
 						[Design.field],
@@ -327,6 +356,15 @@ form_page = |actor, companies, origin, existing, form, validation, matches| {
 							Attribute.type("hidden"),
 							Attribute.name(Route.PersonInput.to_name(Route.PersonInput.ConfirmDistinct)),
 							Attribute.value("yes"),
+						])
+					},
+					if form.aiRunId.is_empty() {
+						Html.text("")
+					} else {
+						Html.input([
+							Attribute.type("hidden"),
+							Attribute.name("aiRunId"),
+							Attribute.value(form.aiRunId),
 						])
 					},
 					Html.div(
@@ -361,6 +399,287 @@ form_page = |actor, companies, origin, existing, form, validation, matches| {
 		],
 	)
 }
+
+scanner_panel : PersonView.Scanner -> Html.Node
+scanner_panel = |scanner|
+	match scanner {
+		PersonView.Scanner.Hidden => Html.text("")
+		PersonView.Scanner.Ready(state) =>
+			Html.element(
+				"section",
+				[Attribute.id("business-card-scanner"), Design.scannerPanel],
+				[
+					Html.h2([Design.sectionHeading], [Html.text("Scan a business card")]),
+					Html.p(
+						[Design.contentSectionText],
+						[
+							Html.text(
+								"Take a photo or choose an image. It is sent to the configured AI provider for extraction and is not stored by the CRM.",
+							),
+						],
+					),
+					if state.message.is_empty() {
+						Html.text("")
+					} else {
+						Html.p(
+							if state.error {
+								[Design.scannerError, attribute("role", "alert")]
+							} else {
+								[Design.scannerSuccess, attribute("role", "status")]
+							},
+							[Html.text(state.message)],
+						)
+					},
+					scanner_review(state.review),
+					Html.div(
+						[
+							Attribute.id("business-card-client-status"),
+							attribute("role", "status"),
+							attribute("aria-live", "polite"),
+							Design.scannerClientStatus,
+						],
+						[],
+					),
+					Web.post_form(
+						Route.PostAction.ScanBusinessCard,
+						[
+							Design.scannerForm,
+							attribute("enctype", "multipart/form-data"),
+							attribute("hx-post", Route.PostAction.to_post_url(Route.PostAction.ScanBusinessCard)),
+							attribute("hx-encoding", "multipart/form-data"),
+							attribute("hx-include", "#person-record-form"),
+							attribute("hx-target", "main"),
+							attribute("hx-select", "main"),
+							attribute("hx-swap", "outerHTML"),
+							attribute("hx-status:4xx", "target:main select:main swap:outerHTML"),
+							attribute("hx-status:5xx", "target:main select:main swap:outerHTML"),
+							attribute("data-business-card-form", ""),
+							attribute("data-busy-target", "business-card-scanner"),
+						],
+						[
+							Html.input([
+								Attribute.type("hidden"),
+								Attribute.name("scanGrant"),
+								Attribute.value(state.grantId),
+							]),
+							Html.input([
+								Attribute.type("hidden"),
+								Attribute.name("imagePrepared"),
+								Attribute.value("no"),
+								attribute("data-business-card-prepared", ""),
+							]),
+							Html.div(
+								[Design.field],
+								[
+									Html.label(
+										[Attribute.for_("cardImage"), Design.label],
+										[Html.text("Business card image")],
+									),
+									Html.input([
+										Attribute.id("cardImage"),
+										Attribute.name("cardImage"),
+										attribute("type", "file"),
+										attribute("accept", "image/*"),
+										attribute("capture", "environment"),
+										attribute("required", ""),
+										attribute("data-business-card-input", ""),
+										Design.input,
+									]),
+									Html.p(
+										[Design.fieldHelp],
+										[Html.text("The browser removes image metadata and reduces large photos before upload.")],
+									),
+									Html.element(
+										"img",
+										[
+											Attribute.id("business-card-preview"),
+											attribute("alt", "Preview of the selected business card"),
+											attribute("hidden", ""),
+											attribute("data-business-card-preview", ""),
+											Design.scannerPreview,
+										],
+										[],
+									),
+								],
+							),
+							Html.button(
+								[
+									Attribute.type("submit"),
+									Design.button(Design.ButtonTone.Primary, Design.ButtonSize.Regular),
+									attribute("data-business-card-submit", ""),
+								],
+								[Html.text("Extract contact details")],
+							),
+						],
+					),
+				],
+			)
+		}
+
+scanner_review : [NoReview, Review(PersonView.ScannerReview)] -> Html.Node
+scanner_review = |review|
+	match review {
+		NoReview => Html.text("")
+		Review(value) =>
+			Html.div(
+				if value.confidence < 650 {
+					[Design.scannerReviewWarning]
+				} else {
+					[Design.scannerReview]
+				},
+				[
+					Html.p(
+						[Design.scannerReviewHeading],
+						[Html.text("Extraction confidence: ${(value.confidence // 10).to_str()}%")],
+					),
+					review_line("Company on card", value.company),
+					review_line("Website", value.website),
+					review_line("Address", value.address),
+					if value.warnings.is_empty() {
+						Html.text("")
+					} else {
+						Html.div(
+							[],
+							[
+								Html.p([Design.label], [Html.text("Warnings")]),
+								Html.ul(
+									[Design.scannerWarnings],
+									value.warnings.map(|warning| Html.li([], [Html.text(warning)])),
+								),
+							],
+						)
+					},
+				],
+			)
+		}
+
+review_line : Str, Str -> Html.Node
+review_line = |label, value|
+	if value.is_empty() {
+		Html.text("")
+	} else {
+		Html.p(
+			[Design.scannerReviewLine],
+			[Html.element("strong", [], [Html.text("${label}: ")]), Html.text(value)],
+		)
+	}
+
+new_contact_fields : PersonView.Form -> Html.Node
+new_contact_fields = |form|
+	Html.div(
+		[],
+		[
+			FormView.text_field(
+				"Email",
+				Route.PersonInput.Email,
+				list_value(form.emails, 0),
+				"ada@example.com",
+			),
+			named_phone_field("Phone", "phone", "phoneType", "phone", phone_value(form.phones, 0)),
+			Html.element(
+				"details",
+				[Design.helpDisclosure],
+				[
+					Html.element(
+						"summary",
+						[Design.helpSummary],
+						[Html.text("Additional email addresses and phone numbers")],
+					),
+					Html.div(
+						[Design.helpList],
+						List.fold(
+							[1, 2, 3, 4],
+							[],
+							|fields, index| {
+								number = (index + 1).to_str()
+								fields.concat([
+									named_text_field(
+										"Email ${number}",
+										"email${number}",
+										"person-email-${number}",
+										list_value(form.emails, index),
+										"",
+										"email",
+									),
+									named_phone_field(
+										"Phone ${number}",
+										"phone${number}",
+										"phoneType${number}",
+										"person-phone-${number}",
+										phone_value(form.phones, index),
+									),
+								])
+							},
+						),
+					),
+				],
+			),
+		],
+	)
+
+named_phone_field : Str, Str, Str, Str, PersonView.PhoneInput -> Html.Node
+named_phone_field = |label, name, type_name, id, phone|
+	Html.div(
+		[Design.field],
+		[
+			Html.label([Attribute.for_(id), Design.label], [Html.text(label)]),
+			Html.div(
+				[Design.contactInputRow],
+				[
+					Html.select(
+						[
+							Attribute.id("${id}-type"),
+							Attribute.name(type_name),
+							Design.contactTypeSelect,
+						],
+						["Work", "Mobile", "Fax", "Home", "Other"].map(
+							|option|
+								Html.option(
+									if option == phone.label {
+										[Attribute.value(option), attribute("selected", "")]
+									} else {
+										[Attribute.value(option)]
+									},
+									[Html.text(option)],
+								),
+						),
+					),
+					Html.input([
+						Attribute.id(id),
+						Attribute.name(name),
+						Attribute.value(phone.value),
+						attribute("type", "tel"),
+						attribute("placeholder", "+61 3 9000 0000"),
+						Design.input,
+					]),
+				],
+			),
+		],
+	)
+
+named_text_field : Str, Str, Str, Str, Str, Str -> Html.Node
+named_text_field = |label, name, id, value, placeholder, kind|
+	Html.div(
+		[Design.field],
+		[
+			Html.label([Attribute.for_(id), Design.label], [Html.text(label)]),
+			Html.input([
+				Attribute.id(id),
+				Attribute.name(name),
+				Attribute.value(value),
+				attribute("type", kind),
+				attribute("placeholder", placeholder),
+				Design.input,
+			]),
+		],
+	)
+
+list_value : List(Str), U64 -> Str
+list_value = |values, index| values.get(index) ?? ""
+
+phone_value : List(PersonView.PhoneInput), U64 -> PersonView.PhoneInput
+phone_value = |values, index|
+	values.get(index) ?? { label: "Work", value: "" }
 
 contact_section : Person, [Email, Phone] -> Html.Node
 contact_section = |person, kind| {

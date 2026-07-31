@@ -164,6 +164,7 @@ ensureDevDatabase! = || {
 		Stdout.line!("Creating ${db_path} from migrations and db/test-fixtures.sql...")?
 		run!("sqlite3", [db_path, ".read db/migrations/001_initial.sql"])?
 		run!("sqlite3", [db_path, ".read db/migrations/002_remove_legacy_auth_and_demos.sql"])?
+		run!("sqlite3", [db_path, ".read db/migrations/003_ai_foundation.sql"])?
 		run!("sqlite3", [db_path, ".read db/test-fixtures.sql"])?
 	}
 
@@ -237,6 +238,7 @@ testBrowser! = || run!("node_modules/.bin/playwright", ["test"])
 testAuth! : () => Try({}, _)
 testAuth! = || {
 	run!("node", ["tests/migration-smoke.js"])?
+	run!("node", ["tests/business-card-smoke.js"])?
 	run!("node", ["tests/dev-auth-smoke.js"])?
 	run!("node", ["tests/tailscale-auth-smoke.js"])
 }
@@ -290,7 +292,8 @@ buildDistribution! = |optimization| {
 			"src/admin.roc",
 		],
 	)?
-	run!("dist/enquiry-crm-admin", ["migrate", "--db", db_path])?
+	config_path = ensureDevConfig!(db_path)?
+	runWithServerConfig!("dist/enquiry-crm-admin", ["migrate"], config_path)?
 
 	Ok({})
 }
@@ -337,7 +340,7 @@ release! = || {
 
 	run!("cp", ["-R", "dist/assets", "${bundle_root}/assets"])?
 	run!("cp", ["deploy/enquiry-crm.service", "${bundle_root}/deploy/"])?
-	run!("cp", ["deploy/enquiry-crm.env.example", "${bundle_root}/deploy/"])?
+	run!("cp", ["deploy/enquiry-crm.json.example", "${bundle_root}/deploy/"])?
 	run!("cp", ["LICENSE", "${bundle_root}/"])?
 	run!("cp", ["vendor/LICENSE-htmx.txt", "${bundle_root}/"])?
 	Path.utf8("${bundle_root}/RELEASE_ID").write_utf8!("${release_id}\n")?
@@ -353,6 +356,38 @@ run! = |program, arguments|
 	Cmd.new_str(program)
 		.args_str(arguments)
 		.exec_cmd!()
+
+runWithServerConfig! : Str, List(Str), Str => Try({}, _)
+runWithServerConfig! = |program, arguments, config_path|
+	Cmd.new_str(program)
+		.args_str(arguments)
+		.env_str("SERVER_CONFIG_PATH", config_path)
+		.exec_cmd!()
+
+ensureDevConfig! : Str => Try(Str, _)
+ensureDevConfig! = |db_path| {
+	config_path = "dist/development.server.json"
+	Path.utf8(config_path).write_utf8!((
+		\\{
+		\\  "version": 1,
+		\\  "server": {
+		\\    "database_path": ${Json.to_str(db_path)},
+		\\    "assets_path": "dist/assets",
+		\\    "public_origin": "http://127.0.0.1:8000",
+		\\    "listen_port": 8001,
+		\\    "timezone": "Australia/Melbourne"
+		\\  },
+		\\  "features": {
+		\\    "business_card_scanner": {
+		\\      "enabled": false,
+		\\      "provider": null
+		\\    }
+		\\  }
+		\\}
+		,
+	))?
+	Ok(config_path)
+}
 
 runWithTimezone! : Str, List(Str) => Try({}, _)
 runWithTimezone! = |program, arguments|

@@ -11,7 +11,9 @@ The current vertical slice supports:
 - duplicate review before company or person creation;
 - concurrency-safe edits with record revisions;
 - optional company association and multiple labeled email/phone methods;
-- company-scoped person capture; and
+- company-scoped person capture;
+- an optional, server-side business-card scanner that prefills the person
+  review form; and
 - company/person follow-up tasks grouped as overdue, due today, or upcoming in
   the workspace timezone.
 
@@ -108,18 +110,46 @@ pool and loads the single configured workspace at startup.
 
 See [architecture.md](architecture.md) for the design rationale and evidence.
 
-For deployment, provide:
+The server and administration command both require one versioned JSON
+configuration file:
 
-```sh
-DB_PATH=/path/to/crm.sqlite
-ASSET_PATH=/path/to/assets
-PUBLIC_ORIGIN=https://machine-name.tailnet-name.ts.net
-PORT=8000
-TZ=Australia/Melbourne
+```json
+{
+  "version": 1,
+  "server": {
+    "database_path": "/path/to/crm.sqlite",
+    "assets_path": "/path/to/assets",
+    "public_origin": "https://machine-name.tailnet-name.ts.net",
+    "listen_port": 8000,
+    "timezone": "Australia/Melbourne"
+  },
+  "features": {
+    "business_card_scanner": {
+      "enabled": false,
+      "provider": null
+    }
+  }
+}
 ```
 
-`TZ` must exactly match the timezone stored in the workspace so due-date
-grouping and local-to-UTC conversion cannot silently use the host timezone.
+Point both executables at it:
+
+```sh
+SERVER_CONFIG_PATH=/path/to/enquiry-crm.json enquiry-crm
+```
+
+`server.timezone` must exactly match the timezone stored in the workspace so
+due-date grouping and local-to-UTC conversion cannot silently use the host
+timezone. The business-card feature remains absent from the UI while disabled.
+To enable it, configure an OpenRouter provider with an API key and model (the
+initial model is `openai/gpt-5.6-luna`) as shown in the production deployment
+guide. Keep this file readable only by the service account because it contains
+secrets.
+
+AI prompts and their strict output schema are checked-in flat files under
+`prompts/` and embedded into the Roc binary at build time. Prompt changes
+therefore follow the same review, release, and rollback trail as code changes.
+
 The server always binds to `127.0.0.1`. Both environments use the same trusted
 identity header and active-member lookup. In development, the bundled loopback
 proxy strips any client-supplied identity before injecting the selected member.

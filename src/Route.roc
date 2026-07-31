@@ -96,6 +96,7 @@ Route := [
 		CreateCompany,
 		UpdateCompany(Company.Id),
 		PreviewPerson,
+		ScanBusinessCard,
 		CreatePerson,
 		UpdatePerson(Person.Id),
 		AddPersonEmail(Person.Id),
@@ -115,6 +116,7 @@ Route := [
 				CreateCompany => "/companies"
 				UpdateCompany(id) => "/companies/${id.to_str()}"
 				PreviewPerson => "/people/preview"
+				ScanBusinessCard => "/people/business-card/scan"
 				CreatePerson => "/people"
 				UpdatePerson(id) => "/people/${id.to_str()}"
 				AddPersonEmail(id) => "/people/${id.to_str()}/emails"
@@ -310,6 +312,7 @@ Route := [
 				}
 			}
 			(Post, ["", "people", "preview"]) => Ok(Post(PreviewPerson))
+			(Post, ["", "people", "business-card", "scan"]) => Ok(Post(ScanBusinessCard))
 			(Post, ["", "people"]) => Ok(Post(CreatePerson))
 			(Get, ["", "people", id, "edit"]) =>
 				Ok(Visit(PersonEdit(Person.Id.from_storage(id))))

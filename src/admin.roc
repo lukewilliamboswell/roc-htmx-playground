@@ -2,42 +2,43 @@ app [main!] {
 	pf: platform "https://github.com/roc-lang/basic-cli/releases/download/0.21.0/4rAQg8kUYZ3Vksr4qMQHpaFYNiHSn9GgS7gVxghd1XYV.tar.zst",
 }
 
-import pf.Env
 import pf.OsStr
 import pf.Path
 import pf.Sqlite
 import pf.Stdout
 import "../db/migrations/001_initial.sql" as initial_migration : Str
 import "../db/migrations/002_remove_legacy_auth_and_demos.sql" as remove_legacy_migration : Str
+import "../db/migrations/003_ai_foundation.sql" as ai_foundation_migration : Str
 
+import AppConfig
 import Authentication
 
 latest_schema_version : I64
-latest_schema_version = 2
+latest_schema_version = 3
 
 main! : List(OsStr) => Try({}, _)
 main! = |raw_args| {
 	args = raw_args.drop_first(1).map(OsStr.display)
 	match args {
 		["bootstrap", ..] => bootstrap!(args)?
-		["migrate", ..] => migrate!(database_path!(args)?)?
-		["schema", "check", ..] => schema_check!(database_path!(args)?)?
-		["members", "list", ..] => members_list!(database_path!(args)?)?
+		["migrate", ..] => migrate!(database_path!()?)?
+		["schema", "check", ..] => schema_check!(database_path!()?)?
+		["members", "list", ..] => members_list!(database_path!()?)?
 		["members", "add", ..] =>
 			member_add!(
-				database_path!(args)?,
+				database_path!()?,
 				required_arg(args, "--name")?,
 				required_arg(args, "--email")?,
 			)?
 		["members", "activate", ..] =>
 			member_set_active!(
-				database_path!(args)?,
+				database_path!()?,
 				required_arg(args, "--email")?,
 				Bool.True,
 			)?
 		["members", "deactivate", ..] =>
 			member_set_active!(
-				database_path!(args)?,
+				database_path!()?,
 				required_arg(args, "--email")?,
 				Bool.False,
 			)?
@@ -50,28 +51,23 @@ usage! : () => Try({}, _)
 usage! = || {
 	Stdout.line!(
 		\\Usage:
-		\\  enquiry-crm-admin bootstrap --db PATH --workspace-name NAME --currency AUD --timezone AREA/CITY --member-name NAME --member-email EMAIL
-		\\  enquiry-crm-admin migrate --db PATH
-		\\  enquiry-crm-admin schema check --db PATH
-		\\  enquiry-crm-admin members list --db PATH
-		\\  enquiry-crm-admin members add --db PATH --name NAME --email EMAIL
-		\\  enquiry-crm-admin members activate --db PATH --email EMAIL
-		\\  enquiry-crm-admin members deactivate --db PATH --email EMAIL
+		\\  SERVER_CONFIG_PATH=/path/server-config.json enquiry-crm-admin bootstrap --workspace-name NAME --currency AUD --member-name NAME --member-email EMAIL
+		\\  SERVER_CONFIG_PATH=/path/server-config.json enquiry-crm-admin migrate
+		\\  SERVER_CONFIG_PATH=/path/server-config.json enquiry-crm-admin schema check
+		\\  SERVER_CONFIG_PATH=/path/server-config.json enquiry-crm-admin members list
+		\\  SERVER_CONFIG_PATH=/path/server-config.json enquiry-crm-admin members add --name NAME --email EMAIL
+		\\  SERVER_CONFIG_PATH=/path/server-config.json enquiry-crm-admin members activate --email EMAIL
+		\\  SERVER_CONFIG_PATH=/path/server-config.json enquiry-crm-admin members deactivate --email EMAIL
 		,
 	)?
 	Err(InvalidArguments)
 }
 
-database_path! : List(Str) => Try(Path, _)
-database_path! = |args|
-	match optional_arg(args, "--db") {
-		Some(value) => Ok(Path.utf8(value))
-		None =>
-			match Env.var!("DB_PATH") {
-				Ok(value) => Ok(Path.from_os_str(value))
-				Err(_) => Err(MissingArgument("--db"))
-			}
-		}
+database_path! : () => Try(Path, _)
+database_path! = || {
+	config = AppConfig.load!() ? |error| InvalidServerConfig(error.to_message())
+	Ok(Path.utf8(config.server.databasePath))
+}
 
 required_arg = |args, name|
 	match optional_arg(args, name) {
@@ -89,14 +85,15 @@ optional_arg = |args, expected|
 
 bootstrap! : List(Str) => Try({}, _)
 bootstrap! = |args| {
-	db_path = database_path!(args)?
+	config = AppConfig.load!() ? |error| InvalidServerConfig(error.to_message())
+	db_path = Path.utf8(config.server.databasePath)
 	if db_path.is_file!()? {
 		return Err(DatabaseAlreadyExists(Path.display(db_path)))
 	}
 
 	workspace_name = required_arg(args, "--workspace-name")?
 	currency = required_arg(args, "--currency")?.with_ascii_uppercased()
-	timezone = required_arg(args, "--timezone")?
+	timezone = config.server.timezone
 	member_name = required_arg(args, "--member-name")?
 	member_email = normalize_email(required_arg(args, "--member-email")?)
 
@@ -173,6 +170,9 @@ apply_migrations! = |db_path| {
 	if version <= 1 {
 		execute_statements!(db_path, remove_legacy_migration.split_on(";"))?
 	}
+	if version <= 2 {
+		execute_statements!(db_path, ai_foundation_migration.split_on(";"))?
+	}
 	schema_check!(db_path)
 }
 
@@ -220,6 +220,8 @@ clear_development_rows! = |db_path|
 	execute_statements!(
 		db_path,
 		[
+			"DELETE FROM ai_runs",
+			"DELETE FROM ai_action_grants",
 			"DELETE FROM activity_companies",
 			"DELETE FROM activity_people",
 			"DELETE FROM activities",

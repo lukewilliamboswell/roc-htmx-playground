@@ -211,6 +211,12 @@ Design :: [].{
 	select : Attribute.Attribute
 	select = class("block min-h-11 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-950 shadow-sm outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100 pointer-fine:min-h-0")
 
+	contactInputRow : Attribute.Attribute
+	contactInputRow = class("grid gap-2 sm:grid-cols-[9rem_1fr]")
+
+	contactTypeSelect : Attribute.Attribute
+	contactTypeSelect = class("block min-h-11 w-full rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm text-slate-950 shadow-sm outline-none transition focus:border-blue-500 focus:ring-4 focus:ring-blue-100 pointer-fine:min-h-0")
+
 	validation : Attribute.Attribute
 	validation = class("mt-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm font-medium text-red-700")
 
@@ -313,6 +319,39 @@ Design :: [].{
 
 	contentSectionText : Attribute.Attribute
 	contentSectionText = class("mt-2 text-sm text-slate-600")
+
+	scannerPanel : Attribute.Attribute
+	scannerPanel = class("mt-6 max-w-2xl rounded-xl border border-blue-200 bg-blue-50 p-5 shadow-sm")
+
+	scannerForm : Attribute.Attribute
+	scannerForm = class("mt-4")
+
+	scannerPreview : Attribute.Attribute
+	scannerPreview = class("mt-3 max-h-80 w-full rounded-lg border border-slate-300 bg-slate-950 object-contain")
+
+	scannerError : Attribute.Attribute
+	scannerError = class("mt-3 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm font-medium text-red-700")
+
+	scannerSuccess : Attribute.Attribute
+	scannerSuccess = class("mt-3 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-800")
+
+	scannerClientStatus : Attribute.Attribute
+	scannerClientStatus = class("mt-3 text-sm font-medium text-slate-700 empty:hidden")
+
+	scannerReview : Attribute.Attribute
+	scannerReview = class("mt-4 rounded-lg border border-emerald-200 bg-white p-4")
+
+	scannerReviewWarning : Attribute.Attribute
+	scannerReviewWarning = class("mt-4 rounded-lg border border-amber-300 bg-amber-50 p-4")
+
+	scannerReviewHeading : Attribute.Attribute
+	scannerReviewHeading = class("font-semibold text-slate-900")
+
+	scannerReviewLine : Attribute.Attribute
+	scannerReviewLine = class("mt-2 whitespace-pre-line text-sm text-slate-700")
+
+	scannerWarnings : Attribute.Attribute
+	scannerWarnings = class("mt-1 list-disc space-y-1 pl-5 text-sm text-amber-900")
 
 	recordLink : Attribute.Attribute
 	recordLink = class("font-semibold text-blue-700 hover:underline")

@@ -1,6 +1,10 @@
 const { test, expect } = require("@playwright/test");
+const { createHash } = require("node:crypto");
+const fs = require("node:fs");
+const nodePath = require("node:path");
 
 const usesExternalServer = Boolean(process.env.E2E_BASE_URL);
+const assetRoot = nodePath.resolve(__dirname, "..", "dist", "assets");
 
 async function expectDevelopmentMember(page) {
   await page.goto("/");
@@ -17,6 +21,44 @@ async function expectNoDocumentOverflow(page) {
 }
 
 test.describe("CRM journeys", () => {
+  test("uses content hashes for every long-lived browser asset", async ({
+    request,
+  }) => {
+    const assetUrls = new Set();
+
+    for (const pagePath of ["/", "/companies"]) {
+      const response = await request.get(pagePath);
+      expect(response.ok()).toBeTruthy();
+      const html = await response.text();
+
+      for (const match of html.matchAll(/\/assets\/[^"',\s>]+/g)) {
+        assetUrls.add(match[0]);
+      }
+    }
+
+    expect(assetUrls.size).toBeGreaterThan(0);
+
+    for (const assetUrl of assetUrls) {
+      const parsed = new URL(assetUrl, "http://asset.test");
+      const version = parsed.searchParams.get("v");
+      const relativePath = decodeURIComponent(
+        parsed.pathname.slice("/assets/".length),
+      );
+      const bytes = fs.readFileSync(nodePath.join(assetRoot, relativePath));
+      const expectedVersion = createHash("sha256").update(bytes).digest("hex");
+
+      expect(version, `${relativePath} must have a SHA-256 version`).toBe(
+        expectedVersion,
+      );
+
+      const assetResponse = await request.get(assetUrl);
+      expect(assetResponse.ok()).toBeTruthy();
+      expect(assetResponse.headers()["cache-control"]).toContain(
+        "max-age=31536000",
+      );
+    }
+  });
+
   test("uses the development proxy identity and exposes no local auth UI", async ({
     page,
   }) => {

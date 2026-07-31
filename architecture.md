@@ -86,6 +86,8 @@ form.
 - `src/test.roc` creates a database from every current migration and exercises
   stores, handlers, and rendered HTML.
 - Playwright covers accessible CRM journeys through the development proxy.
+- Playwright recomputes the SHA-256 version of every long-lived browser asset
+  referenced by the home and application pages.
 - Authentication and migration smoke tests cover data-preserving upgrades,
   proxy spoof resistance, selectable Mara/Theo identities, POST forwarding,
   and production Tailscale behavior.

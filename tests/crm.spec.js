@@ -1,5 +1,7 @@
 const { test, expect } = require("@playwright/test");
 
+const usesExternalServer = Boolean(process.env.E2E_BASE_URL);
+
 async function expectDevelopmentMember(page) {
   await page.goto("/");
   await expect(page.getByText("Mara Singh", { exact: true })).toBeVisible();
@@ -18,6 +20,11 @@ test.describe("CRM journeys", () => {
   test("uses the development proxy identity and exposes no local auth UI", async ({
     page,
   }) => {
+    test.skip(
+      usesExternalServer,
+      "requires the Playwright-managed development proxy",
+    );
+
     await page.setExtraHTTPHeaders({
       "Tailscale-User-Login": "theo@example.com",
     });

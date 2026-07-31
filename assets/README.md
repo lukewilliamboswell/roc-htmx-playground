@@ -5,6 +5,13 @@ These source files are checked into the repository and copied to
 runtime join them there, giving the Roc webserver one platform-native static
 file mount at `/assets` with a one-year public cache policy.
 
+After assembling that directory, the task runner computes the SHA-256 digest
+of every browser-referenced asset and regenerates `src/AssetVersions.roc`.
+`Route.Asset` includes those digests in the rendered URLs. This makes the
+one-year cache safe: unchanged bytes keep the same URL, while any changed
+stylesheet, script, icon, or responsive photograph gets a new URL
+automatically.
+
 ## Home page photograph
 
 - Files: `planning-desk.webp` and responsive 480, 640, 720, and 960 px

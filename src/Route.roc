@@ -1,6 +1,7 @@
 import pf.Server
 import pf.Url
 
+import AssetVersions
 import Company
 import Person
 import WorkTask
@@ -223,6 +224,15 @@ Route := [
 				Width720 => "720"
 				Width960 => "960"
 			}
+
+		version : HeroPhoto -> Str
+		version = |photo|
+			match photo {
+				Width480 => AssetVersions.hero480
+				Width640 => AssetVersions.hero640
+				Width720 => AssetVersions.hero720
+				Width960 => AssetVersions.hero960
+			}
 	}
 
 	Asset := [
@@ -237,11 +247,11 @@ Route := [
 		to_src = |asset|
 			match asset {
 				Robots => "/robots.txt"
-				Stylesheet => "/assets/styles.css?v=20260728"
-				Htmx => "/assets/htmx.min.js?v=4.0.0-beta6"
-				Interactions => "/assets/interactions.js?v=20260728"
-				AppIcon => "/assets/icons/app.svg"
-				Hero(photo) => HeroPhoto.to_src(photo)
+				Stylesheet => versioned_asset("/assets/styles.css", AssetVersions.stylesheet)
+				Htmx => versioned_asset("/assets/htmx.min.js", AssetVersions.htmx)
+				Interactions => versioned_asset("/assets/interactions.js", AssetVersions.interactions)
+				AppIcon => versioned_asset("/assets/icons/app.svg", AssetVersions.appIcon)
+				Hero(photo) => versioned_asset(HeroPhoto.to_src(photo), HeroPhoto.version(photo))
 			}
 	}
 
@@ -386,6 +396,9 @@ Route := [
 	company_filter = |pairs|
 		Company.Filter.from_str(query_value(pairs, "q"))
 }
+
+versioned_asset : Str, Str -> Str
+versioned_asset = |path, version| "${path}?v=${version}"
 
 query_value : List((Str, Str)), Str -> Str
 query_value = |pairs, expected|

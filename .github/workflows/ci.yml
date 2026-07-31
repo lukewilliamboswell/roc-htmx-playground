@@ -31,8 +31,11 @@ jobs:
           version: nightly-new-compiler
           nightly-tag: ${{ env.ROC_NIGHTLY_TAG }}
 
-      - name: Check formatting, types, tests, and generated CSS
+      - name: Check formatting, types, tests, and generated assets
         run: roc scripts/tasks.roc check
+
+      - name: Verify generated asset versions are committed
+        run: git diff --exit-code -- src/AssetVersions.roc
 
   browser:
     name: Browser journeys

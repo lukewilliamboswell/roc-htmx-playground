@@ -4,6 +4,8 @@ A focused, server-rendered CRM for capturing company enquiries, the people
 behind them, and accountable follow-up work. It is implemented in
 [Roc](https://www.roc-lang.org) with SQLite and progressively enhanced HTML.
 
+![Enquiry CRM home screen showing company, people, and follow-up work](docs/enquiry-crm.png)
+
 The current vertical slice supports:
 
 - active workspace members resolved from a trusted network identity;

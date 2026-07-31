@@ -19,6 +19,12 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v7
 
+      - name: Read optional pinned Roc version
+        run: |
+          if [[ -f .roc-version ]]; then
+            printf 'ROC_NIGHTLY_TAG=%s\n' "$(sed -n '1p' .roc-version)" >> "$GITHUB_ENV"
+          fi
+
       - name: Derive release identity
         run: |
           release_id=$(ci/release_id.sh "$GITHUB_SHA")
@@ -35,7 +41,7 @@ jobs:
         uses: roc-lang/setup-roc@cbe782d6f165b89c87d99f50a59ac4f5f73b4427
         with:
           version: nightly-new-compiler
-          nightly-tag: nightly-2026-July-29-fe0ab22
+          nightly-tag: ${{ env.ROC_NIGHTLY_TAG }}
 
       - name: Install Node
         uses: actions/setup-node@v6

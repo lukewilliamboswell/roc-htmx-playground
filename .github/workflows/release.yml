@@ -19,6 +19,12 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v7
 
+      - name: Read optional pinned Roc version
+        run: |
+          if [[ -f .roc-version ]]; then
+            printf 'ROC_NIGHTLY_TAG=%s\n' "$(sed -n '1p' .roc-version)" >> "$GITHUB_ENV"
+          fi
+
       - name: Derive release identity
         run: |
           release_id=$(ci/release_id.sh "$GITHUB_SHA")
@@ -35,7 +41,7 @@ jobs:
         uses: roc-lang/setup-roc@cbe782d6f165b89c87d99f50a59ac4f5f73b4427
         with:
           version: nightly-new-compiler
-          nightly-tag: nightly-2026-July-29-fe0ab22
+          nightly-tag: ${{ env.ROC_NIGHTLY_TAG }}
 
       - name: Install Node
         uses: actions/setup-node@v6
@@ -63,7 +69,7 @@ jobs:
           test -x "$bundle_root/bin/enquiry-crm-admin"
           test -f "$bundle_root/assets/styles.css"
           test -f "$bundle_root/deploy/enquiry-crm.service"
-          test -f "$bundle_root/deploy/enquiry-crm.env.example"
+          test -f "$bundle_root/deploy/enquiry-crm.json.example"
           test "$(sed -n '1p' "$bundle_root/RELEASE_ID")" = "$RELEASE_ID"
           file "$bundle_root/bin/enquiry-crm" | grep -F 'ELF 64-bit'
           file "$bundle_root/bin/enquiry-crm-admin" | grep -F 'ELF 64-bit'
@@ -71,21 +77,33 @@ jobs:
 
       - name: Exercise bundled administration command
         run: |
+          printf '%s\n' \
+            '{' \
+            '  "version": 1,' \
+            '  "server": {' \
+            "    \"database_path\": \"$RUNNER_TEMP/admin-ci.sqlite\"," \
+            "    \"assets_path\": \"$BUNDLE_ROOT/assets\"," \
+            '    "public_origin": "http://127.0.0.1:8010",' \
+            '    "listen_port": 8010,' \
+            '    "timezone": "Australia/Melbourne"' \
+            '  },' \
+            '  "features": {' \
+            '    "business_card_scanner": {' \
+            '      "enabled": false,' \
+            '      "provider": null' \
+            '    }' \
+            '  }' \
+            '}' > "$RUNNER_TEMP/admin.server.json"
+          export SERVER_CONFIG_PATH="$RUNNER_TEMP/admin.server.json"
           "$BUNDLE_ROOT/bin/enquiry-crm-admin" bootstrap \
-            --db "$RUNNER_TEMP/admin-ci.sqlite" \
             --workspace-name "Bundle Test" \
             --currency AUD \
-            --timezone Australia/Melbourne \
             --member-name "Bundle Owner" \
             --member-email owner@example.com
-          "$BUNDLE_ROOT/bin/enquiry-crm-admin" migrate \
-            --db "$RUNNER_TEMP/admin-ci.sqlite"
-          "$BUNDLE_ROOT/bin/enquiry-crm-admin" schema check \
-            --db "$RUNNER_TEMP/admin-ci.sqlite"
-          "$BUNDLE_ROOT/bin/enquiry-crm-admin" members list \
-            --db "$RUNNER_TEMP/admin-ci.sqlite"
+          "$BUNDLE_ROOT/bin/enquiry-crm-admin" migrate
+          "$BUNDLE_ROOT/bin/enquiry-crm-admin" schema check
+          "$BUNDLE_ROOT/bin/enquiry-crm-admin" members list
           if "$BUNDLE_ROOT/bin/enquiry-crm-admin" members add \
-            --db "$RUNNER_TEMP/admin-ci.sqlite" \
             --name "Invalid Member" \
             --email owner@; then
             echo "The bundled admin command accepted an invalid member email." >&2
@@ -120,15 +138,29 @@ jobs:
           sudo -u enquiry-crm sqlite3 /var/lib/enquiry-crm/playwright.sqlite \
             < "$GITHUB_WORKSPACE/db/migrations/002_remove_legacy_auth_and_demos.sql"
           sudo -u enquiry-crm sqlite3 /var/lib/enquiry-crm/playwright.sqlite \
+            < "$GITHUB_WORKSPACE/db/migrations/003_ai_foundation.sql"
+          sudo -u enquiry-crm sqlite3 /var/lib/enquiry-crm/playwright.sqlite \
             < "$GITHUB_WORKSPACE/db/test-fixtures.sql"
           printf '%s\n' \
-            'DB_PATH=/var/lib/enquiry-crm/playwright.sqlite' \
-            'ASSET_PATH=/opt/enquiry-crm/current/assets' \
-            'PUBLIC_ORIGIN=http://127.0.0.1:8010' \
-            'PORT=8010' \
-            'TZ=Australia/Melbourne' |
-            sudo tee /etc/enquiry-crm/enquiry-crm.env >/dev/null
-          sudo chmod 0600 /etc/enquiry-crm/enquiry-crm.env
+            '{' \
+            '  "version": 1,' \
+            '  "server": {' \
+            '    "database_path": "/var/lib/enquiry-crm/playwright.sqlite",' \
+            '    "assets_path": "/opt/enquiry-crm/current/assets",' \
+            '    "public_origin": "http://127.0.0.1:8010",' \
+            '    "listen_port": 8010,' \
+            '    "timezone": "Australia/Melbourne"' \
+            '  },' \
+            '  "features": {' \
+            '    "business_card_scanner": {' \
+            '      "enabled": false,' \
+            '      "provider": null' \
+            '    }' \
+            '  }' \
+            '}' |
+            sudo tee /etc/enquiry-crm/enquiry-crm.json >/dev/null
+          sudo chown root:enquiry-crm /etc/enquiry-crm/enquiry-crm.json
+          sudo chmod 0640 /etc/enquiry-crm/enquiry-crm.json
           systemd-analyze verify /etc/systemd/system/enquiry-crm.service
           sudo systemctl start enquiry-crm.service
           curl --fail --retry 20 --retry-connrefused --retry-delay 1 \
@@ -159,10 +191,10 @@ jobs:
             "/opt/enquiry-crm/current/deploy/enquiry-crm.service" \
             /etc/systemd/system/enquiry-crm.service
           sudo systemctl daemon-reload
-          sudo -u enquiry-crm /opt/enquiry-crm/current/bin/enquiry-crm-admin migrate \
-            --db /var/lib/enquiry-crm/playwright.sqlite
-          sudo -u enquiry-crm /opt/enquiry-crm/current/bin/enquiry-crm-admin schema check \
-            --db /var/lib/enquiry-crm/playwright.sqlite
+          sudo -u enquiry-crm env SERVER_CONFIG_PATH=/etc/enquiry-crm/enquiry-crm.json \
+            /opt/enquiry-crm/current/bin/enquiry-crm-admin migrate
+          sudo -u enquiry-crm env SERVER_CONFIG_PATH=/etc/enquiry-crm/enquiry-crm.json \
+            /opt/enquiry-crm/current/bin/enquiry-crm-admin schema check
           sudo systemctl start enquiry-crm.service
           curl --fail --retry 20 --retry-connrefused --retry-delay 1 \
             http://127.0.0.1:8010/healthz

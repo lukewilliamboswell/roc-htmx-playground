@@ -10,9 +10,6 @@ concurrency:
   group: ci-${{ github.event.pull_request.number }}
   cancel-in-progress: true
 
-env:
-  ROC_NIGHTLY_TAG: nightly-2026-July-29-fe0ab22
-
 jobs:
   check:
     name: Check
@@ -21,6 +18,12 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7
+
+      - name: Read optional pinned Roc version
+        run: |
+          if [[ -f .roc-version ]]; then
+            printf 'ROC_NIGHTLY_TAG=%s\n' "$(sed -n '1p' .roc-version)" >> "$GITHUB_ENV"
+          fi
 
       - name: Install Roc
         uses: roc-lang/setup-roc@cbe782d6f165b89c87d99f50a59ac4f5f73b4427
@@ -39,6 +42,12 @@ jobs:
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7
+
+      - name: Read optional pinned Roc version
+        run: |
+          if [[ -f .roc-version ]]; then
+            printf 'ROC_NIGHTLY_TAG=%s\n' "$(sed -n '1p' .roc-version)" >> "$GITHUB_ENV"
+          fi
 
       - name: Install Roc
         uses: roc-lang/setup-roc@cbe782d6f165b89c87d99f50a59ac4f5f73b4427

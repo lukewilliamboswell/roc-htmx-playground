@@ -2,6 +2,7 @@ import pf.Server
 import http.Response
 
 import Actor
+import AiStore
 import AppError
 import Company
 import CompanyStore
@@ -49,6 +50,63 @@ PersonHandler := [].{
 		Ok(Http.html(200, PersonView.new_page(actor, company_list, origin, form, "", []), []))
 	}
 
+	new_page_with_scanner! : CompanyStore, Actor, [None, Some(Company.Id)], Str => Try(Response, AppError)
+	new_page_with_scanner! = |companies, actor, company_id, grant_id| {
+		company_list = CompanyStore.list!(companies, Company.Filter.empty)
+			? AppError.from
+		origin = match company_id {
+			Some(id) => Some(find_origin_company!(companies, id)?)
+			None => None
+		}
+		form = empty_form(origin, actor.member.id.to_str())
+		scanner = PersonView.Scanner.Ready({
+			grantId: grant_id,
+			message: "",
+			error: False,
+			review: NoReview,
+		})
+		Ok(
+			Http.html(
+				200,
+				PersonView.new_page_with_scanner(
+					actor,
+					company_list,
+					origin,
+					form,
+					"",
+					[],
+					scanner,
+				),
+				[],
+			),
+		)
+	}
+
+	form_from_fields : Dict(Str, Str) -> PersonView.Form
+	form_from_fields = |fields| form_values(fields)
+
+	scanner_page! : CompanyStore, Actor, PersonView.Form, PersonView.Scanner, U16 => Try(Response, AppError)
+	scanner_page! = |companies, actor, form, scanner, status| {
+		company_list = CompanyStore.list!(companies, Company.Filter.empty)
+			? AppError.from
+		origin = form_origin!(companies, form.originCompany)?
+		Ok(
+			Http.html(
+				status,
+				PersonView.new_page_with_scanner(
+					actor,
+					company_list,
+					origin,
+					form,
+					"",
+					[],
+					scanner,
+				),
+				[],
+			),
+		)
+	}
+
 	edit_page! : PersonStore, CompanyStore, Actor, Person.Id => Try(Response, AppError)
 	edit_page! = |people, companies, actor, id| {
 		person = match PersonStore.find!(people, id) {
@@ -68,8 +126,8 @@ PersonHandler := [].{
 		)
 	}
 
-	preview! : Server.Request, PersonStore, CompanyStore, Actor => Try(Response, AppError)
-	preview! = |request, people, companies, actor| {
+	preview! : Server.Request, PersonStore, CompanyStore, AiStore, Actor => Try(Response, AppError)
+	preview! = |request, people, companies, ai_store, actor| {
 		fields = Http.read_form!(request)?
 		form = form_values(fields)
 		company_list = CompanyStore.list!(companies, Company.Filter.empty)
@@ -82,15 +140,15 @@ PersonHandler := [].{
 				match PersonStore.matches!(people, actor.workspace.id, input) {
 					Err(error) => Err(AppError.from(error))
 					Ok(matches) if matches.is_empty() =>
-						create_input!(people, actor, company_list, origin, form, input, False)
+						create_input!(people, ai_store, actor, company_list, origin, form, input, False)
 					Ok(matches) =>
 						Ok(Http.html(200, PersonView.new_page(actor, company_list, origin, form, "", matches), []))
 					}
 			}
 	}
 
-	create! : Server.Request, PersonStore, CompanyStore, Actor => Try(Response, AppError)
-	create! = |request, people, companies, actor| {
+	create! : Server.Request, PersonStore, CompanyStore, AiStore, Actor => Try(Response, AppError)
+	create! = |request, people, companies, ai_store, actor| {
 		fields = Http.read_form!(request)?
 		form = form_values(fields)
 		confirmed = field(fields, Route.PersonInput.ConfirmDistinct) == "yes"
@@ -103,7 +161,7 @@ PersonHandler := [].{
 		match person_input(form, actor) {
 			Err(message) =>
 				Ok(Http.html(422, PersonView.new_page(actor, company_list, origin, form, message, []), []))
-			Ok(input) => create_input!(people, actor, company_list, origin, form, input, True)
+			Ok(input) => create_input!(people, ai_store, actor, company_list, origin, form, input, True)
 		}
 	}
 
@@ -183,8 +241,8 @@ PersonHandler := [].{
 	}
 }
 
-create_input! : PersonStore, Actor, List(Company), [None, Some(Company)], PersonView.Form, Person.New, Bool => Try(Response, AppError)
-create_input! = |store, actor, companies, origin, form, input, confirmed|
+create_input! : PersonStore, AiStore, Actor, List(Company), [None, Some(Company)], PersonView.Form, Person.New, Bool => Try(Response, AppError)
+create_input! = |store, ai_store, actor, companies, origin, form, input, confirmed|
 	match PersonStore.create!(
 		store,
 		actor.workspace.id,
@@ -193,7 +251,17 @@ create_input! = |store, actor, companies, origin, form, input, confirmed|
 		DateTime.now_utc!(),
 		confirmed,
 	) {
-		Ok(id) => Ok(Web.redirect(Route.Location.PersonDetail(id)))
+		Ok(id) => {
+			if !form.aiRunId.is_empty() {
+				AiStore.mark_accepted!(
+					ai_store,
+					actor.workspace.id,
+					actor.member.id,
+					form.aiRunId,
+				) ? AppError.from
+			}
+			Ok(Web.redirect(Route.Location.PersonDetail(id)))
+		}
 		Err(Person.CreateError.DuplicateMatches(matches)) =>
 			Ok(Http.html(200, PersonView.new_page(actor, companies, origin, form, "", matches), []))
 		Err(Person.CreateError.StoreFailure(error)) => Err(AppError.from(error))
@@ -215,7 +283,7 @@ person_input = |form, actor| {
 	if !actor.workspace.has_active_member(owner) {
 		return Err("Choose a valid active owner.")
 	}
-	match Person.new(
+	match Person.new_with_contacts(
 		form.name,
 		form.company,
 		form.jobTitle,
@@ -223,8 +291,8 @@ person_input = |form, actor| {
 		form.lifecycle,
 		form.source,
 		form.context,
-		form.email,
-		form.phone,
+		form.emails.map(|email| { label: "Work", value: email }),
+		form.phones.map(|phone| { label: phone.label, value: phone.value }),
 	) {
 		Ok(input) => Ok(input)
 		Err(Person.NewError.NameWasEmpty) => Err("Enter a person's name.")
@@ -242,13 +310,39 @@ form_values = |fields|
 		lifecycle: field(fields, Route.PersonInput.Lifecycle),
 		source: field(fields, Route.PersonInput.Source),
 		context: field(fields, Route.PersonInput.Context),
-		email: field(fields, Route.PersonInput.Email),
-		phone: field(fields, Route.PersonInput.Phone),
+		emails: [
+			field(fields, Route.PersonInput.Email),
+			string_field(fields, "email2"),
+			string_field(fields, "email3"),
+			string_field(fields, "email4"),
+			string_field(fields, "email5"),
+		],
+		phones: [
+			{ label: string_field_or(fields, "phoneType", "Work"), value: field(fields, Route.PersonInput.Phone) },
+			{ label: string_field_or(fields, "phoneType2", "Work"), value: string_field(fields, "phone2") },
+			{ label: string_field_or(fields, "phoneType3", "Work"), value: string_field(fields, "phone3") },
+			{ label: string_field_or(fields, "phoneType4", "Work"), value: string_field(fields, "phone4") },
+			{ label: string_field_or(fields, "phoneType5", "Work"), value: string_field(fields, "phone5") },
+		],
 		originCompany: field(fields, Route.PersonInput.OriginCompany),
+		aiRunId: string_field(fields, "aiRunId"),
 	}
 
 field : Dict(Str, Str), Route.PersonInput -> Str
 field = |fields, input| fields.get(input.to_name()) ?? ""
+
+string_field : Dict(Str, Str), Str -> Str
+string_field = |fields, name| fields.get(name) ?? ""
+
+string_field_or : Dict(Str, Str), Str, Str -> Str
+string_field_or = |fields, name, fallback| {
+	value = string_field(fields, name)
+	if value.is_empty() {
+		fallback
+	} else {
+		value
+	}
+}
 
 empty_form : [None, Some(Company)], Str -> PersonView.Form
 empty_form = |origin, owner|
@@ -263,12 +357,19 @@ empty_form = |origin, owner|
 		lifecycle: "lead",
 		source: "",
 		context: "",
-		email: "",
-		phone: "",
+		emails: ["", "", "", "", ""],
+		phones: [
+			{ label: "Work", value: "" },
+			{ label: "Work", value: "" },
+			{ label: "Work", value: "" },
+			{ label: "Work", value: "" },
+			{ label: "Work", value: "" },
+		],
 		originCompany: match origin {
 			Some(company) => company.id.to_str()
 			None => ""
 		},
+		aiRunId: "",
 	}
 
 form_from_person : Person -> PersonView.Form
@@ -281,9 +382,16 @@ form_from_person = |person|
 		lifecycle: person.lifecycle.to_str(),
 		source: person.sourceId,
 		context: person.context,
-		email: "",
-		phone: "",
+		emails: ["", "", "", "", ""],
+		phones: [
+			{ label: "Work", value: "" },
+			{ label: "Work", value: "" },
+			{ label: "Work", value: "" },
+			{ label: "Work", value: "" },
+			{ label: "Work", value: "" },
+		],
 		originCompany: "",
+		aiRunId: "",
 	}
 
 form_origin! : CompanyStore, Str => Try([None, Some(Company)], AppError)

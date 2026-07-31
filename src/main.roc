@@ -4,8 +4,6 @@ app [Context, program] {
 	gregorian: "https://cdn.jasperwoudenberg.com/roc-gregorian-v1.0.0-rc.2/Ce3xuHN92F5oGRuzjUTmm65jULAEj8pvvrTBmZJzE1M4.tar.zst",
 }
 
-import pf.Env
-import pf.OsStr
 import pf.Path
 import pf.Server
 import pf.Sqlite
@@ -14,8 +12,12 @@ import pf.Url
 import http.Response
 
 import AppError
+import AppConfig
+import AiPrompts
+import AiStore
 import Actor
 import Authentication
+import BusinessCardHandler
 import Company
 import CompanyHandler
 import CompanyStore
@@ -37,8 +39,11 @@ import WorkTaskStore
 ## The composition root owns concrete adapter selection. Feature handlers only
 ## receive the stores they actually use.
 Context := {
+	aiStore : AiStore,
+	appConfig : AppConfig,
 	authMode : Authentication.Mode,
 	db : Sqlite.Db,
+	releaseId : Str,
 	memberStore : MemberStore,
 	workspace : Workspace,
 	companyStore : CompanyStore,
@@ -50,10 +55,14 @@ program = { init!, respond!, shutdown! }
 
 init! : () => Try({ config : Server.Config, context : Context }, [Exit(I64), ..])
 init! = || {
-	db_path = match Env.var!("DB_PATH") {
-		Ok(path) => Path.from_os_str(path)
-		Err(_) => return Err(Exit(2))
+	app_config = match AppConfig.load!() {
+		Ok(value) => value
+		Err(error) => {
+			Stdout.line!(error.to_message()) ? |_| Exit(2)
+			return Err(Exit(2))
+		}
 	}
+	db_path = Path.utf8(app_config.server.databasePath)
 	db = Sqlite.open!(Sqlite.default_config(db_path)) ? |_| Exit(2)
 	schema_version : I64
 	schema_version = Sqlite.query!({
@@ -62,42 +71,34 @@ init! = || {
 		params: {},
 		limits: Sqlite.default_query_limits,
 	}) ? |_| Exit(2)
-	if schema_version != 2 {
-		Stdout.line!("Database schema version must be 2, received ${schema_version.to_str()}") ? |_| Exit(2)
+	if schema_version != 3 {
+		Stdout.line!("Database schema version must be 3, received ${schema_version.to_str()}") ? |_| Exit(2)
 		return Err(Exit(2))
 	}
-	public_origin = match Env.var!("PUBLIC_ORIGIN") {
-		Ok(value) => OsStr.display(value)
-		Err(_) => return Err(Exit(2))
-	}
+	public_origin = app_config.server.publicOrigin
 	auth_mode = Authentication.Mode.from_public_origin(public_origin)
 		? |_| Exit(2)
 	workspace_store = WorkspaceStore.new(db)
 	workspace = WorkspaceStore.load!(workspace_store) ? |_| Exit(2)
-	configured_timezone = match Env.var!("TZ") {
-		Ok(value) => OsStr.display(value)
-		Err(_) => ""
-	}
+	configured_timezone = app_config.server.timezone
 	if !Workspace.timezone_matches(workspace, configured_timezone) {
 		Stdout.line!(
-			"TZ must match workspace timezone ${workspace.timezone.to_str()}, received ${configured_timezone}",
+			"server.timezone must match workspace timezone ${workspace.timezone.to_str()}, received ${configured_timezone}",
 		) ? |_| Exit(2)
 		return Err(Exit(2))
 	}
-	asset_path = match Env.var!("ASSET_PATH") {
-		Ok(path) => Path.from_os_str(path)
-		Err(_) => Path.utf8("dist/assets")
-	}
+	asset_path = Path.utf8(app_config.server.assetsPath)
 	asset_files = Server.file_root({ id: "assets", path: asset_path })
-	listen_port = match Env.var!("PORT") {
-		Ok(value) => U16.from_str(OsStr.display(value)) ?? 8000
-		Err(_) => 8000
-	}
+	listen_port = app_config.server.listenPort
 	config_with_listen = Server.with_listen(
 		Server.default_config,
 		{ host: "127.0.0.1", port: listen_port },
 	)
-	config_with_files = Server.with_file_roots(config_with_listen, [asset_files])
+	config_with_bodies = Server.with_request_body_limit(
+		config_with_listen,
+		7 * 1024 * 1024,
+	)
+	config_with_files = Server.with_file_roots(config_with_bodies, [asset_files])
 	config = Server.with_native_routes(
 		config_with_files,
 		{
@@ -116,8 +117,11 @@ init! = || {
 	Ok({
 		config,
 		context: Context.{
+			aiStore: AiStore.new(db),
+			appConfig: app_config,
 			authMode: auth_mode,
 			db,
+			releaseId: load_release_id!(app_config.server.assetsPath),
 			memberStore: MemberStore.new(db),
 			workspace,
 			companyStore: CompanyStore.new(db),
@@ -225,7 +229,7 @@ health_response! = |db| {
 		limits: Sqlite.default_query_limits,
 	})
 	match version {
-		Ok(2) =>
+		Ok(3) =>
 			Response.from_status(200)
 				.with_headers([
 					{ name: "Content-Type", value: "text/plain; charset=utf-8" },
@@ -281,11 +285,7 @@ visit! = |context, session, location|
 						Person.Filter.empty,
 					)
 				Route.Page.PersonNew =>
-					PersonHandler.new_page!(
-						context.companyStore,
-						actor_from_session(session, context.workspace)?,
-						None,
-					)
+					new_person_page!(context, actor_from_session(session, context.workspace)?, None)
 				Route.Page.Work =>
 					WorkTaskHandler.page!(
 						context.workTaskStore,
@@ -333,12 +333,33 @@ visit! = |context, session, location|
 				id,
 			)
 		Route.Location.PersonNewForCompany(company_id) =>
-			PersonHandler.new_page!(
-				context.companyStore,
+			new_person_page!(
+				context,
 				actor_from_session(session, context.workspace)?,
 				Some(company_id),
 			)
 		}
+
+new_person_page! : Context, Actor, [None, Some(Company.Id)] => Try(Response, AppError)
+new_person_page! = |context, actor, company_id|
+	match context.appConfig.features.businessCardScanner {
+		AppConfig.BusinessCardScanner.Disabled =>
+			PersonHandler.new_page!(context.companyStore, actor, company_id)
+		AppConfig.BusinessCardScanner.Enabled(_) => {
+			grant = AiStore.issue_grant!(
+				context.aiStore,
+				actor.workspace.id,
+				actor.member.id,
+				AiPrompts.business_card.featureId,
+			) ? AppError.from
+			PersonHandler.new_page_with_scanner!(
+				context.companyStore,
+				actor,
+				company_id,
+				grant,
+			)
+		}
+	}
 
 actor_from_session : Session, Workspace -> Try(Actor, AppError)
 actor_from_session = |session, workspace|
@@ -374,13 +395,29 @@ post! = |request, context, session, action|
 				request,
 				context.personStore,
 				context.companyStore,
+				context.aiStore,
 				actor_from_session(session, context.workspace)?,
 			)
+		Route.PostAction.ScanBusinessCard =>
+			match context.appConfig.features.businessCardScanner {
+				AppConfig.BusinessCardScanner.Disabled =>
+					Err(AppError.NotFound("business-card scanner"))
+				AppConfig.BusinessCardScanner.Enabled(provider) =>
+					BusinessCardHandler.scan!(
+						request,
+						context.aiStore,
+						context.companyStore,
+						actor_from_session(session, context.workspace)?,
+						provider,
+						context.releaseId,
+					)
+				}
 		Route.PostAction.CreatePerson =>
 			PersonHandler.create!(
 				request,
 				context.personStore,
 				context.companyStore,
+				context.aiStore,
 				actor_from_session(session, context.workspace)?,
 			)
 		Route.PostAction.UpdatePerson(id) =>
@@ -460,6 +497,13 @@ asset_response = |asset|
 
 shutdown! : Server.ShutdownReason, Context => Try({}, [Exit(I64), ..])
 shutdown! = |_reason, _context| Ok({})
+
+load_release_id! : Str => Str
+load_release_id! = |assets_path|
+	match Path.join(Path.utf8(assets_path), "../RELEASE_ID").read_utf8!() {
+		Ok(value) if !value.trim().is_empty() => value.trim()
+		_ => "development"
+	}
 
 log_request! : Server.Request => Try({}, _)
 log_request! = |request| {

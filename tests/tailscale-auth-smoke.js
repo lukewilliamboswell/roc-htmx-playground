@@ -13,6 +13,7 @@ const assetPath =
   process.env.ENQUIRY_CRM_ASSET_PATH || path.join(root, "dist", "assets");
 const localOrigin = "http://127.0.0.1:8011";
 const publicOrigin = "https://crm.tailnet-example.ts.net";
+const serverConfig = path.join(artifacts, "tailscale-auth.server.json");
 
 fs.mkdirSync(artifacts, { recursive: true });
 fs.rmSync(database, { force: true });
@@ -20,6 +21,7 @@ fs.rmSync(database, { force: true });
 for (const sqlFile of [
   "db/migrations/001_initial.sql",
   "db/migrations/002_remove_legacy_auth_and_demos.sql",
+  "db/migrations/003_ai_foundation.sql",
   "db/test-fixtures.sql",
 ]) {
   execFileSync("sqlite3", [database, `.read ${sqlFile}`], {
@@ -28,15 +30,28 @@ for (const sqlFile of [
   });
 }
 
+fs.writeFileSync(
+  serverConfig,
+  JSON.stringify({
+    version: 1,
+    server: {
+      database_path: database,
+      assets_path: assetPath,
+      public_origin: publicOrigin,
+      listen_port: 8011,
+      timezone: "Australia/Melbourne",
+    },
+    features: {
+      business_card_scanner: { enabled: false, provider: null },
+    },
+  }),
+);
+
 const server = spawn(executable, [], {
   cwd: root,
   env: {
     ...process.env,
-    ASSET_PATH: assetPath,
-    DB_PATH: database,
-    PORT: "8011",
-    PUBLIC_ORIGIN: publicOrigin,
-    TZ: "Australia/Melbourne",
+    SERVER_CONFIG_PATH: serverConfig,
   },
   stdio: "inherit",
 });

@@ -17,6 +17,7 @@ fs.rmSync(database, { force: true });
 for (const sqlFile of [
   "db/migrations/001_initial.sql",
   "db/migrations/002_remove_legacy_auth_and_demos.sql",
+  "db/migrations/003_ai_foundation.sql",
   "db/test-fixtures.sql",
 ]) {
   execFileSync("sqlite3", [database, `.read ${sqlFile}`], {
@@ -26,6 +27,26 @@ for (const sqlFile of [
 }
 
 function start(memberEmail, publicPort, backendPort) {
+  const serverConfig = path.join(
+    artifacts,
+    `dev-auth-${publicPort}.server.json`,
+  );
+  fs.writeFileSync(
+    serverConfig,
+    JSON.stringify({
+      version: 1,
+      server: {
+        database_path: database,
+        assets_path: assetPath,
+        public_origin: `http://127.0.0.1:${publicPort}`,
+        listen_port: backendPort,
+        timezone: "Australia/Melbourne",
+      },
+      features: {
+        business_card_scanner: { enabled: false, provider: null },
+      },
+    }),
+  );
   return spawn(
     process.execPath,
     [
@@ -37,10 +58,7 @@ function start(memberEmail, publicPort, backendPort) {
       cwd: root,
       env: {
         ...process.env,
-        DEV_PUBLIC_PORT: String(publicPort),
-        DEV_BACKEND_PORT: String(backendPort),
-        ENQUIRY_CRM_ASSET_PATH: assetPath,
-        ENQUIRY_CRM_DATABASE: database,
+        SERVER_CONFIG_PATH: serverConfig,
         ENQUIRY_CRM_EXECUTABLE: executable,
       },
       stdio: "inherit",

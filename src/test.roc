@@ -13,10 +13,12 @@ import pf.Stdout
 import http.Response
 import "../db/migrations/001_initial.sql" as init_schema : Str
 import "../db/migrations/002_remove_legacy_auth_and_demos.sql" as remove_legacy_schema : Str
+import "../db/migrations/003_ai_foundation.sql" as ai_foundation_schema : Str
 import "../db/test-fixtures.sql" as test_fixtures : Str
 
 import Activity
 import Actor
+import AiStore
 import Company
 import CompanyHandler
 import CompanyStore
@@ -72,6 +74,13 @@ init! = || {
 		}
 		Ok({}) => {}
 	}
+	match load_schema!(db, ai_foundation_schema.split_on(";")) {
+		Err(error) => {
+			Stderr.line!("AI foundation migration failed: ${Str.inspect(error)}") ? |_| Exit(2)
+			return Err(Exit(2))
+		}
+		Ok({}) => {}
+	}
 	match load_schema!(db, test_fixtures.split_on(";")) {
 		Err(error) => {
 			Stderr.line!("fixtures failed: ${Str.inspect(error)}") ? |_| Exit(2)
@@ -88,6 +97,8 @@ init! = || {
 	Stdout.line!("companies: ok") ? |_| Exit(3)
 	test_people!(db)
 	Stdout.line!("people: ok") ? |_| Exit(3)
+	test_ai_foundation!(db)
+	Stdout.line!("AI foundation: ok") ? |_| Exit(3)
 	test_work_tasks!(db)
 	Stdout.line!("work tasks: ok") ? |_| Exit(3)
 	Err(Exit(0))
@@ -480,6 +491,25 @@ test_people! = |db| {
 		Err(_) => False
 	}
 
+	scanner_response = PersonHandler.new_page_with_scanner!(
+		CompanyStore.new(db),
+		actor,
+		None,
+		"grant-test",
+	)
+	expect match scanner_response {
+		Ok(response) => {
+			body = response_body(response)
+			body.contains("Scan a business card")
+				and body.contains("capture=\"environment\"")
+					and body.contains("name=\"scanGrant\" value=\"grant-test\"")
+						and body.contains("hx-include=\"#person-record-form\"")
+							and body.contains("name=\"email5\"")
+								and body.contains("name=\"phone5\"")
+		}
+		Err(_) => False
+	}
+
 	# CRM-002 and CRM-030: contacts remain maintainable and history is readable.
 	detail_response = PersonHandler.detail!(
 		store,
@@ -705,7 +735,123 @@ test_schema_version! = |db| {
 		params: {},
 		limits: Sqlite.default_query_limits,
 	}) ?? 0
-	expect version == 2
+	expect version == 3
+}
+
+test_ai_foundation! : Sqlite.Db => {}
+test_ai_foundation! = |db| {
+	store = AiStore.new(db)
+	workspace = WorkspaceStore.load!(WorkspaceStore.new(db))
+		?? Workspace.from_storage(
+			"workspace-example",
+			"Example CRM",
+			"AUD",
+			"Australia/Melbourne",
+			[],
+			[],
+			[],
+		)
+	workspace_id = workspace.id
+	member_id = Member.Id.from_storage("member-mara")
+	feature_id = "business-card-v1"
+
+	grant = AiStore.issue_grant!(store, workspace_id, member_id, feature_id) ?? ""
+	expect grant.starts_with("grant-")
+
+	claimed = AiStore.claim!(
+		store,
+		workspace_id,
+		member_id,
+		feature_id,
+		"business-card-v1",
+		"test-release",
+		"openai/gpt-5.6-luna",
+		grant,
+		12_345,
+	)
+	run_id = (claimed ?? AiStore.Claim.{ runId: "" }).runId
+	expect run_id.starts_with("ai-run-")
+
+	replayed = AiStore.claim!(
+		store,
+		workspace_id,
+		member_id,
+		feature_id,
+		"business-card-v1",
+		"test-release",
+		"openai/gpt-5.6-luna",
+		grant,
+		12_345,
+	)
+	expect match replayed {
+		Err(AiStore.ClaimError.InvalidGrant) => True
+		_ => False
+	}
+
+	began = AiStore.begin_provider!(store, workspace_id, member_id, run_id)
+	expect began.is_ok()
+
+	second_grant = AiStore.issue_grant!(store, workspace_id, member_id, feature_id) ?? ""
+	second_claim = AiStore.claim!(
+		store,
+		workspace_id,
+		member_id,
+		feature_id,
+		"business-card-v1",
+		"test-release",
+		"openai/gpt-5.6-luna",
+		second_grant,
+		100,
+	)
+	second_run_id = (second_claim ?? AiStore.Claim.{ runId: "" }).runId
+	expect second_run_id.starts_with("ai-run-")
+	second_begin = AiStore.begin_provider!(store, workspace_id, member_id, second_run_id)
+	expect match second_begin {
+		Err(AiStore.BeginError.MemberBusy) => True
+		_ => False
+	}
+
+	usage = AiStore.Usage.{
+		promptTokens: 100,
+		completionTokens: 50,
+		totalTokens: 150,
+		reasoningTokens: 10,
+		cachedTokens: 0,
+		costCreditsNanos: 1234,
+	}
+	succeeded = AiStore.succeed!(
+		store,
+		run_id,
+		"openai/gpt-5.6-luna",
+		"provider-request-test",
+		usage,
+		920,
+	)
+	expect succeeded.is_ok()
+	accepted = AiStore.mark_accepted!(store, workspace_id, member_id, run_id)
+	expect accepted.is_ok()
+
+	run : {
+		state : Str,
+		outcomeCode : Str,
+		inputBytes : I64,
+		acceptedAt : I64,
+	}
+	run = Sqlite.query!({
+		db,
+		query: "SELECT state, outcome_code AS outcomeCode, input_bytes AS inputBytes, accepted_at AS acceptedAt FROM ai_runs WHERE run_id = :runId;",
+		params: { runId: run_id },
+		limits: Sqlite.default_query_limits,
+	}) ?? {
+		state: "",
+		outcomeCode: "",
+		inputBytes: 0,
+		acceptedAt: 0,
+	}
+	expect run.state == "succeeded"
+	expect run.outcomeCode == "success"
+	expect run.inputBytes == 12_345
+	expect run.acceptedAt > 0
 }
 
 respond! = |_request, _context| Ok(Server.respond(Response.from_status(204)))

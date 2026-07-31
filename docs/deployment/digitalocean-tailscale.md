@@ -20,7 +20,7 @@ member.
 This design relies on three boundaries:
 
 1. the application listens only on loopback;
-2. the production service has an HTTPS `PUBLIC_ORIGIN`, which requires
+2. the production service has an HTTPS configured public origin, which requires
    Tailscale identity; and
 3. only Tailscale Serve can reach the application port.
 
@@ -233,34 +233,52 @@ Install the release's systemd unit and production configuration:
 
 ```sh
 sudo install -o root -g root -m 0600 \
-  /opt/enquiry-crm/current/deploy/enquiry-crm.env.example \
-  /etc/enquiry-crm/enquiry-crm.env
+  /opt/enquiry-crm/current/deploy/enquiry-crm.json.example \
+  /etc/enquiry-crm/enquiry-crm.json
+sudo chown root:enquiry-crm /etc/enquiry-crm/enquiry-crm.json
+sudo chmod 0640 /etc/enquiry-crm/enquiry-crm.json
 sudo install -o root -g root -m 0644 \
   /opt/enquiry-crm/current/deploy/enquiry-crm.service \
   /etc/systemd/system/enquiry-crm.service
 sudo systemctl daemon-reload
-sudoedit /etc/enquiry-crm/enquiry-crm.env
+sudoedit /etc/enquiry-crm/enquiry-crm.json
 ```
 
-Set `PUBLIC_ORIGIN` to the exact HTTPS MagicDNS origin and set `TZ` to the
-workspace timezone. The example already selects the production database,
-release assets, and loopback port 8000. An HTTPS origin makes the application
-require Tailscale authentication; the only development-authentication form is
-an HTTP origin on `127.0.0.1`.
+Set `server.public_origin` to the exact HTTPS MagicDNS origin and set
+`server.timezone` to the workspace timezone. The example already selects the
+production database, release assets, and loopback port 8000. An HTTPS origin
+makes the application require Tailscale authentication; the only
+development-authentication form is an HTTP origin on `127.0.0.1`.
+
+The scanner is disabled in the example. To enable it, set `enabled` to `true`
+and replace `provider` with:
+
+```json
+{
+  "type": "openrouter",
+  "api_key": "sk-or-v1-...",
+  "model": "openai/gpt-5.6-luna"
+}
+```
+
+Treat the configuration as a secret. The unit supplies it to the service
+through a systemd credential; the `enquiry-crm` group read permission is for
+the administration commands below.
 
 Bootstrap the database and its first member:
 
 ```sh
-sudo -u enquiry-crm /opt/enquiry-crm/current/bin/enquiry-crm-admin bootstrap \
-  --db /var/lib/enquiry-crm/enquiry-crm.sqlite \
+sudo -u enquiry-crm env \
+  SERVER_CONFIG_PATH=/etc/enquiry-crm/enquiry-crm.json \
+  /opt/enquiry-crm/current/bin/enquiry-crm-admin bootstrap \
   --workspace-name "Example Company" \
   --currency AUD \
-  --timezone Australia/Melbourne \
   --member-name "Owner Name" \
   --member-email owner@example.com
 
-sudo -u enquiry-crm /opt/enquiry-crm/current/bin/enquiry-crm-admin schema check \
-  --db /var/lib/enquiry-crm/enquiry-crm.sqlite
+sudo -u enquiry-crm env \
+  SERVER_CONFIG_PATH=/etc/enquiry-crm/enquiry-crm.json \
+  /opt/enquiry-crm/current/bin/enquiry-crm-admin schema check
 ```
 
 The member email must match the identity supplied in
@@ -275,7 +293,8 @@ curl --fail http://127.0.0.1:8000/healthz
 ```
 
 The service refuses to start when the configured database is missing, has the
-wrong schema version, or has a workspace timezone different from `TZ`.
+wrong schema version, or has a workspace timezone different from
+`server.timezone`.
 
 ## 5. Enable private HTTPS
 
@@ -308,20 +327,20 @@ sudo tailscale serve --https=443 off
 Manage access with the installed admin command rather than editing SQLite:
 
 ```sh
-sudo -u enquiry-crm /opt/enquiry-crm/current/bin/enquiry-crm-admin members list \
-  --db /var/lib/enquiry-crm/enquiry-crm.sqlite
+sudo -u enquiry-crm env SERVER_CONFIG_PATH=/etc/enquiry-crm/enquiry-crm.json \
+  /opt/enquiry-crm/current/bin/enquiry-crm-admin members list
 
-sudo -u enquiry-crm /opt/enquiry-crm/current/bin/enquiry-crm-admin members add \
-  --db /var/lib/enquiry-crm/enquiry-crm.sqlite \
+sudo -u enquiry-crm env SERVER_CONFIG_PATH=/etc/enquiry-crm/enquiry-crm.json \
+  /opt/enquiry-crm/current/bin/enquiry-crm-admin members add \
   --name "Colleague Name" \
   --email colleague@example.com
 
-sudo -u enquiry-crm /opt/enquiry-crm/current/bin/enquiry-crm-admin members deactivate \
-  --db /var/lib/enquiry-crm/enquiry-crm.sqlite \
+sudo -u enquiry-crm env SERVER_CONFIG_PATH=/etc/enquiry-crm/enquiry-crm.json \
+  /opt/enquiry-crm/current/bin/enquiry-crm-admin members deactivate \
   --email colleague@example.com
 
-sudo -u enquiry-crm /opt/enquiry-crm/current/bin/enquiry-crm-admin members activate \
-  --db /var/lib/enquiry-crm/enquiry-crm.sqlite \
+sudo -u enquiry-crm env SERVER_CONFIG_PATH=/etc/enquiry-crm/enquiry-crm.json \
+  /opt/enquiry-crm/current/bin/enquiry-crm-admin members activate \
   --email colleague@example.com
 ```
 
@@ -365,10 +384,10 @@ sudo install -o root -g root -m 0644 \
   /etc/systemd/system/enquiry-crm.service
 sudo systemctl daemon-reload
 
-sudo -u enquiry-crm /opt/enquiry-crm/current/bin/enquiry-crm-admin migrate \
-  --db /var/lib/enquiry-crm/enquiry-crm.sqlite
-sudo -u enquiry-crm /opt/enquiry-crm/current/bin/enquiry-crm-admin schema check \
-  --db /var/lib/enquiry-crm/enquiry-crm.sqlite
+sudo -u enquiry-crm env SERVER_CONFIG_PATH=/etc/enquiry-crm/enquiry-crm.json \
+  /opt/enquiry-crm/current/bin/enquiry-crm-admin migrate
+sudo -u enquiry-crm env SERVER_CONFIG_PATH=/etc/enquiry-crm/enquiry-crm.json \
+  /opt/enquiry-crm/current/bin/enquiry-crm-admin schema check
 
 sudo systemctl start enquiry-crm
 sudo systemctl status enquiry-crm

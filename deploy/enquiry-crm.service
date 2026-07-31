@@ -8,7 +8,8 @@ Type=simple
 User=enquiry-crm
 Group=enquiry-crm
 WorkingDirectory=/opt/enquiry-crm/current
-EnvironmentFile=/etc/enquiry-crm/enquiry-crm.env
+LoadCredential=enquiry-crm.json:/etc/enquiry-crm/enquiry-crm.json
+Environment=SERVER_CONFIG_PATH=%d/enquiry-crm.json
 ExecStartPre=/opt/enquiry-crm/current/bin/enquiry-crm-admin schema check
 ExecStart=/opt/enquiry-crm/current/bin/enquiry-crm
 Restart=on-failure

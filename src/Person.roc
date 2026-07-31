@@ -90,11 +90,20 @@ Person := {
 		context : Str,
 		email : Str,
 		phone : Str,
+		emails : List(NewContact),
+		phones : List(NewContact),
+	}
+
+	NewContact : {
+		label : Str,
+		value : Str,
 	}
 
 	NewError := [NameWasEmpty, InvalidLifecycle(Str)]
 
 	MatchStrength := [Strong, Weak].{
+		is_eq : _
+
 		to_label : MatchStrength -> Str
 		to_label = |strength|
 			match strength {
@@ -135,6 +144,30 @@ Person := {
 
 	new : Str, Str, Str, Member.Id, Str, Str, Str, Str, Str -> Try(New, NewError)
 	new = |name, company_id, job_title, owner_id, lifecycle, source_id, context, email, phone|
+		new_with_contacts(
+			name,
+			company_id,
+			job_title,
+			owner_id,
+			lifecycle,
+			source_id,
+			context,
+			if email.trim().is_empty() {
+				[]
+			} else {
+				[{ label: "Work", value: email }]
+			},
+			if phone.trim().is_empty() {
+				[]
+			} else {
+				[{ label: "Work", value: phone }]
+			},
+		)
+
+	new_with_contacts : Str, Str, Str, Member.Id, Str, Str, Str, List(NewContact), List(NewContact) -> Try(New, NewError)
+	new_with_contacts = |name, company_id, job_title, owner_id, lifecycle, source_id, context, emails, phones| {
+		clean_emails = clean_contacts(emails, Email)
+		clean_phones = clean_contacts(phones, Phone)
 		match Name.from_str(name) {
 			Err(_) => Err(NewError.NameWasEmpty)
 			Ok(valid_name) =>
@@ -150,12 +183,15 @@ Person := {
 								lifecycle: valid_lifecycle,
 								sourceId: source_id,
 								context: context.trim(),
-								email: email.trim(),
-								phone: phone.trim(),
+								email: first_contact_value(clean_emails),
+								phone: first_contact_value(clean_phones),
+								emails: clean_emails,
+								phones: clean_phones,
 							},
 						)
 					}
 			}
+	}
 
 	normalized_email : Str -> Str
 	normalized_email = |value| value.trim().with_ascii_lowercased()
@@ -221,6 +257,47 @@ Person := {
 			primary: primary == 1,
 		}
 }
+
+clean_contacts : List(Person.NewContact), [Email, Phone] -> List(Person.NewContact)
+clean_contacts = |contacts, kind|
+	clean_contacts_help(contacts, kind, []).take_first(5)
+
+clean_contacts_help : List(Person.NewContact), [Email, Phone], List(Person.NewContact) -> List(Person.NewContact)
+clean_contacts_help = |contacts, kind, clean|
+	match contacts {
+		[] => clean
+		[contact, .. as rest] => {
+			value = contact.value.trim()
+			normalized = match kind {
+				Email => Person.normalized_email(value)
+				Phone => Person.normalized_phone(value)
+			}
+			if value.is_empty()
+				or clean.any(
+					|existing|
+						match kind {
+							Email => Person.normalized_email(existing.value) == normalized
+							Phone => Person.normalized_phone(existing.value) == normalized
+						},
+				) {
+				clean_contacts_help(rest, kind, clean)
+			} else {
+				label = if contact.label.trim().is_empty() {
+					"Work"
+				} else {
+					contact.label.trim()
+				}
+				clean_contacts_help(rest, kind, clean.append({ label, value }))
+			}
+		}
+	}
+
+first_contact_value : List(Person.NewContact) -> Str
+first_contact_value = |contacts|
+	match contacts {
+		[first, ..] => first.value
+		[] => ""
+	}
 
 expect Person.Name.from_str(" Ada Lovelace ").is_ok()
 expect Person.Name.from_str(" ").is_err()

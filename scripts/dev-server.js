@@ -1,5 +1,6 @@
 const http = require("node:http");
 const { spawn } = require("node:child_process");
+const fs = require("node:fs");
 const path = require("node:path");
 
 function valueAfter(args, flag) {
@@ -13,13 +14,30 @@ const memberEmail =
   valueAfter(args, "--member-email") ||
   process.env.DEV_MEMBER_EMAIL ||
   "mara@example.com";
-const publicPort = Number(process.env.DEV_PUBLIC_PORT || "8000");
-const backendPort = Number(process.env.DEV_BACKEND_PORT || "8001");
 const root = path.resolve(__dirname, "..");
+const configPath = path.resolve(
+  process.env.SERVER_CONFIG_PATH ||
+    path.join(root, "dist", "development.server.json"),
+);
+let serverConfig;
+
+try {
+  serverConfig = JSON.parse(fs.readFileSync(configPath, "utf8"));
+} catch (error) {
+  console.error(
+    `Unable to read server configuration ${configPath}: ${error.message}`,
+  );
+  process.exit(2);
+}
+
+const backendPort = Number(serverConfig.server?.listen_port);
+const publicOrigin = new URL(serverConfig.server?.public_origin);
+const publicPort = Number(
+  publicOrigin.port || (publicOrigin.protocol === "https:" ? "443" : "80"),
+);
 const executable =
   process.env.ENQUIRY_CRM_EXECUTABLE ||
   path.join(root, "dist", "roc-htmx-playground");
-const publicOrigin = `http://127.0.0.1:${publicPort}`;
 
 if (!memberEmail.includes("@")) {
   console.error(`Invalid development member email: ${memberEmail}`);
@@ -30,14 +48,7 @@ const backend = spawn(executable, [], {
   cwd: root,
   env: {
     ...process.env,
-    ASSET_PATH:
-      process.env.ENQUIRY_CRM_ASSET_PATH || path.join(root, "dist", "assets"),
-    DB_PATH:
-      process.env.ENQUIRY_CRM_DATABASE ||
-      path.join(root, "dist", "playground.db"),
-    PORT: String(backendPort),
-    PUBLIC_ORIGIN: publicOrigin,
-    TZ: process.env.TZ || "Australia/Melbourne",
+    SERVER_CONFIG_PATH: configPath,
   },
   stdio: "inherit",
 });
@@ -124,7 +135,7 @@ waitForBackend()
   .then(() => {
     proxy.listen(publicPort, "127.0.0.1", () => {
       console.log(`Development identity: ${memberEmail}`);
-      console.log(`Listening on ${publicOrigin}`);
+      console.log(`Listening on ${publicOrigin.toString()}`);
       console.log(`Private backend: http://127.0.0.1:${backendPort}`);
     });
   })

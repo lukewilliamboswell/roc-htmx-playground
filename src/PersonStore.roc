@@ -117,7 +117,21 @@ PersonStore :: { db : Sqlite.Db }.{
 			},
 			limits: Sqlite.default_query_limits,
 		})?
-		load_matches!(store, rows, [])
+		base = load_matches!(store, rows, [])?
+		with_emails = contact_matches!(
+			store,
+			workspace_id,
+			input.emails,
+			Email,
+			base,
+		)?
+		contact_matches!(
+			store,
+			workspace_id,
+			input.phones,
+			Phone,
+			with_emails,
+		)
 	}
 
 	create! : PersonStore, Workspace.Id, Member.Id, Person.New, Str, Bool => Try(Person.Id, Person.CreateError(Sqlite.QueryError))
@@ -546,50 +560,28 @@ create_in_transaction! = |transaction, workspace_id, actor_id, input, now| {
 			},
 		},
 	)?
-	if !input.email.is_empty() {
-		Sqlite.Transaction.execute!(
-			transaction,
-			{
-				query: (
-					\\INSERT INTO person_emails (
-					\\ email_id, person_id, label, email, normalized_email, is_primary, position
-					\\) VALUES (
-					\\ 'email-' || lower(hex(randomblob(16))), :id, 'Work',
-					\\ :value, :normalized, 1, 1
-					\\);
-					,
-				),
-				params: {
-					id: created.id,
-					value: input.email,
-					normalized: Person.normalized_email(input.email),
-				},
-			},
-		)?
-	}
-	if !input.phone.is_empty() {
-		Sqlite.Transaction.execute!(
-			transaction,
-			{
-				query: (
-					\\INSERT INTO person_phones (
-					\\ phone_id, person_id, label, phone, normalized_phone, is_primary, position
-					\\) VALUES (
-					\\ 'phone-' || lower(hex(randomblob(16))), :id, 'Work',
-					\\ :value, :normalized, 1, 1
-					\\);
-					,
-				),
-				params: {
-					id: created.id,
-					value: input.phone,
-					normalized: Person.normalized_phone(input.phone),
-				},
-			},
-		)?
-	}
+	person_id = Person.Id.from_storage(created.id)
+	insert_new_contacts!(transaction, person_id, Email, input.emails, Bool.True)?
+	insert_new_contacts!(transaction, person_id, Phone, input.phones, Bool.True)?
 	Ok(Person.Id.from_storage(created.id))
 }
+
+insert_new_contacts! : Sqlite.Transaction, Person.Id, [Email, Phone], List(Person.NewContact), Bool => Try({}, Sqlite.QueryError)
+insert_new_contacts! = |transaction, person_id, kind, contacts, primary|
+	match contacts {
+		[] => Ok({})
+		[contact, .. as rest] => {
+			add_contact_in_transaction!(
+				transaction,
+				person_id,
+				kind,
+				contact.label,
+				contact.value,
+				primary,
+			)?
+			insert_new_contacts!(transaction, person_id, kind, rest, Bool.False)
+		}
+	}
 
 hydrate_rows! : Sqlite.Db, List(RawPerson) => Try(List(Person), Sqlite.QueryError)
 hydrate_rows! = |db, rows|
@@ -653,6 +645,86 @@ load_matches! = |store, rows, loaded|
 					)
 				}
 		}
+
+contact_matches! : PersonStore, Workspace.Id, List(Person.NewContact), [Email, Phone], List(Person.Match) => Try(List(Person.Match), Sqlite.QueryError)
+contact_matches! = |store, workspace_id, contacts, kind, loaded|
+	match contacts {
+		[] => Ok(loaded)
+		[contact, .. as rest] => {
+			columns = contact_columns(kind)
+			normalized = normalized_contact(kind, contact.value)
+			rows : List(RawPersonMatch)
+			rows = if normalized.is_empty() {
+				[]
+			} else {
+				Sqlite.query_many!({
+					db: store.db,
+					query: (
+						\\SELECT p.person_id AS id,
+						\\ CASE WHEN (
+						\\   SELECT COUNT(DISTINCT owner.person_id)
+						\\   FROM ${columns.table} owner
+						\\   JOIN people owner_person ON owner_person.person_id = owner.person_id
+						\\   WHERE owner.${columns.normalized} = :normalized
+						\\     AND owner_person.workspace_id = :workspaceId
+						\\     AND owner_person.archived_at = ''
+						\\ ) = 1 THEN 'strong' ELSE 'weak' END AS strength,
+						\\ :reason AS reason
+						\\FROM people p
+						\\JOIN ${columns.table} contact ON contact.person_id = p.person_id
+						\\WHERE p.workspace_id = :workspaceId
+						\\  AND p.archived_at = ''
+						\\  AND contact.${columns.normalized} = :normalized;
+						,
+					),
+					params: {
+						workspaceId: workspace_id.to_str(),
+						normalized,
+						reason: match kind {
+							Email => "Same email address"
+							Phone => "Same phone number"
+						},
+					},
+					limits: Sqlite.default_query_limits,
+				})?
+			}
+			found = load_matches!(store, rows, [])?
+			contact_matches!(
+				store,
+				workspace_id,
+				rest,
+				kind,
+				merge_matches(loaded, found),
+			)
+		}
+	}
+
+merge_matches : List(Person.Match), List(Person.Match) -> List(Person.Match)
+merge_matches = |existing, additions|
+	List.fold(
+		additions,
+		existing,
+		|merged, addition| {
+			present = merged.find_first(
+				|item| item.person.id == addition.person.id,
+			)
+			match present {
+				Err(_) => merged.append(addition)
+				Ok(current) if current.strength == Person.MatchStrength.Strong =>
+					merged
+				Ok(_) if addition.strength == Person.MatchStrength.Strong =>
+					merged.map(
+						|item|
+							if item.person.id == addition.person.id {
+								addition
+							} else {
+								item
+							},
+					)
+				Ok(_) => merged
+			}
+		},
+	)
 
 contact_label : Str -> Str
 contact_label = |label|

@@ -1,14 +1,18 @@
 # Opportunity-qualification slice
 
+> Proposed delivery slice. This is target-state planning, not evidence of
+> implemented behavior. The authoritative as-built baseline is the SysML model
+> under [`../model/`](../model/).
+
 Document class: Delivery slice
 
 Sequence: 2
 
-This document fixes the acceptance boundary for the second CRM implementation
-slice. It begins where
-[`10-slice-company-enquiry.md`](10-slice-company-enquiry.md) ends: a person or
-company already exists, its likely duplicates have been reviewed, and
-accountable follow-up work can already be scheduled.
+This document proposes a future CRM implementation slice. Its starting
+assumptions are defined by the implemented `CRM-###` requirements in the
+[as-built model](../model/02-requirements.sysml): a person or company already
+exists, its likely duplicates have been reviewed, and accountable follow-up
+work can already be scheduled.
 
 The full product contract remains in
 [`00-full-design-minimal-crm.md`](00-full-design-minimal-crm.md), and the

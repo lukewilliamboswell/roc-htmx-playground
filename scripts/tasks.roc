@@ -17,6 +17,11 @@ TailwindTarget := {
 	checksum : Str,
 }
 
+Spec42Target := {
+	asset : Str,
+	checksum : Str,
+}
+
 DevOptions := {
 	memberEmail : Str,
 	keepDb : Bool,
@@ -40,6 +45,7 @@ main! = |args|
 				"build" => buildDistribution!(deploymentOptimization)
 				"check" => check!()
 				"check-all" => checkAll!()
+				"model-check" => modelCheck!()
 				"dev" => dev!(command_args.map(OsStr.display))
 				"reset-db" => resetDevDatabase!()
 				"release" => release!()
@@ -74,6 +80,7 @@ usage! = || {
 		\\  build             Build a local runtime bundle in dist/
 		\\  check             Build CSS, format-check, type-check, and test
 		\\  check-all         Run check and all end-to-end tests
+		\\  model-check       Validate the SysML model and traceability contracts
 		\\  dev [--member-email EMAIL] [--keep-db]
 		\\                    Serve as Mara by default; optionally preserve the DB
 		\\  reset-db          Recreate the disposable development database
@@ -187,6 +194,7 @@ resetDevDatabase! = || {
 
 check! : () => Try({}, _)
 check! = || {
+	modelCheck!()?
 	buildCss!(Bool.False)?
 	run!("ci/check_source_contracts.sh", [])?
 	run!("roc", ["fmt", "--check", "scripts", "src"])?
@@ -197,6 +205,12 @@ check! = || {
 	checkIntegration!("speed")?
 
 	Ok({})
+}
+
+modelCheck! : () => Try({}, _)
+modelCheck! = || {
+	spec42 = ensureSpec42!()?
+	run!("python3", ["ci/check_model_contracts.py", "check", spec42])
 }
 
 checkAll! : () => Try({}, _)
@@ -544,6 +558,87 @@ tailwindTarget! = || {
 				TailwindTarget.{
 					asset: "tailwindcss-linux-x64",
 					checksum: "73f0e5459054e5cfaa8ab6f3b940f3fbe0f13cc7fd83bc24e7c655033c203400",
+				},
+			)
+		_ => Err(UnsupportedPlatform(Str.inspect(host_platform)))
+	}
+}
+
+ensureSpec42! : () => Try(Str, _)
+ensureSpec42! = || {
+	target = spec42Target!()?
+	binary_path : Str
+	binary_path = ".tools/spec42-0.40.0/spec42"
+	binary : Path
+	binary = Path.utf8(binary_path)
+
+	if binary.is_file!()? {
+		Ok(binary_path)
+	} else {
+		tools : Path
+		tools = ".tools"
+		tools.create_all!()?
+
+		archive_path : Str
+		archive_path = ".tools/${target.asset}"
+		archive : Path
+		archive = Path.utf8(archive_path)
+		url = "https://github.com/elan8/spec42/releases/download/v0.40.0/${target.asset}"
+
+		Stdout.line!("Downloading Spec42 v0.40.0...")?
+		bytes = downloadBytes!(url, 5)?
+		archive.write_bytes!(bytes)?
+
+		actual_checksum = checksum!(archive_path)?
+		if actual_checksum != target.checksum {
+			return Err(
+				ChecksumMismatch({
+					actual: actual_checksum,
+					expected: target.checksum,
+				}),
+			)
+		}
+
+		stage_path : Str
+		stage_path = ".tools/spec42-0.40.0-stage"
+		run!("rm", ["-rf", ".tools/spec42-0.40.0", stage_path])?
+		stage : Path
+		stage = Path.utf8(stage_path)
+		stage.create_all!()?
+		run!("tar", ["-xzf", archive_path, "-C", stage_path])?
+		run!("chmod", ["755", "${stage_path}/spec42"])?
+		stage.rename!(Path.utf8(".tools/spec42-0.40.0"))?
+		archive.delete!()?
+		Stdout.line!("Installed ${binary_path}")?
+
+		Ok(binary_path)
+	}
+}
+
+spec42Target! : () => Try(Spec42Target, _)
+spec42Target! = || {
+	host_platform = Env.platform!()
+
+	match (host_platform.os, host_platform.arch) {
+		(MACOS, AARCH64) =>
+			Ok(
+				Spec42Target.{
+					asset: "spec42-0.40.0-darwin-arm64.tar.gz",
+					checksum: "002f15bf380a796cf5ffee2538ac67d8f699de397b827a71c6705540acdb0e65",
+				},
+			)
+		(MACOS, X64) =>
+			Ok(
+				Spec42Target.{
+					asset: "spec42-0.40.0-darwin-x64.tar.gz",
+					checksum: "17dc001049f7a3fbd9a511b596879989ed30b0a533032ac91794b10267349483",
+				},
+			)
+		(LINUX, X64) =>
+			Ok(
+				Spec42Target.{
+					asset: "spec42-0.40.0-linux-x64.tar.gz",
+					checksum: "21b1c236fbb5974c2bf2d3fef22a606f9fd3353fbdcd123a1df7d56ef168d939",
 				},
 			)
 		_ => Err(UnsupportedPlatform(Str.inspect(host_platform)))

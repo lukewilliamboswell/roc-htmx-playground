@@ -455,6 +455,7 @@ asset_response = |asset|
 		Route.Asset.Htmx => Response.from_status(404)
 		Route.Asset.Interactions => Response.from_status(404)
 		Route.Asset.AppIcon => Response.from_status(404)
+		Route.Asset.Hero(_) => Response.from_status(404)
 	}
 
 shutdown! : Server.ShutdownReason, Context => Try({}, [Exit(I64), ..])

@@ -193,12 +193,43 @@ Route := [
 			}
 	}
 
+	## Encoded widths of the home page photograph.
+	##
+	## The width is part of the vocabulary rather than derived from the file
+	## name, because a `srcset` candidate is only correct when its declared
+	## width matches the encoded image.
+	HeroPhoto := [Width480, Width640, Width720, Width960].{
+
+		## Ordered narrowest first, as a `srcset` candidate list.
+		responsive_set : List(HeroPhoto)
+		responsive_set = [Width480, Width640, Width720, Width960]
+
+		to_src : HeroPhoto -> Str
+		to_src = |photo|
+			match photo {
+				Width480 => "/assets/planning-desk-480.webp"
+				Width640 => "/assets/planning-desk-640.webp"
+				Width720 => "/assets/planning-desk-720.webp"
+				Width960 => "/assets/planning-desk-960.webp"
+			}
+
+		to_width : HeroPhoto -> Str
+		to_width = |photo|
+			match photo {
+				Width480 => "480"
+				Width640 => "640"
+				Width720 => "720"
+				Width960 => "960"
+			}
+	}
+
 	Asset := [
 		Robots,
 		Stylesheet,
 		Htmx,
 		Interactions,
 		AppIcon,
+		Hero(HeroPhoto),
 	].{
 		to_src : Asset -> Str
 		to_src = |asset|
@@ -208,6 +239,7 @@ Route := [
 				Htmx => "/assets/htmx.min.js?v=4.0.0-beta6"
 				Interactions => "/assets/interactions.js?v=20260728"
 				AppIcon => "/assets/icons/app.svg"
+				Hero(photo) => HeroPhoto.to_src(photo)
 			}
 	}
 

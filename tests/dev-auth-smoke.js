@@ -77,12 +77,15 @@ async function run() {
   const mara = start("mara@example.com", 8013, 8014);
   const maraResponse = await waitFor(mara, maraOrigin);
   const maraBody = await maraResponse.text();
-  assert.match(maraBody, /Mara Singh \(dev mode\)/);
+  assert.match(maraBody, /Mara Singh/);
+  assert.match(maraBody, /Dev mode/);
 
   const spoofed = await fetch(maraOrigin, {
     headers: { "Tailscale-User-Login": "theo@example.com" },
   });
-  assert.match(await spoofed.text(), /Mara Singh \(dev mode\)/);
+  const spoofedBody = await spoofed.text();
+  assert.match(spoofedBody, /Mara Singh/);
+  assert.doesNotMatch(spoofedBody, /Theo Nguyen/);
 
   const forwardedPost = await fetch(`${maraOrigin}/companies/preview`, {
     method: "POST",
@@ -99,7 +102,8 @@ async function run() {
   const theo = start("theo@example.com", 8015, 8016);
   const theoResponse = await waitFor(theo, theoOrigin);
   const theoBody = await theoResponse.text();
-  assert.match(theoBody, /Theo Nguyen \(dev mode\)/);
+  assert.match(theoBody, /Theo Nguyen/);
+  assert.match(theoBody, /Dev mode/);
 
   const preserved = await fetch(`${theoOrigin}/companies`);
   assert.match(await preserved.text(), /Acme Studio/);

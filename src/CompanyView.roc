@@ -6,6 +6,7 @@ import Actor
 import Company
 import Design
 import FormView
+import Icon
 import Layout
 import Person
 import Route
@@ -83,19 +84,20 @@ CompanyView :: [].{
 			actor.session,
 			Route.Page.Companies,
 			[
-				Web.link(
-					Route.Page.Companies,
-					[Design.navLink],
-					[Html.text("← Companies")],
-				),
+				Layout.back_link(Route.Page.Companies, "Companies"),
 				Html.h1(
 					[Design.pageTitle, Design.backLinkedPageTitle],
 					[Html.text(company.name.to_str())],
 				),
-				Web.link(
-					Route.Location.CompanyEdit(company.id),
-					[Design.button(Design.ButtonTone.Outline, Design.ButtonSize.Regular)],
-					[Html.text("Edit company")],
+				Html.div(
+					[Design.pageActions],
+					[
+						Web.link(
+							Route.Location.CompanyEdit(company.id),
+							[Design.button(Design.ButtonTone.Outline, Design.ButtonSize.Regular)],
+							[Html.text("Edit company")],
+						),
+					],
 				),
 				Html.div(
 					[Design.detailGrid],
@@ -148,11 +150,7 @@ edit_form_page = |actor, company, form, validation, conflict|
 		actor.session,
 		Route.Page.Companies,
 		[
-			Web.link(
-				Route.Location.CompanyDetail(company.id),
-				[Design.navLink],
-				[Html.text("← ${company.name.to_str()}")],
-			),
+			Layout.back_link(Route.Location.CompanyDetail(company.id), company.name.to_str()),
 			Html.h1([Design.pageTitle, Design.backLinkedPageTitle], [Html.text("Edit company")]),
 			if conflict {
 				Html.element(
@@ -299,7 +297,7 @@ company_form_page = |actor, form, validation, matches|
 		actor.session,
 		Route.Page.CompanyNew,
 		[
-			Web.link(Route.Page.Companies, [Design.navLink], [Html.text("← Companies")]),
+			Layout.back_link(Route.Page.Companies, "Companies"),
 			Html.h1([Design.pageTitle, Design.backLinkedPageTitle], [Html.text("New company")]),
 			Html.p(
 				[Design.lead],
@@ -511,6 +509,7 @@ company_empty_state = |filter|
 		[Design.emptyStatePanel],
 		if filter.to_str().is_empty() {
 			[
+				Html.span([Design.emptyStateIcon], [Icon.inbox(Design.emptyStateIconGlyph)]),
 				Html.p(
 					[Design.emptyStateText],
 					[Html.text("No companies have been recorded yet. Use New company to capture the first relationship.")],
@@ -518,6 +517,7 @@ company_empty_state = |filter|
 			]
 		} else {
 			[
+				Html.span([Design.emptyStateIcon], [Icon.searchOff(Design.emptyStateIconGlyph)]),
 				Html.p(
 					[Design.emptyStateText],
 					[Html.text("No companies match “${filter.to_str()}”. Clear the search to see every company.")],
@@ -542,26 +542,39 @@ company_row = |company|
 		[Design.tableRow],
 		[
 			Html.td(
-				[Design.tableCell],
+				[Design.tableCellPrimary],
 				[
 					Web.link(
 						Route.Location.CompanyDetail(company.id),
-						[Design.recordLink],
-						[Html.text(company.name.to_str())],
+						[Design.recordCardLink],
+						[
+							Html.text(company.name.to_str()),
+							Icon.chevronRight(Design.recordCardChevron),
+						],
 					),
 				],
 			),
-			Html.td(
-				[Design.tableCell],
-				[
-					Html.span(
-						[Design.badge(Design.BadgeTone.Neutral)],
-						[Html.text(company.lifecycle.to_label())],
-					),
-				],
+			labelled_cell(
+				"Status",
+				Html.span(
+					[Design.badge(Design.BadgeTone.Neutral)],
+					[Html.text(company.lifecycle.to_label())],
+				),
 			),
-			Html.td([Design.tableCell], [Html.text(company.ownerName)]),
-			Html.td([Design.tableCell], [Html.text(company.updatedAt.to_str())]),
+			labelled_cell("Owner", Html.text(company.ownerName)),
+			labelled_cell("Last changed", Html.text(company.updatedAt.to_str())),
+		],
+	)
+
+## Below `sm` the header row is hidden, so each cell carries its own column
+## name; from `sm` up the label is hidden and the header row names the column.
+labelled_cell : Str, Html.Node -> Html.Node
+labelled_cell = |label, value|
+	Html.td(
+		[Design.tableCell],
+		[
+			Html.span([Design.cellLabel], [Html.text(label)]),
+			value,
 		],
 	)
 

@@ -6,6 +6,7 @@ import Actor
 import Company
 import Design
 import FormView
+import Icon
 import Layout
 import Person
 import Route
@@ -64,15 +65,20 @@ PersonView :: [].{
 			actor.session,
 			Route.Page.People,
 			[
-				Web.link(Route.Page.People, [Design.navLink], [Html.text("← People")]),
+				Layout.back_link(Route.Page.People, "People"),
 				Html.h1(
 					[Design.pageTitle, Design.backLinkedPageTitle],
 					[Html.text(person.name.to_str())],
 				),
-				Web.link(
-					Route.Location.PersonEdit(person.id),
-					[Design.button(Design.ButtonTone.Outline, Design.ButtonSize.Regular)],
-					[Html.text("Edit person")],
+				Html.div(
+					[Design.pageActions],
+					[
+						Web.link(
+							Route.Location.PersonEdit(person.id),
+							[Design.button(Design.ButtonTone.Outline, Design.ButtonSize.Regular)],
+							[Html.text("Edit person")],
+						),
+					],
 				),
 				Html.div(
 					[Design.detailGrid],
@@ -188,7 +194,7 @@ form_page = |actor, companies, origin, existing, form, validation, matches| {
 			Route.Page.PersonNew
 		},
 		[
-			Web.link(cancel_location, [Design.navLink], [Html.text("← ${parent_label}")]),
+			Layout.back_link(cancel_location, parent_label),
 			Html.h1(
 				[Design.pageTitle, Design.backLinkedPageTitle],
 				[
@@ -599,6 +605,7 @@ people_empty_state = |filter|
 		[Design.emptyStatePanel],
 		if filter.to_str().is_empty() {
 			[
+				Html.span([Design.emptyStateIcon], [Icon.users(Design.emptyStateIconGlyph)]),
 				Html.p(
 					[Design.emptyStateText],
 					[Html.text("No people have been recorded yet. Use New person to capture the first relationship.")],
@@ -606,6 +613,7 @@ people_empty_state = |filter|
 			]
 		} else {
 			[
+				Html.span([Design.emptyStateIcon], [Icon.searchOff(Design.emptyStateIconGlyph)]),
 				Html.p(
 					[Design.emptyStateText],
 					[Html.text("No people match “${filter.to_str()}”. Clear the search to see every person.")],
@@ -630,22 +638,34 @@ person_row = |person|
 		[Design.tableRow],
 		[
 			Html.td(
-				[Design.tableCell],
+				[Design.tableCellPrimary],
 				[
 					Web.link(
 						Route.Location.PersonDetail(person.id),
-						[Design.recordLink],
-						[Html.text(person.name.to_str())],
+						[Design.recordCardLink],
+						[
+							Html.text(person.name.to_str()),
+							Icon.chevronRight(Design.recordCardChevron),
+						],
 					),
 				],
 			),
-			Html.td([Design.tableCell], [Html.text(optional(person.companyName))]),
-			Html.td(
-				[Design.tableCell],
-				[Html.text(optional(primary_contact(person)))],
-			),
-			Html.td([Design.tableCell], [Html.text(person.ownerName)]),
-			Html.td([Design.tableCell], [Html.text(person.lifecycle.to_label())]),
+			labelled_cell("Company", Html.text(optional(person.companyName))),
+			labelled_cell("Contact", Html.text(optional(primary_contact(person)))),
+			labelled_cell("Owner", Html.text(person.ownerName)),
+			labelled_cell("Lifecycle", Html.text(person.lifecycle.to_label())),
+		],
+	)
+
+## Below `sm` the header row is hidden, so each cell carries its own column
+## name; from `sm` up the label is hidden and the header row names the column.
+labelled_cell : Str, Html.Node -> Html.Node
+labelled_cell = |label, value|
+	Html.td(
+		[Design.tableCell],
+		[
+			Html.span([Design.cellLabel], [Html.text(label)]),
+			value,
 		],
 	)
 

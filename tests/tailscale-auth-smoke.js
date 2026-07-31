@@ -78,7 +78,7 @@ async function run() {
   assert.equal(member.status, 200);
   const memberBody = await member.text();
   assert.match(memberBody, /Mara Singh/);
-  assert.doesNotMatch(memberBody, /dev mode/);
+  assert.doesNotMatch(memberBody, /dev mode/i);
   assert.doesNotMatch(memberBody, />Logout</);
 
   const loginRoute = await fetch(`${localOrigin}/login`, {

@@ -2,9 +2,8 @@ const { test, expect } = require("@playwright/test");
 
 async function expectDevelopmentMember(page) {
   await page.goto("/");
-  await expect(
-    page.getByText("Mara Singh (dev mode)", { exact: true }),
-  ).toBeVisible();
+  await expect(page.getByText("Mara Singh", { exact: true })).toBeVisible();
+  await expect(page.getByText("Dev mode", { exact: true })).toBeVisible();
 }
 
 async function expectNoDocumentOverflow(page) {
@@ -24,9 +23,8 @@ test.describe("CRM journeys", () => {
     });
     await page.goto("/");
 
-    await expect(
-      page.getByText("Mara Singh (dev mode)", { exact: true }),
-    ).toBeVisible();
+    await expect(page.getByText("Mara Singh", { exact: true })).toBeVisible();
+    await expect(page.getByText("Dev mode", { exact: true })).toBeVisible();
     await expect(page.getByRole("link", { name: "Login" })).toHaveCount(0);
     await expect(page.getByRole("link", { name: "Register" })).toHaveCount(0);
     await expect(page.getByRole("button", { name: "Logout" })).toHaveCount(0);
@@ -287,7 +285,7 @@ test.describe("CRM journeys", () => {
 
     await page.goto("/people/new?company=company-acme");
     await expect(
-      page.getByRole("link", { name: "← Acme Studio", exact: true }),
+      page.getByRole("link", { name: "Acme Studio", exact: true }),
     ).toHaveAttribute("href", "/companies/company-acme");
     await page
       .locator("form")
@@ -317,13 +315,19 @@ test.describe("CRM journeys", () => {
       page.getByRole("link", { name: "New company", exact: true }),
     ).toBeVisible();
 
-    const tableRegion = page.locator("div.overflow-x-auto");
-    await expect(tableRegion).toBeVisible();
-    const tableWidths = await tableRegion.evaluate((region) => ({
-      client: region.clientWidth,
-      scroll: region.scrollWidth,
+    // The record list is one table at every width. On a small screen its
+    // elements lay out as blocks, so each row reads as a card of labelled
+    // lines instead of a column-per-field row that has to scroll sideways.
+    const row = page.locator("tr").filter({ hasText: "Acme Studio" });
+    await expect(row).toHaveCSS("display", "block");
+    await expect(page.locator("thead")).toBeHidden();
+    await expect(row.getByText("Owner", { exact: true })).toBeVisible();
+
+    const rowWidths = await row.evaluate((element) => ({
+      row: element.getBoundingClientRect().width,
+      viewport: document.documentElement.clientWidth,
     }));
-    expect(tableWidths.scroll).toBeGreaterThanOrEqual(tableWidths.client);
+    expect(rowWidths.row).toBeLessThanOrEqual(rowWidths.viewport);
 
     await page.goto("/people/new");
     await expectNoDocumentOverflow(page);
@@ -364,6 +368,15 @@ test.describe("CRM journeys", () => {
     await expect(
       page.getByRole("link", { name: "Acme Studio", exact: true }),
     ).toBeVisible();
+
+    // At this width the same markup is a real table, so column headers are
+    // exposed and associated rather than repeated inside every cell.
+    await expect(
+      page.getByRole("columnheader", { name: "Owner", exact: true }),
+    ).toBeVisible();
+    await expect(
+      page.getByRole("row").filter({ hasText: "Acme Studio" }),
+    ).toHaveCount(1);
 
     await page.goto("/companies/company-acme");
     await expect(page.getByRole("heading", { level: 1 })).toHaveCount(1);

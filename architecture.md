@@ -26,7 +26,7 @@ In production, Tailscale Serve is the trusted proxy and the application listens
 only on loopback. In development, `scripts/dev-server.js` starts the application
 on a private loopback port and exposes a second loopback proxy. That proxy
 removes any client-supplied identity header and injects the member selected by
-`roc scripts/tasks.roc dev --member-email EMAIL`. The navbar adds `(dev mode)`
+`roc scripts/tasks.roc dev --member-email EMAIL`. The navbar adds a `Dev mode` badge
 only when `PUBLIC_ORIGIN` selects development mode.
 
 This makes the application-side authorization path identical in development

@@ -75,6 +75,7 @@ document : Session, ErrorPage, Str, Str, List(Html.Node) -> Html.Node
 document = |session, page_identity, heading, message, actions|
 	Layout.document(
 		session,
+		Layout.Section.Unsectioned,
 		page_identity,
 		[],
 		[

@@ -89,6 +89,8 @@ WorkTaskView := [].{
 		)
 }
 
+## Each bucket states its own size, so the shape of the day is legible from the
+## headings alone without scrolling through three lists on a phone.
 bucket : Str, List(WorkTask), Bool -> Html.Node
 bucket = |title, tasks, overdue|
 	Html.element(
@@ -101,7 +103,22 @@ bucket = |title, tasks, overdue|
 			},
 		],
 		[
-			Html.h2([Design.sectionHeading], [Html.text(title)]),
+			Html.div(
+				[Design.bucketHeader],
+				[
+					Html.h2([Design.sectionHeading], [Html.text(title)]),
+					Html.span(
+						[
+							if overdue {
+								Design.overdueBucketCount
+							} else {
+								Design.bucketCount
+							},
+						],
+						[Html.text(tasks.len().to_str())],
+					),
+				],
+			),
 			task_list(tasks, Route.TaskContext.WorkList, False),
 		],
 	)
